@@ -12,9 +12,9 @@ import {
 const INICIAL: EstadoAccionConfig = { error: null, ok: null };
 
 const CHIP_ROL: Record<string, string> = {
-  ADMIN: "bg-amber-brand/20 text-amber-800",
-  MESERO: "bg-[#4aa3ff]/15 text-[#2b7dc0]",
-  COCINA: "bg-[#b06fd0]/15 text-[#8d4bab]",
+  ADMIN: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
+  MESERO: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  COCINA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
 };
 
 const ROL_TXT: Record<string, string> = {
@@ -26,14 +26,14 @@ const ROL_TXT: Record<string, string> = {
 export function Aviso({ estado }: { estado: EstadoAccionConfig }) {
   if (estado.error) {
     return (
-      <p className="mt-2 rounded-lg bg-danger/10 px-2.5 py-1.5 text-xs font-bold text-danger">
+      <p className="mt-2 rounded-lg bg-danger/10 px-2.5 py-1.5 text-xs font-bold text-[#f0a6a3] ring-1 ring-danger/20">
         {estado.error}
       </p>
     );
   }
   if (estado.ok) {
     return (
-      <p className="mt-2 rounded-lg bg-success/10 px-2.5 py-1.5 text-xs font-bold text-success-dark">
+      <p className="mt-2 rounded-lg bg-success/10 px-2.5 py-1.5 text-xs font-bold text-[#a7dd83] ring-1 ring-success/20">
         ✅ {estado.ok}
       </p>
     );
@@ -63,15 +63,15 @@ function FilaUsuario({ usuario }: { usuario: UsuarioDetalle }) {
     <div
       className={
         "rounded-2xl p-4 ring-1 " +
-        (usuario.activo ? "bg-white ring-cream-300" : "bg-cream-100 ring-cream-200 opacity-80")
+        (usuario.activo ? "bg-white/[0.02] ring-white/10" : "bg-white/5 ring-white/10 opacity-80")
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-bold text-brown-800">{usuario.nombre}</span>
+        <span className="font-bold text-white">{usuario.nombre}</span>
         <span
           className={
             "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-            (CHIP_ROL[usuario.rol] ?? "bg-cream-200 text-brown-600")
+            (CHIP_ROL[usuario.rol] ?? "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
           }
         >
           {ROL_TXT[usuario.rol] ?? usuario.rol}
@@ -80,13 +80,13 @@ function FilaUsuario({ usuario }: { usuario: UsuarioDetalle }) {
           className={
             "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
             (usuario.activo
-              ? "bg-success/15 text-success-dark"
-              : "bg-brown-800/10 text-brown-500")
+              ? "bg-success/10 text-[#a7dd83] ring-1 ring-success/20"
+              : "bg-white/5 text-cream-200/45 ring-1 ring-white/10")
           }
         >
           {usuario.activo ? "Activo" : "Inactivo"}
         </span>
-        <span className="ml-auto font-mono text-xs font-bold text-brown-500">
+        <span className="ml-auto font-mono text-xs font-bold text-cream-200/45">
           PIN: {usuario.pin}
         </span>
       </div>
@@ -100,12 +100,12 @@ function FilaUsuario({ usuario }: { usuario: UsuarioDetalle }) {
             inputMode="numeric"
             maxLength={4}
             placeholder="Nuevo PIN"
-            className="w-28 rounded-xl border-0 bg-cream-50 px-3 py-2 text-sm font-bold text-brown-800 ring-1 ring-cream-300 focus:ring-2 focus:ring-amber-brand"
+            className="w-28 rounded-2xl border-0 bg-white/5 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/10 placeholder:text-cream-200/25 focus:ring-2 focus:ring-amber-brand/60"
           />
           <button
             type="submit"
             disabled={pinPendiente}
-            className="rounded-xl bg-brown-800 px-3.5 py-2 text-xs font-bold text-cream-100 transition hover:bg-brown-700 disabled:opacity-50"
+            className="rounded-2xl bg-white/5 px-3.5 py-2 text-xs font-bold text-cream-100 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
           >
             {pinPendiente ? "Guardando…" : "Guardar PIN"}
           </button>
@@ -118,10 +118,10 @@ function FilaUsuario({ usuario }: { usuario: UsuarioDetalle }) {
             type="submit"
             disabled={altPendiente}
             className={
-              "rounded-xl px-3.5 py-2 text-xs font-bold transition disabled:opacity-50 " +
+              "rounded-2xl px-3.5 py-2 text-xs font-bold transition disabled:opacity-50 " +
               (usuario.activo
-                ? "border border-danger/40 bg-white text-danger hover:bg-danger/10"
-                : "bg-success/20 text-success-dark hover:bg-success/30")
+                ? "border border-danger/40 bg-white/5 text-[#f0a6a3] hover:bg-danger/10"
+                : "bg-success/10 text-[#a7dd83] ring-1 ring-success/20 hover:bg-success/25")
             }
           >
             {altPendiente ? "…" : usuario.activo ? "Desactivar" : "Activar"}
@@ -142,29 +142,29 @@ export function PanelUsuarios({ usuarios }: { usuarios: UsuarioDetalle[] }) {
   );
 
   return (
-    <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-      <h2 className="font-display text-xl text-brown-800">
+    <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+      <h2 className="font-display text-xl text-white">
         Usuarios y PINs
       </h2>
-      <p className="mt-1 text-sm text-brown-600">
+      <p className="mt-1 text-sm text-cream-200/70">
         Cada integrante entra con su rol y su PIN de 4 dígitos. El PIN se puede
         repetir entre roles distintos, pero no entre personas del mismo rol.
       </p>
 
       {/* Crear usuario */}
-      <form action={accion} className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-cream-50 p-3.5 ring-1 ring-cream-200">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brown-800/10 text-brown-700">
+      <form action={accion} className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white/5 p-3.5 ring-1 ring-white/10">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-cream-100">
           <UserPlus className="h-4.5 w-4.5" />
         </span>
         <input
           name="nombre"
           placeholder="Nombre (ej: Andrés)"
           maxLength={40}
-          className="w-36 rounded-xl border-0 bg-white px-3 py-2 text-sm font-bold text-brown-800 ring-1 ring-cream-300 focus:ring-2 focus:ring-amber-brand"
+          className="w-36 rounded-xl border-0 bg-white/5 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/10 placeholder:text-cream-200/25 focus:ring-2 focus:ring-amber-brand/60"
         />
         <select
           name="rol"
-          className="rounded-xl border-0 bg-white px-2.5 py-2 text-sm font-bold text-brown-800 ring-1 ring-cream-300 focus:ring-2 focus:ring-amber-brand"
+          className="rounded-xl border-0 bg-white/5 px-2.5 py-2 text-sm font-bold text-white ring-1 ring-white/10 focus:ring-2 focus:ring-amber-brand/60"
         >
           <option value="MESERO">Mesero</option>
           <option value="COCINA">Cocina</option>
@@ -175,12 +175,12 @@ export function PanelUsuarios({ usuarios }: { usuarios: UsuarioDetalle[] }) {
           inputMode="numeric"
           maxLength={4}
           placeholder="PIN 4 dígitos"
-          className="w-28 rounded-xl border-0 bg-white px-3 py-2 text-sm font-bold text-brown-800 ring-1 ring-cream-300 focus:ring-2 focus:ring-amber-brand"
+          className="w-28 rounded-xl border-0 bg-white/5 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/10 placeholder:text-cream-200/25 focus:ring-2 focus:ring-amber-brand/60"
         />
         <button
           type="submit"
           disabled={pendiente}
-          className="rounded-xl bg-orange-brand px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-brand disabled:opacity-50"
+          className="rounded-xl bg-amber-brand px-4 py-2 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-white disabled:opacity-50"
         >
           {pendiente ? "Creando…" : "Crear usuario"}
         </button>

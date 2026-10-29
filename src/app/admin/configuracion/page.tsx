@@ -24,16 +24,16 @@ export default async function PaginaConfiguracion() {
     mesas.reduce((max, m) => Math.max(max, m.numero), 0) + 1;
 
   const tarjetaImpresora = (
-    <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-      <h2 className="flex items-center gap-2 font-display text-xl text-brown-800">
-        <Printer className="h-5 w-5 text-brown-600" /> Impresora de tickets
+    <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+      <h2 className="flex items-center gap-2 font-display text-xl text-white">
+        <Printer className="h-5 w-5 text-cream-200/70" /> Impresora de tickets
       </h2>
-      <p className="mt-1 text-sm text-brown-600">
+      <p className="mt-1 text-sm text-cream-200/70">
         Las comandas de cocina se imprimen desde la pantalla de cocina con el
         botón «Imprimir». El ticket ya viene formateado para papel de 80 mm; lo
         único que hay que hacer es dejar la impresora lista en esta computadora.
       </p>
-      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-brown-700">
+      <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-cream-100">
         <li>
           Conecta la impresora térmica de 80&nbsp;mm por USB y enciéndela;
           Windows normalmente instala el controlador sola (si no, busca

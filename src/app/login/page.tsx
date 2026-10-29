@@ -40,7 +40,7 @@ export default async function LoginPage() {
             { t: "Comanda instantánea", d: "Directo a cocina" },
             { t: "Stock en vivo", d: "Porciones exactas" },
           ].map((f) => (
-            <div key={f.t} className="rounded-2xl bg-brown-800/70 p-4">
+            <div key={f.t} className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
               <p className="font-semibold text-cream-100">{f.t}</p>
               <p className="mt-1 text-sm text-amber-brand/90">{f.d}</p>
             </div>
@@ -49,7 +49,7 @@ export default async function LoginPage() {
       </section>
 
       {/* Login (o panel derecho) — con aire para la barra del sistema */}
-      <section className="flex min-h-screen items-center justify-center bg-cream-100 p-6 pie-seguro">
+      <section className="flex min-h-screen items-center justify-center bg-fondo-kds p-6 pie-seguro">
         <FormularioLogin logoSrc={logo.src} />
       </section>
     </main>

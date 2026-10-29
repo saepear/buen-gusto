@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 import { ESTADO_MESA, type EstadoMesa } from "@/lib/roles";
 
 const ESTILO_ESTADO: Record<EstadoMesa, string> = {
-  LIBRE: "bg-success/15 text-success-dark",
-  OCUPADA: "bg-orange-brand/15 text-orange-brand",
-  POR_PAGAR: "bg-warning/15 text-amber-700",
+  LIBRE: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
+  OCUPADA: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
+  POR_PAGAR: "bg-warning/10 text-[#f0cf6d] ring-1 ring-warning/20",
 };
 
 export default async function PaginaMesas() {
@@ -28,10 +28,10 @@ export default async function PaginaMesas() {
           return (
             <div
               key={mesa.id}
-              className="rounded-2xl bg-white p-5 ring-1 ring-cream-300"
+              className="rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/10"
             >
               <div className="flex items-center justify-between">
-                <span className="font-display text-4xl text-brown-800">
+                <span className="font-display text-4xl text-white">
                   #{mesa.numero}
                 </span>
                 <span
@@ -47,7 +47,7 @@ export default async function PaginaMesas() {
                       : "Por pagar"}
                 </span>
               </div>
-              <p className="mt-3 text-sm text-brown-500">
+              <p className="mt-3 text-sm text-cream-200/45">
                 {estado === ESTADO_MESA.LIBRE
                   ? "Disponible para clientes"
                   : "Revisa la cuenta en la caja"}
@@ -57,7 +57,7 @@ export default async function PaginaMesas() {
         })}
       </div>
 
-      <p className="mt-6 flex items-center gap-2 text-sm text-brown-500">
+      <p className="mt-6 flex items-center gap-2 text-sm text-cream-200/45">
         <LayoutGrid className="h-4 w-4" />
         Al cobrar una mesa (caja) volverá a quedar «Libre» automáticamente.
       </p>

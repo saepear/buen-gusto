@@ -6,9 +6,9 @@ export function EncabezadoPagina({
   subtitulo?: string;
 }) {
   return (
-    <header className="mb-8">
-      <h1 className="font-display text-3xl text-brown-800">{titulo}</h1>
-      {subtitulo && <p className="mt-1 text-brown-600">{subtitulo}</p>}
+    <header className="mb-9">
+      <h1 className="font-display text-4xl text-white">{titulo}</h1>
+      {subtitulo && <p className="mt-2 text-cream-200/50">{subtitulo}</p>}
     </header>
   );
 }

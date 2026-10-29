@@ -69,5 +69,5 @@ export const CHIP_ESTADO_PEDIDO: Record<string, string> = {
   CANCELADO:
     "bg-danger/15 text-[#f09490] border border-danger/40",
   COBRADO:
-    "bg-cream-200 text-brown-600 border border-cream-300",
+    "bg-white/5 text-cream-200/60 border border-white/10",
 };

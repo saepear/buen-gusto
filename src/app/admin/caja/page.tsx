@@ -11,9 +11,9 @@ import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 export const metadata = { title: "Caja y recibos" };
 
 const CHIP_METODO: Record<string, string> = {
-  EFECTIVO: "bg-success/15 text-success-dark",
-  TARJETA: "bg-[#4aa3ff]/15 text-[#2b7dc0]",
-  TRANSFERENCIA: "bg-[#b06fd0]/15 text-[#8d4bab]",
+  EFECTIVO: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
+  TARJETA: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  TRANSFERENCIA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
 };
 
 const METODO_TXT: Record<string, string> = {
@@ -102,7 +102,7 @@ export default async function PaginaCaja() {
       />
 
       {/* Resumen del día */}
-      <div className="mb-6 rounded-3xl bg-brown-800 p-6 text-cream-100 shadow-lg shadow-brown-800/20">
+      <div className="mb-6 rounded-[2rem] bg-brown-900/60 p-6 text-cream-100 ring-1 ring-white/10 shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="font-display text-3xl text-amber-brand">
@@ -116,25 +116,25 @@ export default async function PaginaCaja() {
                   }`}
             </p>
           </div>
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brown-700/70 text-amber-brand">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-amber-brand ring-1 ring-white/10">
             <Receipt className="h-7 w-7" />
           </span>
         </div>
       </div>
 
       {/* Mesas por cobrar */}
-      <h2 className="mb-3 font-display text-xl text-brown-800">
+      <h2 className="mb-3 font-display text-xl text-white">
         Mesas por cobrar
       </h2>
       {paraCobrar.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-3xl border-2 border-dashed border-brown-600/25 bg-cream-100 p-10 text-center">
-          <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-brown-800/10 text-brown-700">
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+          <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/5 text-cream-200/45">
             <Coffee className="h-10 w-10" />
           </span>
-          <p className="mt-5 font-display text-2xl text-brown-800">
+          <p className="mt-5 font-display text-2xl text-white">
             Caja en calma
           </p>
-          <p className="mt-2 max-w-md text-brown-600">
+          <p className="mt-2 max-w-md text-cream-200/70">
             Todas las mesas están libres. Cuando el mesero tome un pedido,
             la mesa aparecerá aquí con su cuenta lista para cobrar.
           </p>
@@ -150,7 +150,7 @@ export default async function PaginaCaja() {
       {/* Recibos emitidos hoy */}
       {pagosHoy.length > 0 ? (
         <>
-          <h2 className="mb-3 mt-8 font-display text-xl text-brown-800">
+          <h2 className="mb-3 mt-8 font-display text-xl text-white">
             Recibos de hoy
           </h2>
           <div className="space-y-2">
@@ -158,27 +158,27 @@ export default async function PaginaCaja() {
               <Link
                 key={pago.id}
                 href={`/admin/caja/recibo/${pago.id}`}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white px-4 py-3 ring-1 ring-cream-300 transition hover:ring-amber-brand"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/[0.02] px-4 py-3 ring-1 ring-white/10 transition hover:ring-amber-brand"
               >
-                <Receipt className="h-4 w-4 text-brown-600" />
-                <span className="text-sm font-bold text-brown-800">
+                <Receipt className="h-4 w-4 text-cream-200/70" />
+                <span className="text-sm font-bold text-white">
                   Pago #{pago.id}
                 </span>
-                <span className="text-sm text-brown-600">
+                <span className="text-sm text-cream-200/70">
                   Mesa #{pago.pedido.mesa.numero}
                 </span>
-                <span className="text-xs text-brown-500">
+                <span className="text-xs text-cream-200/45">
                   {formatHora(pago.createdAt)}
                 </span>
                 <span
                   className={
                     "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-                    (CHIP_METODO[pago.metodo] ?? "bg-cream-200 text-brown-600")
+                    (CHIP_METODO[pago.metodo] ?? "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
                   }
                 >
                   {METODO_TXT[pago.metodo] ?? pago.metodo}
                 </span>
-                <span className="ml-auto text-sm font-bold text-brown-800">
+                <span className="ml-auto text-sm font-bold text-white">
                   {formatCOP(pago.total + pago.propina)}
                 </span>
               </Link>

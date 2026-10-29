@@ -35,21 +35,27 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
   return (
     <>
       {/* Escritorio: sidebar fijo */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-brown-950 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/5 bg-fondo-kds lg:flex">
         <div className="flex items-center gap-3 px-5 pb-4 pt-6">
-          <Image
-            src="/logo.png"
-            alt="El Buen Gusto"
-            width={56}
-            height={56}
-            unoptimized
-            priority
-          />
+          <div className="relative shrink-0">
+            <div className="absolute -inset-1 rounded-full bg-amber-brand/20 blur-sm"></div>
+            <Image
+              src="/logo.png"
+              alt="El Buen Gusto"
+              width={48}
+              height={48}
+              unoptimized
+              priority
+              className="relative rounded-full"
+            />
+          </div>
           <div>
             <p className="font-display text-lg leading-tight text-amber-brand">
               El Buen Gusto
             </p>
-            <p className="text-xs text-cream-200/70">Sistema POS</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
+              Sistema POS
+            </p>
           </div>
         </div>
 
@@ -65,7 +71,7 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition " +
                   (activo
                     ? "bg-amber-brand text-brown-950"
-                    : "text-cream-100/85 hover:bg-brown-800 hover:text-cream-100")
+                    : "text-cream-200/70 hover:bg-white/5 hover:text-white")
                 }
               >
                 <Icono className="h-5 w-5 shrink-0" />
@@ -75,12 +81,12 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
           })}
         </nav>
 
-        <div className="border-t border-brown-700/60 p-3">
+        <div className="border-t border-white/5 p-3">
           <p className="px-3 pb-2 text-sm font-bold text-cream-100">{nombre}</p>
           <form action={cerrarSesion}>
             <button
               type="submit"
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-cream-200/75 transition hover:bg-danger/15 hover:text-danger"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-cream-200/70 transition hover:bg-danger/15 hover:text-danger"
             >
               <LogOut className="h-5 w-5" /> Cerrar sesión
             </button>
@@ -89,7 +95,7 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
       </aside>
 
       {/* Móvil: barra superior + navegación horizontal */}
-      <header className="sticky top-0 z-30 flex items-center justify-between bg-brown-950 px-4 pb-3 cabeza-seguro lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 bg-fondo-kds/80 px-4 pb-3 cabeza-seguro backdrop-blur-xl lg:hidden">
         <div className="flex items-center gap-2.5">
           <Image src="/logo.png" alt="Logo" width={38} height={38} unoptimized />
           <strong className="font-display text-amber-brand">El Buen Gusto</strong>
@@ -98,13 +104,13 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
           <button
             type="submit"
             title="Cerrar sesión"
-            className="rounded-lg p-2 text-cream-200/75 transition hover:text-danger"
+            className="rounded-lg p-2 text-cream-200/70 transition hover:text-danger"
           >
             <LogOut className="h-5 w-5" />
           </button>
         </form>
       </header>
-      <nav className="flex gap-1 overflow-x-auto bg-brown-900 px-2 py-2 lg:hidden">
+      <nav className="flex gap-1 overflow-x-auto border-b border-white/5 bg-fondo-kds px-2 py-2 lg:hidden">
         {NAV.map(({ href, etiqueta, Icono }) => {
           const activo =
             href === "/admin" ? ruta === href : ruta.startsWith(href);
@@ -116,7 +122,7 @@ export function SidebarAdmin({ nombre }: { nombre: string }) {
                 "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition " +
                 (activo
                   ? "bg-amber-brand text-brown-950"
-                  : "text-cream-100/80 hover:bg-brown-800")
+                  : "text-cream-200/70 hover:bg-white/5 hover:text-white")
               }
             >
               <Icono className="h-4 w-4" /> {etiqueta}

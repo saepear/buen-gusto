@@ -112,7 +112,7 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
   const puntos = "●".repeat(pin.length) + "○".repeat(4 - pin.length);
 
   return (
-    <div className="w-full max-w-sm rounded-3xl bg-white p-5 sm:p-8 shadow-xl shadow-brown-800/10 ring-1 ring-cream-300">
+    <div className="w-full max-w-sm rounded-[2rem] bg-brown-900/60 p-5 sm:p-8 ring-1 ring-white/10 shadow-2xl">
       {/* Logo compacto en móvil */}
       {rol === null && (
         <div className="mb-6 text-center lg:hidden">
@@ -130,8 +130,8 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
 
       {rol === null ? (
         <>
-          <h2 className="font-display text-2xl text-brown-800">¿Quién entra?</h2>
-          <p className="mt-1 text-sm text-brown-600">
+          <h2 className="font-display text-2xl text-white">¿Quién entra?</h2>
+          <p className="mt-1 text-sm text-cream-200/70">
             Selecciona tu rol y luego ingresa tu PIN.
           </p>
           <div className="mt-6 grid gap-3">
@@ -140,16 +140,16 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
                 key={r}
                 type="button"
                 onClick={() => elegirRol(OPCIONES.find((o) => o.rol === r)!)}
-                className="group flex items-center gap-4 rounded-2xl bg-cream-50 p-4 text-left ring-1 ring-cream-300 transition hover:bg-brown-800 hover:ring-brown-800"
+                className="group flex items-center gap-4 rounded-2xl bg-white/5 p-4 text-left ring-1 ring-white/10 transition hover:bg-white/10"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-brand/20 text-orange-brand transition group-hover:bg-amber-brand/30">
                   <Icono className="h-6 w-6" />
                 </span>
                 <span>
-                  <span className="block font-bold text-brown-800 transition group-hover:text-cream-100">
+                  <span className="block font-bold text-white transition group-hover:text-cream-100">
                     {titulo}
                   </span>
-                  <span className="block text-sm text-brown-500 transition group-hover:text-cream-200/80">
+                  <span className="block text-sm text-cream-200/45 transition group-hover:text-cream-200/80">
                     {detalle}
                   </span>
                 </span>
@@ -162,24 +162,24 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
           <button
             type="button"
             onClick={() => setRol(null)}
-            className="text-sm text-brown-500 transition hover:text-orange-brand"
+            className="text-sm text-cream-200/45 transition hover:text-orange-brand"
           >
             ← Cambiar de rol
           </button>
-          <h2 className="mt-2 font-display text-2xl text-brown-800">
+          <h2 className="mt-2 font-display text-2xl text-white">
             {rol.titulo}
           </h2>
-          <p className="mt-1 text-sm text-brown-600">
+          <p className="mt-1 text-sm text-cream-200/70">
             {rol.detalle} · ingresa tu PIN de 4 dígitos
           </p>
 
-          <div className="mt-5 flex justify-center gap-3 font-display text-3xl tracking-[0.35em] text-brown-800">
+          <div className="mt-5 flex justify-center gap-3 font-display text-3xl tracking-[0.35em] text-white">
             {puntos}
             <span className="sr-only">{pin}</span>
           </div>
 
           {pendiente ? (
-            <p className="mt-3 text-center text-sm font-medium text-brown-500">
+            <p className="mt-3 text-center text-sm font-medium text-cream-200/45">
               Verificando…
             </p>
           ) : estado.error ? (
@@ -224,7 +224,7 @@ function TeclaPin({
     <button
       type="button"
       onClick={() => onClick(d)}
-      className="h-14 rounded-xl bg-cream-100 font-display text-xl text-brown-800 ring-1 ring-cream-300 transition enabled:hover:bg-amber-brand/25 active:scale-95"
+      className="h-14 rounded-xl bg-white/5 font-display text-xl text-white ring-1 ring-white/10 transition enabled:hover:bg-amber-brand/25 active:scale-95"
     >
       {icono ?? (borrar ? "Limpiar" : d)}
     </button>

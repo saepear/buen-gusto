@@ -40,12 +40,12 @@ export default async function PaginaMesero() {
   ];
 
   return (
-    <div className="min-h-screen bg-cream-100">
+    <div className="min-h-screen bg-fondo-kds">
       <EncabezadoMesero usuario={sesion.nombre} titulo="Mis mesas" />
 
       <main className="mx-auto max-w-lg sm:max-w-2xl p-4 sm:p-6 pb-16">
         {/* Saludo + foto del comedor */}
-        <section className="rounded-3xl bg-brown-900 p-5 shadow-suave ring-1 ring-brown-800">
+        <section className="rounded-[2rem] bg-brown-900/60 p-5 ring-1 ring-white/10 shadow-2xl">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-brand/20 text-amber-brand ring-1 ring-amber-brand/30">
               <UtensilsCrossed className="h-5 w-5" />
@@ -63,9 +63,9 @@ export default async function PaginaMesero() {
             {estadisticas.map(({ txt, valor, Icono }) => (
               <div
                 key={txt}
-                className="rounded-2xl bg-brown-800/70 p-2.5 text-center ring-1 ring-brown-700/60"
+                className="rounded-2xl bg-white/5 p-2.5 text-center ring-1 ring-white/10"
               >
-                <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wide text-cream-200/70">
+                <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
                   <Icono className="h-3 w-3" /> {txt}
                 </p>
                 <p className="mt-0.5 font-display text-lg text-amber-brand">{valor}</p>
@@ -88,23 +88,23 @@ export default async function PaginaMesero() {
                 className={
                   "group flex flex-col items-center rounded-3xl p-3.5 pt-4 text-center transition active:scale-95 " +
                   (libre
-                    ? "bg-white shadow-suave ring-1 ring-cream-300 hover:ring-orange-brand/50"
+                    ? "bg-white/[0.02] ring-1 ring-white/10 hover:ring-amber-brand/50"
                     : porPagarMesa
-                      ? "bg-warning/15 shadow-suave ring-2 ring-warning/50"
-                      : "bg-orange-brand/10 shadow-suave ring-2 ring-orange-brand/40")
+                      ? "bg-warning/10 ring-1 ring-warning/40"
+                      : "bg-orange-brand/10 ring-1 ring-orange-brand/40")
                 }
               >
-                <span className="font-display text-3xl leading-none text-brown-800">
+                <span className="font-display text-3xl leading-none text-white">
                   #{mesa.numero}
                 </span>
                 <span
                   className={
                     "mt-2 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide " +
                     (libre
-                      ? "bg-success/15 text-success-dark"
+                      ? "bg-success/10 text-[#a7dd83] ring-1 ring-success/20"
                       : porPagarMesa
-                        ? "bg-warning/30 text-amber-700"
-                        : "bg-orange-brand/20 text-orange-brand")
+                        ? "bg-warning/10 text-[#f0cf6d] ring-1 ring-warning/20"
+                        : "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20")
                   }
                 >
                   <span
@@ -125,7 +125,7 @@ export default async function PaginaMesero() {
                     <Plus className="h-3 w-3" /> Tomar pedido
                   </span>
                 ) : (
-                  <span className="mt-3 flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-bold text-brown-700 ring-1 ring-cream-300">
+                  <span className="mt-3 flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-[11px] font-bold text-cream-200/70 ring-1 ring-white/10">
                     <ClipboardList className="h-3 w-3" />
                     {vivas} {vivas === 1 ? "comanda" : "comandas"}
                   </span>
@@ -135,7 +135,7 @@ export default async function PaginaMesero() {
           })}
         </div>
 
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-brown-500">
+        <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-cream-200/45">
           <UtensilsCrossed className="h-3.5 w-3.5" />
           Las porciones disponibles se descuentan en cuanto envías la comanda.
         </p>

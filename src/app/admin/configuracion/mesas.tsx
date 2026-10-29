@@ -9,9 +9,9 @@ import { Aviso } from "./usuarios";
 const INICIAL: EstadoAccionConfig = { error: null, ok: null };
 
 const ESTILO_ESTADO: Record<EstadoMesa, string> = {
-  LIBRE: "bg-success/15 text-success-dark",
-  OCUPADA: "bg-orange-brand/15 text-orange-brand",
-  POR_PAGAR: "bg-warning/15 text-amber-700",
+  LIBRE: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
+  OCUPADA: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
+  POR_PAGAR: "bg-warning/10 text-[#f0cf6d] ring-1 ring-warning/20",
 };
 
 const TEXTO_ESTADO: Record<EstadoMesa, string> = {
@@ -39,16 +39,16 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
     <div
       className={
         oculta
-          ? "rounded-2xl bg-cream-100 p-4 ring-1 ring-cream-200 opacity-75"
-          : "rounded-2xl bg-white p-4 ring-1 ring-cream-300"
+          ? "rounded-2xl bg-white/5 p-4 ring-1 ring-white/10 opacity-75"
+          : "rounded-2xl bg-white/[0.02] p-4 ring-1 ring-white/10"
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-display text-3xl text-brown-800">
+        <span className="font-display text-3xl text-white">
           #{mesa.numero}
         </span>
         {oculta ? (
-          <span className="rounded-full bg-brown-800/10 px-2.5 py-0.5 text-[10px] font-bold text-brown-500">
+          <span className="rounded-full bg-white/5 px-2.5 py-0.5 text-[10px] font-bold text-cream-200/45">
             Oculta
           </span>
         ) : (
@@ -71,8 +71,8 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
           className={
             "flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold transition disabled:opacity-50 " +
             (oculta
-              ? "bg-success/20 text-success-dark hover:bg-success/30"
-              : "border border-danger/40 bg-white text-danger hover:bg-danger/10")
+              ? "bg-success/10 text-[#a7dd83] ring-1 ring-success/20 hover:bg-success/25"
+              : "border border-danger/40 bg-white/5 text-[#f0a6a3] hover:bg-danger/10")
           }
         >
           {pendiente ? (
@@ -108,9 +108,9 @@ export function PanelMesas({
   const ocultas = mesas.filter((m) => !m.activa);
 
   return (
-    <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-      <h2 className="font-display text-xl text-brown-800">Mesas del salón</h2>
-      <p className="mt-1 text-sm text-brown-600">
+    <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+      <h2 className="font-display text-xl text-white">Mesas del salón</h2>
+      <p className="mt-1 text-sm text-cream-200/70">
         Los meseros y la caja solo ven las {activas.length} mesas visibles.
         Ocultar una mesa no borra su historial: solo se puede si está libre.
       </p>
@@ -118,9 +118,9 @@ export function PanelMesas({
       {/* Crear mesa */}
       <form
         action={accion}
-        className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-cream-50 p-3.5 ring-1 ring-cream-200"
+        className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-white/5 p-3.5 ring-1 ring-white/10"
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brown-800/10 text-brown-700">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-cream-100">
           <Plus className="h-4.5 w-4.5" />
         </span>
         <input
@@ -128,12 +128,12 @@ export function PanelMesas({
           inputMode="numeric"
           defaultValue={sugerida}
           aria-label="Número de la mesa nueva"
-          className="w-24 rounded-xl border-0 bg-white px-3 py-2 text-sm font-bold text-brown-800 ring-1 ring-cream-300 focus:ring-2 focus:ring-amber-brand"
+          className="w-24 rounded-xl border-0 bg-white/5 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/10 focus:ring-2 focus:ring-amber-brand/60"
         />
         <button
           type="submit"
           disabled={pendiente}
-          className="rounded-xl bg-orange-brand px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-brand disabled:opacity-50"
+          className="rounded-xl bg-amber-brand px-4 py-2 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-white disabled:opacity-50"
         >
           {pendiente ? "Creando…" : "Agregar mesa"}
         </button>
@@ -152,7 +152,7 @@ export function PanelMesas({
       {/* Mesas ocultas */}
       {ocultas.length > 0 ? (
         <div className="mt-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-brown-500">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
             Ocultas ({ocultas.length})
           </p>
           <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">

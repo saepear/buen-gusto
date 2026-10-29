@@ -24,6 +24,9 @@
   --color-orange-brand: #ed7d1f;
   --color-ink: #20100a;
 
+  /* Fondo de la casa (esquema oscuro del KDS) */
+  --color-fondo-kds: #0f0a07;
+
   /* Semánticos */
   --color-success: #7cb93f;
   --color-danger: #d9534f;
@@ -47,13 +50,16 @@
 .animar-aparecer { animation: aparecer 0.15s ease-out; }
 .animar-subir { animation: subir 0.2s ease-out; }
 
+/* ============ Esquema oscuro de la casa (KDS) ============ */
 body {
-  background: var(--color-cream-50);
-  color: var(--color-brown-800);
+  background: var(--color-fondo-kds);
+  color: var(--color-cream-100);
 }
 
 /* ============ Fase 9 · Móvil (Android / iOS / tablet) ============ */
 html {
+  /* Controles nativos (fecha, select, scroll) en modo oscuro */
+  color-scheme: dark;
   /* Toques limpios en iOS y Android, sin destello gris */
   -webkit-tap-highlight-color: transparent;
   /* Comportamiento de app: sin rebote ni «tirar para recargar» accidental */

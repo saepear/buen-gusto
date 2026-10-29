@@ -69,17 +69,17 @@ export default async function PaginaProductos() {
           const Icono = ICONO_TIPO[tipo];
           return (
             <section key={tipo}>
-              <h2 className="mb-3 flex items-center gap-2.5 font-display text-xl text-brown-800">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800/10 text-brown-700">
+              <h2 className="mb-3 flex items-center gap-2.5 font-display text-xl text-white">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-cream-100">
                   <Icono className="h-5 w-5" />
                 </span>
                 {TIPO_PRODUCTO_LABEL[tipo]}
-                <span className="text-sm font-normal text-brown-500">
+                <span className="text-sm font-normal text-cream-200/45">
                   · {DESCRIPCION_TIPO[tipo]}
                 </span>
               </h2>
               {delTipo.length === 0 ? (
-                <p className="rounded-2xl border-2 border-dashed border-brown-600/20 p-4 text-sm text-brown-500">
+                <p className="rounded-2xl border-2 border-dashed border-white/10 p-4 text-sm text-cream-200/45">
                   Aún no hay {TIPO_PRODUCTO_LABEL[tipo].toLowerCase()}s creados.
                 </p>
               ) : (
@@ -100,12 +100,12 @@ export default async function PaginaProductos() {
         })}
       </div>
 
-      <p className="mt-8 flex items-center gap-2 text-sm text-brown-500">
+      <p className="mt-8 flex items-center gap-2 text-sm text-cream-200/45">
         <Plus className="h-4 w-4" />
         Los productos eliminados no aparecen al armar el menú del día ni en la
         app del mesero; se pueden reactivar con el botón verde de su tarjeta.
       </p>
-      <p className="mt-2 text-xs text-brown-400">
+      <p className="mt-2 text-xs text-cream-200/35">
         El precio del almuerzo lo fija la combinación (con/sin sopa · mesa/llevar):
         completo $13.000, bandeja $12.000, llevar suma icopor $1.500. El precio
         del producto no se usa para el menú del día, solo para bebidas y extras.

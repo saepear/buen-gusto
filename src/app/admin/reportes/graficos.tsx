@@ -16,7 +16,7 @@ export function GraficoDinero({
           key={d.etiqueta}
           className="flex min-w-0 flex-1 flex-col items-center gap-1"
         >
-          <span className="text-[10px] font-bold leading-none text-brown-700">
+          <span className="text-[10px] font-bold leading-none text-cream-100">
             {d.valor > 0 ? formatCOP(d.valor) : ""}
           </span>
           <div className="flex h-28 w-full items-end">
@@ -31,7 +31,7 @@ export function GraficoDinero({
           <span
             className={
               "truncate text-[10px] leading-none " +
-              (d.resaltar ? "font-bold text-brown-800" : "text-brown-500")
+              (d.resaltar ? "font-bold text-white" : "text-cream-200/45")
             }
           >
             {d.etiqueta}
@@ -56,10 +56,10 @@ export function BarraUnidades({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-24 shrink-0 truncate text-sm font-bold text-brown-700">
+      <span className="w-24 shrink-0 truncate text-sm font-bold text-cream-100">
         {etiqueta}
       </span>
-      <div className="h-5 min-w-0 flex-1 rounded-full bg-cream-100">
+      <div className="h-5 min-w-0 flex-1 rounded-full bg-white/5">
         <div
           style={{
             width: `${Math.max(6, Math.round((unidades / Math.max(1, max)) * 100))}%`,
@@ -67,7 +67,7 @@ export function BarraUnidades({
           className="h-5 rounded-full bg-orange-brand"
         />
       </div>
-      <span className="w-28 shrink-0 text-right text-xs font-bold text-brown-600">
+      <span className="w-28 shrink-0 text-right text-xs font-bold text-cream-200/70">
         {unidades}×{detalle ? ` · ${detalle}` : ""}
       </span>
     </div>

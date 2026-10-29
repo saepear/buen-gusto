@@ -46,7 +46,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className={`${fredoka.variable} ${nunito.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans">
+      <body className="min-h-full bg-fondo-kds font-sans text-cream-100">
         {children}
         <RealtimeRefresh />
       </body>

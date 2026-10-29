@@ -55,9 +55,9 @@ export default async function PaginaCocina(
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0f0a07] text-cream-100 font-sans selection:bg-amber-brand/30">
+    <div className="flex min-h-screen flex-col bg-fondo-kds text-cream-100 font-sans selection:bg-amber-brand/30">
       {/* Navbar Minimalista */}
-      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-white/5 bg-[#0f0a07]/80 px-6 py-4 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-white/5 bg-fondo-kds/80 px-6 py-4 backdrop-blur-xl">
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="absolute -inset-1 rounded-full bg-amber-brand/20 blur-sm"></div>
@@ -107,12 +107,12 @@ export default async function PaginaCocina(
           
           <form method="GET" className="flex flex-wrap items-center gap-3">
             <div className="relative group">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brown-500 transition-colors group-focus-within:text-amber-brand" />
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cream-200/35 transition-colors group-focus-within:text-amber-brand" />
               <input
                 name="busqueda"
                 defaultValue={busqueda}
                 placeholder="Comanda o mesa..."
-                className="h-12 w-64 rounded-2xl bg-white/5 pl-11 pr-4 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-amber-brand/50 placeholder:text-brown-600"
+                className="h-12 w-64 rounded-2xl bg-white/5 pl-11 pr-4 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-amber-brand/50 placeholder:text-cream-200/25"
               />
             </div>
             <input
@@ -166,7 +166,7 @@ export default async function PaginaCocina(
                           <div>
                             <p className="font-bold text-white text-base">Mesa {pedido.mesa.numero}</p>
                             {pedido.paraLlevar && (
-                              <span className="text-[9px] font-black uppercase tracking-tighter text-orange-brand">Empaque Icopor</span>
+                              <span className="text-[9px] font-black uppercase tracking-tighter text-orange-brand">LLEVAR</span>
                             )}
                           </div>
                         </div>

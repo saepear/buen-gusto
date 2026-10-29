@@ -25,9 +25,9 @@ const METODO_TXT: Record<string, string> = {
 };
 
 const CHIP_METODO: Record<string, string> = {
-  EFECTIVO: "bg-success/15 text-success-dark",
-  TARJETA: "bg-[#4aa3ff]/15 text-[#2b7dc0]",
-  TRANSFERENCIA: "bg-[#b06fd0]/15 text-[#8d4bab]",
+  EFECTIVO: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
+  TARJETA: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  TRANSFERENCIA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
 };
 
 export default async function PaginaReportes() {
@@ -181,16 +181,16 @@ export default async function PaginaReportes() {
         ].map((tile) => (
           <div
             key={tile.nombre}
-            className="flex items-center gap-4 rounded-2xl bg-white p-5 ring-1 ring-cream-300"
+            className="flex items-center gap-4 rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cream-100 text-brown-700">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/5 text-cream-100">
               <tile.Icono className="h-5.5 w-5.5" />
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-brown-500">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
                 {tile.nombre}
               </p>
-              <p className="font-display text-2xl text-brown-800">
+              <p className="font-display text-2xl text-white">
                 {tile.valor}
               </p>
             </div>
@@ -205,22 +205,22 @@ export default async function PaginaReportes() {
             key={m}
             className={
               "rounded-full px-3 py-1.5 text-xs font-bold " +
-              (CHIP_METODO[m] ?? "bg-cream-200 text-brown-600")
+              (CHIP_METODO[m] ?? "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
             }
           >
             {METODO_TXT[m] ?? m}: {formatCOP(valor)}
           </span>
         ))}
-        <span className="flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1.5 text-xs font-bold text-success-dark">
+        <span className="flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-[#a7dd83] ring-1 ring-success/20">
           <UtensilsCrossed className="h-3.5 w-3.5" /> Servidas: {servidas.length}
         </span>
         {enCocina.length > 0 ? (
-          <span className="rounded-full bg-warning/25 px-3 py-1.5 text-xs font-bold text-amber-700">
+          <span className="rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-[#f0cf6d] ring-1 ring-warning/20">
             En cocina: {enCocina.length}
           </span>
         ) : null}
         {canceladas.length > 0 ? (
-          <span className="rounded-full bg-danger/15 px-3 py-1.5 text-xs font-bold text-danger">
+          <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-[#f0a6a3] ring-1 ring-danger/20">
             Canceladas: {canceladas.length}
           </span>
         ) : null}
@@ -228,12 +228,12 @@ export default async function PaginaReportes() {
 
       {/* Proteínas y extras */}
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-          <h2 className="font-display text-lg text-brown-800">
+        <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+          <h2 className="font-display text-lg text-white">
             Almuerzos servidos por proteína
           </h2>
           {proteinasLista.length === 0 ? (
-            <p className="mt-3 text-sm text-brown-500">
+            <p className="mt-3 text-sm text-cream-200/45">
               Sin almuerzos servidos todavía hoy.
             </p>
           ) : (
@@ -249,7 +249,7 @@ export default async function PaginaReportes() {
                   />
                 ))}
               </div>
-              <p className="mt-4 text-xs text-brown-500">
+              <p className="mt-4 text-xs text-cream-200/45">
                 Cada almuerzo del día se cuenta por su proteína; las comandas
                 canceladas no cuentan como ventas.
               </p>
@@ -257,12 +257,12 @@ export default async function PaginaReportes() {
           )}
         </section>
 
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-          <h2 className="font-display text-lg text-brown-800">
+        <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+          <h2 className="font-display text-lg text-white">
             Extras y bebidas vendidos
           </h2>
           {extrasLista.length === 0 ? (
-            <p className="mt-3 text-sm text-brown-500">
+            <p className="mt-3 text-sm text-cream-200/45">
               Sin bebidas ni adicionales vendidos hoy.
             </p>
           ) : (
@@ -283,24 +283,24 @@ export default async function PaginaReportes() {
 
       {/* Gráficos de ventas */}
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-          <h2 className="flex items-center gap-2 font-display text-lg text-brown-800">
-            <Clock className="h-5 w-5 text-brown-600" /> Ingresos por hora
+        <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+          <h2 className="flex items-center gap-2 font-display text-lg text-white">
+            <Clock className="h-5 w-5 text-cream-200/70" /> Ingresos por hora
           </h2>
           {horasLista.length > 0 ? (
             <div className="mt-5">
               <GraficoDinero datos={horasLista} />
             </div>
           ) : (
-            <p className="mt-3 text-sm text-brown-500">
+            <p className="mt-3 text-sm text-cream-200/45">
               Sin pagos registrados hoy.
             </p>
           )}
         </section>
 
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-cream-300">
-          <h2 className="flex items-center gap-2 font-display text-lg text-brown-800">
-            <CalendarDays className="h-5 w-5 text-brown-600" /> Últimos 7 días
+        <section className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+          <h2 className="flex items-center gap-2 font-display text-lg text-white">
+            <CalendarDays className="h-5 w-5 text-cream-200/70" /> Últimos 7 días
           </h2>
           <div className="mt-5">
             <GraficoDinero datos={dias} />
@@ -309,21 +309,21 @@ export default async function PaginaReportes() {
       </div>
 
       {/* Cierre de caja */}
-      <section className="mt-8 rounded-2xl bg-white p-6 ring-1 ring-cream-300">
-        <h2 className="font-display text-2xl text-brown-800">Cierre de caja</h2>
-        <p className="mt-1 text-sm text-brown-600">
+      <section className="mt-8 rounded-[2rem] bg-white/[0.02] p-6 ring-1 ring-white/10">
+        <h2 className="font-display text-2xl text-white">Cierre de caja</h2>
+        <p className="mt-1 text-sm text-cream-200/70">
           Congela los totales del sistema de HOY en un comprobante único. Hazlo
           al final del día, cuando ya nadie vaya a cobrar más.
         </p>
 
         {cierreHoy ? (
-          <div className="mt-5 rounded-2xl border-2 border-success/40 bg-success/10 p-5">
-            <p className="font-bold text-success-dark">
+          <div className="mt-5 rounded-2xl border border-success/30 bg-success/10 p-5">
+            <p className="font-bold text-[#a7dd83]">
               ✅ Cierre del {cierreHoy.fecha} registrado por{" "}
               {cierreHoy.cerradoPor.nombre} a las{" "}
               {formatHora(cierreHoy.createdAt)}.
             </p>
-            <div className="mt-4 grid gap-x-8 gap-y-2 text-sm text-brown-700 sm:grid-cols-2">
+            <div className="mt-4 grid gap-x-8 gap-y-2 text-sm text-cream-100 sm:grid-cols-2">
               <p className="flex justify-between">
                 <span>Total pagos (sin propinas)</span>
                 <span className="font-bold">{formatCOP(cierreHoy.totalPagos)}</span>
@@ -364,7 +364,7 @@ export default async function PaginaReportes() {
             </div>
           </div>
         ) : (
-          <div className="mt-5 grid gap-x-8 gap-y-2 rounded-2xl bg-cream-50 p-5 text-sm text-brown-700 ring-1 ring-cream-200">
+          <div className="mt-5 grid gap-x-8 gap-y-2 rounded-2xl bg-white/5 p-5 text-sm text-cream-100 ring-1 ring-white/10">
             <p className="flex justify-between">
               <span>Efectivo</span>
               <span className="font-bold">
@@ -383,7 +383,7 @@ export default async function PaginaReportes() {
                 {formatCOP(porMetodo.get("TRANSFERENCIA") ?? 0)}
               </span>
             </p>
-            <p className="flex justify-between border-t border-dashed border-brown-600/20 pt-2">
+            <p className="flex justify-between border-t border-dashed border-white/10 pt-2">
               <span>Total con propinas</span>
               <span className="font-bold">{formatCOP(pagadoHoy)}</span>
             </p>
@@ -395,7 +395,7 @@ export default async function PaginaReportes() {
       {/* Historial */}
       {cierres.length > 0 ? (
         <section className="mt-4">
-          <h2 className="mb-3 font-display text-xl text-brown-800">
+          <h2 className="mb-3 font-display text-xl text-white">
             Cierres anteriores
           </h2>
           <div className="space-y-2">
@@ -407,15 +407,15 @@ export default async function PaginaReportes() {
               return (
                 <div
                   key={c.id}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white px-4 py-3 ring-1 ring-cream-300"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/[0.02] px-4 py-3 ring-1 ring-white/10"
                 >
-                  <span className="text-sm font-bold text-brown-800">
+                  <span className="text-sm font-bold text-white">
                     {c.fecha}
                   </span>
-                  <span className="text-xs text-brown-500">
+                  <span className="text-xs text-cream-200/45">
                     {c.numeroPagos} pagos · {c.numeroComandas} comandas
                   </span>
-                  <span className="ml-auto text-sm font-bold text-brown-800">
+                  <span className="ml-auto text-sm font-bold text-white">
                     {formatCOP(c.totalPagos + c.totalPropinas)}
                   </span>
                   {diff !== null ? (
@@ -423,14 +423,14 @@ export default async function PaginaReportes() {
                       className={
                         "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
                         (diff >= 0
-                          ? "bg-success/15 text-success-dark"
-                          : "bg-danger/15 text-danger")
+                          ? "bg-success/10 text-[#a7dd83] ring-1 ring-success/20"
+                          : "bg-danger/10 text-[#f0a6a3] ring-1 ring-danger/20")
                       }
                     >
                       {diff >= 0 ? "sobra" : "faltan"} {formatCOP(Math.abs(diff))}
                     </span>
                   ) : null}
-                  <span className="text-xs text-brown-500">
+                  <span className="text-xs text-cream-200/45">
                     cerró {c.cerradoPor.nombre}
                   </span>
                 </div>
