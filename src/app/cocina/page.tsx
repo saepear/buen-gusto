@@ -22,12 +22,20 @@ export default async function PaginaCocina(
 
   const dia = fecha ? String(fecha) : claveDia(new Date());
 
+  const cierre = await db.cierreCaja.findUnique({ where: { fecha: dia } });
+
   const where: any = {
     createdAt: {
       gte: new Date(dia + "T00:00:00"),
       lte: new Date(dia + "T23:59:59"),
     },
   };
+
+  if (cierre) {
+    // Si hay cierre, solo mostramos las comandas activas (si quedaran)
+    // O mejor aún, no mostramos nada histórico si el día ya cerró operativamente
+    where.estado = { in: ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "SERVIDO", "POR_PAGAR"] };
+  }
 
   if (busqueda) {
     const query = String(busqueda).trim();
@@ -47,156 +55,173 @@ export default async function PaginaCocina(
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#150d08] text-cream-100">
-      <header className="flex items-center justify-between border-b border-brown-700/60 px-5 py-3.5 cabeza-seguro">
-        <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Logo" width={44} height={44} unoptimized />
+    <div className="flex min-h-screen flex-col bg-[#0f0a07] text-cream-100 font-sans selection:bg-amber-brand/30">
+      {/* Navbar Minimalista */}
+      <header className="sticky top-0 z-50 flex items-center justify-between border-b border-white/5 bg-[#0f0a07]/80 px-6 py-4 backdrop-blur-xl">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <div className="absolute -inset-1 rounded-full bg-amber-brand/20 blur-sm"></div>
+            <Image src="/logo.png" alt="Logo" width={42} height={42} className="relative rounded-full" unoptimized />
+          </div>
           <div>
-            <p className="font-display leading-none text-amber-brand">
+            <h1 className="font-display text-lg tracking-tight text-white">
               Gestión de Comandas
-            </p>
-            <p className="mt-1 text-xs text-cream-200/70">
-              Consulta, control e impresión de pedidos
-            </p>
+            </h1>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-cream-200/40">
+                Sistema Operativo en Vivo
+              </p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <AutoRefresco segundos={30} />
+        
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:block">
+            <AutoRefresco segundos={30} />
+          </div>
           {esAdmin ? (
             <Link
               href="/admin"
-              className="rounded-lg bg-brown-800 px-3 py-2 text-xs font-bold text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
+              className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs font-bold text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
             >
-              Volver al panel
+              Panel Admin
             </Link>
           ) : (
             <form action={cerrarSesion}>
-              <button className="rounded-lg bg-brown-800 px-3 py-2 text-xs font-bold text-cream-100 transition hover:bg-danger">
-                Salir
+              <button className="rounded-xl bg-white/5 px-4 py-2 text-xs font-bold text-cream-100 transition hover:bg-danger/20 hover:text-danger">
+                Cerrar Sesión
               </button>
             </form>
           )}
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 p-5 pie-seguro">
-        {/* Barra de búsqueda y filtros */}
-        <section className="mb-6 rounded-3xl bg-brown-900/40 p-5 ring-1 ring-brown-700/50">
-          <form method="GET" className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[240px]">
-              <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
-                Buscar comanda o mesa
-              </label>
-              <div className="flex items-center gap-2.5 rounded-2xl bg-brown-800/50 px-4 py-3 ring-1 ring-brown-700 focus-within:ring-amber-brand">
-                <Search className="h-4 w-4 text-brown-400" />
-                <input
-                  name="busqueda"
-                  defaultValue={busqueda}
-                  placeholder="Ej: 105 o Mesa 4..."
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-brown-500"
-                />
-              </div>
-            </div>
-            <div className="w-full sm:w-auto">
-              <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
-                Fecha
-              </label>
+      <main className="mx-auto w-full max-w-7xl flex-1 p-6 lg:p-10">
+        {/* Header de Sección y Filtros */}
+        <div className="mb-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="font-display text-4xl text-white">Órdenes</h2>
+            <p className="mt-2 text-cream-200/50">Control de flujo y despacho del restaurante</p>
+          </div>
+          
+          <form method="GET" className="flex flex-wrap items-center gap-3">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brown-500 transition-colors group-focus-within:text-amber-brand" />
               <input
-                type="date"
-                name="fecha"
-                defaultValue={dia}
-                className="w-full rounded-2xl bg-brown-800/50 px-4 py-3 text-sm ring-1 ring-brown-700 focus:ring-amber-brand outline-none [color-scheme:dark]"
+                name="busqueda"
+                defaultValue={busqueda}
+                placeholder="Comanda o mesa..."
+                className="h-12 w-64 rounded-2xl bg-white/5 pl-11 pr-4 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-amber-brand/50 placeholder:text-brown-600"
               />
             </div>
+            <input
+              type="date"
+              name="fecha"
+              defaultValue={dia}
+              className="h-12 rounded-2xl bg-white/5 px-4 text-sm text-white outline-none ring-1 ring-white/10 transition focus:ring-amber-brand/50 [color-scheme:dark]"
+            />
             <button
               type="submit"
-              className="rounded-2xl bg-amber-brand px-6 py-3 font-display text-brown-950 transition hover:bg-orange-brand hover:text-white active:scale-95"
+              className="h-12 rounded-2xl bg-amber-brand px-8 font-display text-sm font-bold text-brown-950 transition hover:scale-[1.02] active:scale-95"
             >
-              Filtrar
+              Actualizar
             </button>
-            { (busqueda || fecha !== claveDia(new Date())) && (
-              <Link
-                href="/cocina"
-                className="rounded-2xl border border-brown-700 px-6 py-3 text-sm font-bold text-cream-200/70 transition hover:bg-brown-800"
-              >
-                Limpiar
-              </Link>
-            )}
           </form>
-        </section>
+        </div>
 
         {pedidos.length === 0 ? (
-          <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
-            <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brown-800 text-amber-brand">
-              <Clock className="h-10 w-10" />
-            </span>
-            <h1 className="mt-6 font-display text-2xl text-cream-100">
-              No se encontraron comandas
-            </h1>
-            <p className="mt-2 text-sm text-cream-200/60">
-              Prueba ajustando la búsqueda o la fecha elegida.
-            </p>
+          <div className="flex min-h-[50vh] flex-col items-center justify-center text-center border-2 border-dashed border-white/5 rounded-[40px]">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/5 text-amber-brand/50">
+              <ShoppingBag className="h-8 w-8" />
+            </div>
+            <h3 className="mt-6 font-display text-2xl text-white">No hay registros</h3>
+            <p className="mt-2 text-cream-200/40">No se encontraron pedidos para los criterios seleccionados</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-3xl bg-brown-900/40 shadow-xl ring-1 ring-brown-700/50">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-brown-800/60 text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
-                <tr>
-                  <th className="px-6 py-4">Comanda</th>
-                  <th className="px-6 py-4">Mesa</th>
-                  <th className="px-6 py-4">Hora</th>
-                  <th className="px-6 py-4">Mesero</th>
-                  <th className="px-6 py-4">Estado</th>
-                  <th className="px-6 py-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brown-700/50">
-                {pedidos.map((pedido) => (
-                  <tr key={pedido.id} className="transition hover:bg-brown-800/30">
-                    <td className="px-6 py-4">
-                      <span className="font-display text-lg text-amber-brand">#{pedido.id}</span>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-cream-100">
-                      Mesa #{pedido.mesa.numero}
-                      {pedido.paraLlevar && (
-                        <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-orange-brand/20 px-1.5 py-0.5 text-[9px] font-bold text-orange-brand">
-                          LLEVAR
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-cream-200/70">
-                      {formatHora(pedido.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 text-cream-200/70">
-                      {pedido.mesero?.nombre ?? "—"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={
-                        "inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-                        (pedido.estado === "ENVIADO" ? "bg-amber-brand/20 text-amber-brand" :
-                         pedido.estado === "SERVIDO" ? "bg-success/20 text-[#a7dd83]" :
-                         pedido.estado === "COBRADO" ? "bg-brown-700 text-cream-200/60" :
-                         "bg-brown-800 text-cream-200/80")
-                      }>
-                        {pedido.estado.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/cocina/comanda/${pedido.id}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
-                        title="Ver e Imprimir"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </Link>
-                    </td>
+          <div className="relative overflow-hidden rounded-[32px] bg-white/[0.02] p-1 ring-1 ring-white/10 shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/30">
+                    <th className="px-8 py-6">ID</th>
+                    <th className="px-8 py-6">Origen</th>
+                    <th className="px-8 py-6">Registro</th>
+                    <th className="px-8 py-6">Responsable</th>
+                    <th className="px-8 py-6">Estado Actual</th>
+                    <th className="px-8 py-6 text-right">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {pedidos.map((pedido) => (
+                    <tr key={pedido.id} className="group transition-colors hover:bg-white/[0.03]">
+                      <td className="px-8 py-6">
+                        <span className="font-display text-xl text-amber-brand">#{pedido.id}</span>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 font-display text-white">
+                            {pedido.mesa.numero}
+                          </div>
+                          <div>
+                            <p className="font-bold text-white text-base">Mesa {pedido.mesa.numero}</p>
+                            {pedido.paraLlevar && (
+                              <span className="text-[9px] font-black uppercase tracking-tighter text-orange-brand">Empaque Icopor</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-2 text-cream-200/60">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>{formatHora(pedido.createdAt)}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-cream-200/80">{pedido.mesero?.nombre ?? "Sistema"}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className={
+                          "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider " +
+                          (pedido.estado === "ENVIADO" ? "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20" :
+                           pedido.estado === "SERVIDO" ? "bg-success/10 text-[#a7dd83] ring-1 ring-success/20" :
+                           pedido.estado === "COBRADO" ? "bg-white/5 text-cream-200/40" :
+                           pedido.estado === "CANCELADO" ? "bg-danger/10 text-danger ring-1 ring-danger/20" :
+                           "bg-white/5 text-cream-200/60")
+                        }>
+                          <span className={"h-1.5 w-1.5 rounded-full " + 
+                            (pedido.estado === "ENVIADO" ? "bg-amber-brand" :
+                             pedido.estado === "SERVIDO" ? "bg-success" :
+                             pedido.estado === "CANCELADO" ? "bg-danger" : "bg-cream-200/40")
+                          }></span>
+                          {pedido.estado === "COBRADO" ? "Atendido" : 
+                           pedido.estado === "CANCELADO" ? "Cancelado" :
+                           pedido.estado.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <Link
+                          href={`/cocina/comanda/${pedido.id}`}
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-white transition hover:bg-amber-brand hover:text-brown-950 hover:scale-110 active:scale-95 shadow-lg"
+                          title="Gestionar Comanda"
+                        >
+                          <Printer className="h-5 w-5" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
+
+      <footer className="mt-auto border-t border-white/5 px-8 py-6 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-200/20">
+          El Buen Gusto · 2024 · Premium Restaurant Management
+        </p>
+      </footer>
     </div>
   );
 }
