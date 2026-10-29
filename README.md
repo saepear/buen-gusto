@@ -30,14 +30,6 @@ En los teléfonos de los meseros y en la pantalla de cocina:
 Dirección IPv4). La primera vez, Windows puede pedir permiso para compartir el
 puerto 3000 en la red — acepta (red privada).
 
-## 🔐 PINs iniciales (cambiables luego)
-
-| Rol | Usuario | PIN |
-|---|---|---|
-| Administrador | Administrador | **1234** |
-| Mesero | Laura | **1111** |
-| Mesero | Carlos | **2222** |
-| Cocina | Chef de cocina | **3333** |
 
 ## 🗂 Estructura
 
