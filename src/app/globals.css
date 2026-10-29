@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ============ El Buen Gusto · Paleta de la marca ============ */
+@theme inline {
+  --font-sans: var(--font-nunito);
+  --font-display: var(--font-fredoka);
+
+  /* Marrones (principal) */
+  --color-brown-950: #241006;
+  --color-brown-900: #2e1508;
+  --color-brown-800: #3b1d0f;
+  --color-brown-700: #4a2517;
+  --color-brown-600: #5c3020;
+  --color-brown-500: #6e3b28;
+
+  /* Cremas */
+  --color-cream-50: #fcf6ea;
+  --color-cream-100: #f8efdc;
+  --color-cream-200: #f1e3c9;
+  --color-cream-300: #e7d5b4;
+
+  /* Acentos */
+  --color-amber-brand: #f2a63d;
+  --color-orange-brand: #ed7d1f;
+  --color-ink: #20100a;
+
+  /* Semánticos */
+  --color-success: #7cb93f;
+  --color-danger: #d9534f;
+  --color-warning: #eab308;
+
+  /* Sombras suaves (tarjetas del mesero y modales) */
+  --shadow-suave: 0 8px 24px -10px rgb(59 29 15 / 0.16);
+  --shadow-flotante: 0 12px 32px -14px rgb(36 16 6 / 0.5);
+  --shadow-pop: 0 24px 60px -18px rgb(36 16 6 / 0.55);
+}
+
+/* Animaciones para modales del mesero */
+@keyframes aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes subir {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.animar-aparecer { animation: aparecer 0.15s ease-out; }
+.animar-subir { animation: subir 0.2s ease-out; }
+
+body {
+  background: var(--color-cream-50);
+  color: var(--color-brown-800);
+}
+
+/* ============ Fase 9 · Móvil (Android / iOS / tablet) ============ */
+html {
+  /* Toques limpios en iOS y Android, sin destello gris */
+  -webkit-tap-highlight-color: transparent;
+  /* Comportamiento de app: sin rebote ni «tirar para recargar» accidental */
+  overscroll-behavior-y: none;
+}
+
+/* Áreas seguras: la muesca del iPhone / tablet y su barra inferior */
+.cabeza-seguro {
+  padding-top: max(0.5rem, calc(0.75rem + env(safe-area-inset-top)));
+}
+.barra-seguro {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+.pie-seguro {
+  padding-bottom: max(1.25rem, calc(env(safe-area-inset-bottom) + 1.25rem));
+}
+
+::selection {
+  background: var(--color-amber-brand);
+  color: var(--color-brown-950);
+}
+
+/* Impresión de comandas en la impresora térmica de la cocina */
+@media print {
+  body {
+    background: #ffffff;
+  }
+}

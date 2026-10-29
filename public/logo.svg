@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="El Buen Gusto Restaurante">
+  <defs>
+    <path id="arc-bottom" d="M 134 348 A 172 172 0 0 0 378 348" fill="none"/>
+  </defs>
+  <!-- Placa brown -->
+  <rect x="28" y="28" width="456" height="456" rx="88" fill="#3B1D0F" stroke="#F6EBD9" stroke-width="14"/>
+  <rect x="64" y="64" width="384" height="384" rx="66" fill="none" stroke="#4A2517" stroke-width="6"/>
+  <!-- Círculo crema -->
+  <circle cx="256" cy="226" r="150" fill="#F8EFDC" stroke="#FFFFFF" stroke-width="10"/>
+  <!-- Sombrero chef -->
+  <g stroke="#3B1D0F" stroke-width="7" stroke-linejoin="round">
+    <path fill="#FFFFFF" d="M204 118 C182 84 214 62 240 72 C246 46 266 46 272 72 C298 62 330 84 308 118 Z"/>
+    <rect x="216" y="116" width="80" height="24" rx="9" fill="#FFFFFF"/>
+  </g>
+  <!-- Orejas -->
+  <g fill="#EF9142" stroke="#8A4D17" stroke-width="6" stroke-linejoin="round">
+    <path d="M180 152 C160 108 172 92 182 92 C198 92 214 108 222 126 Z"/>
+    <path d="M332 152 C352 108 340 92 330 92 C314 92 298 108 290 126 Z"/>
+  </g>
+  <!-- Interior de orejas -->
+  <path d="M192 138 C182 112 188 104 194 104 C202 108 210 118 212 126 Z" fill="#C96A21"/>
+  <path d="M320 138 C330 112 324 104 318 104 C310 108 302 118 300 126 Z" fill="#C96A21"/>
+  <!-- Cabeza -->
+  <circle cx="256" cy="210" r="92" fill="#EF9142" stroke="#8A4D17" stroke-width="7"/>
+  <!-- Rayitas -->
+  <g stroke="#C96A21" stroke-width="7" stroke-linecap="round">
+    <path d="M236 100 L232 120"/>
+    <path d="M256 96 L256 116"/>
+    <path d="M276 100 L280 120"/>
+  </g>
+  <!-- Patas levantadas -->
+  <g fill="#F8EFDC" stroke="#8A4D17" stroke-width="6">
+    <ellipse cx="166" cy="212" rx="21" ry="24"/>
+    <ellipse cx="346" cy="212" rx="21" ry="24"/>
+  </g>
+  <g stroke="#8A4D17" stroke-width="4" stroke-linecap="round">
+    <path d="M158 194 L158 206"/>
+    <path d="M174 194 L174 206"/>
+    <path d="M338 194 L338 206"/>
+    <path d="M354 194 L354 206"/>
+  </g>
+  <!-- Hocico -->
+  <ellipse cx="256" cy="234" rx="50" ry="37" fill="#FBEFE2"/>
+  <!-- Ojos -->
+  <g stroke="#3B1D0F" stroke-width="8" fill="none" stroke-linecap="round">
+    <path d="M212 194 q13 15 27 0"/>
+    <path d="M273 194 q14 15 27 0"/>
+  </g>
+  <!-- Nariz -->
+  <path d="M247 210 h18 l-9 11 z" fill="#3B1D0F"/>
+  <!-- Boca -->
+  <path d="M240 232 q8 10 16 0 q8 10 16 0" fill="none" stroke="#3B1D0F" stroke-width="5" stroke-linecap="round"/>
+  <!-- Bigotes -->
+  <g stroke="#3B1D0F" stroke-width="5" stroke-linecap="round">
+    <path d="M202 222 l-44 -10"/>
+    <path d="M200 236 l-46 0"/>
+    <path d="M202 250 l-44 10"/>
+    <path d="M310 222 l44 -10"/>
+    <path d="M312 236 l46 0"/>
+    <path d="M310 250 l44 10"/>
+  </g>
+  <!-- Pañuelo -->
+  <g fill="#EF9142" stroke="#8A4D17" stroke-width="6" stroke-linejoin="round">
+    <path d="M186 288 C216 322 296 322 326 288 L326 306 C290 336 222 336 186 306 Z"/>
+    <path d="M240 322 l-18 30 l30 -10"/>
+    <path d="M272 322 l18 30 l-30 -10"/>
+  </g>
+  <!-- Texto arqueado -->
+  <text font-family="Verdana, Arial, sans-serif" font-size="18" letter-spacing="6" fill="#5C3020" font-weight="bold">
+    <textPath href="#arc-bottom" startOffset="50%" text-anchor="middle">DESDE EL 2022</textPath>
+  </text>
+  <!-- Nombre -->
+  <text x="256" y="442" text-anchor="middle" font-family="'Arial Black', Arial, sans-serif" font-size="42" letter-spacing="1" fill="#F2A63C" font-weight="900">EL BUEN GUSTO</text>
+  <text x="256" y="478" text-anchor="middle" font-family="'Arial Black', Arial, sans-serif" font-size="26" letter-spacing="6" fill="#F2A63C" font-weight="900">RESTAURANTE</text>
+</svg>
