@@ -1,0 +1,127 @@
+// El Buen Gusto - Restaurant POS de almuerzos
+// NOTA: SQLite no soporta enums en Prisma, por eso los estados se guardan
+// como String y se validan con las constantes de src/lib/roles.ts
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  pin       String // 4 dígitos, único por rol (la búsqueda se hace por pin + rol)
+  rol       String // ADMIN | MESERO | COCINA
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  pedidos Pedido[]
+  cierres CierreCaja[]
+
+  @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
+}
+
+model Producto {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  tipo      String   // PROTEINA | PRINCIPIO | SOPA | BEBIDA | ADICIONAL
+  precio    Int      @default(0) // COP enteros; 0 = incluido en el almuerzo
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  menuItems   MenuDiaItem[]
+  pedidoItems PedidoItem[]
+}
+
+// Menú del día: que comidas se ofrecen HOY (proteínas, principios, sopas)
+model MenuDia {
+  id     Int     @id @default(autoincrement())
+  fecha  String  @unique // yyyy-mm-dd
+  activo Boolean @default(true)
+
+  items     MenuDiaItem[]
+  createdAt DateTime      @default(now())
+}
+
+// Porciones disponibles por producto en el menú del día (stock en tiempo real)
+model MenuDiaItem {
+  id             Int     @id @default(autoincrement())
+  menuDiaId      Int
+  menuDia        MenuDia @relation(fields: [menuDiaId], references: [id], onDelete: Cascade)
+  productoId     Int
+  producto       Producto @relation(fields: [productoId], references: [id])
+  stockPorciones Int? // null = porciones ilimitadas
+  vendidos       Int     @default(0)
+  visible        Boolean @default(true) // false: el mesero no lo ve (se acabó antes de tiempo)
+
+  @@unique([menuDiaId, productoId])
+}
+
+model Mesa {
+  id     Int     @id @default(autoincrement())
+  numero Int     @unique
+  estado String  @default("LIBRE") // LIBRE | OCUPADA | POR_PAGAR
+  activa Boolean @default(true) // false = oculta (sin pedidos nuevos)
+
+  pedidos Pedido[]
+}
+
+model Pedido {
+  id            Int      @id @default(autoincrement())
+  mesaId        Int
+  mesa          Mesa     @relation(fields: [mesaId], references: [id])
+  meseroId      Int?
+  mesero        Usuario? @relation(fields: [meseroId], references: [id])
+  estado        String   @default("ENVIADO") // ENVIADO | EN_PREPARACION | PARCIAL_SERVIDO | SERVIDO | POR_PAGAR | COBRADO | CANCELADO
+  paraLlevar    Boolean  @default(false) // domicilio: lleva icopor de $1.500
+  observaciones String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items PedidoItem[]
+  pagos Pago[]
+}
+
+model PedidoItem {
+  id         Int      @id @default(autoincrement())
+  pedidoId   Int
+  pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId Int
+  producto   Producto @relation(fields: [productoId], references: [id])
+  tipo       String   // snapshot del tipo del producto al momento de ordenar
+  cantidad   Int      @default(1)
+  precio     Int?     // precio por unidad fijado al ordenar (almuerzo, bebidas...); null = usa producto.precio
+  conSopa    Boolean? // aplica a la línea principal del almuerzo
+  nota       String?  // ej: "Res sin cebolla"
+}
+
+model Pago {
+  id        Int      @id @default(autoincrement())
+  pedidoId  Int
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id])
+  total     Int // COP enteros, sin decimales
+  propina   Int      @default(0)
+  metodo    String   // EFECTIVO | TARJETA | TRANSFERENCIA
+  createdAt DateTime @default(now())
+}
+
+// Comprobante del cierre de caja del día (uno por fecha)
+model CierreCaja {
+  id              Int      @id @default(autoincrement())
+  fecha           String   @unique // yyyy-mm-dd
+  cerradoPorId    Int
+  cerradoPor      Usuario  @relation(fields: [cerradoPorId], references: [id])
+  totalPagos      Int // suma de pagos del día, sin propinas
+  totalEfectivo   Int
+  totalTarjeta    Int
+  totalTransfer   Int
+  totalPropinas   Int
+  numeroPagos     Int
+  numeroComandas  Int // comandas servidas o cobradas del día
+  efectivoContado Int? // plata contada a mano (opcional); null = no se contó
+  createdAt       DateTime @default(now())
+}
