@@ -13,8 +13,11 @@ export default async function PaginaComanda(
 ) {
   await requerirRolDe(["COCINA", "ADMIN"]);
   const { pedidoId: crudo } = await props.params;
+  const { reprint } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
   if (!Number.isInteger(id)) notFound();
+
+  const esCopia = reprint === "1";
 
   const pedido = await db.pedido.findUnique({
     where: { id },
@@ -40,6 +43,7 @@ export default async function PaginaComanda(
           </p>
           <p className="mt-0.5 text-[11px] font-bold tracking-widest">
             COMANDA DE COCINA
+            {esCopia ? " · COPIA" : ""}
           </p>
         </div>
 

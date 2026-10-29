@@ -1,221 +1,50 @@
-import { Clock, Eye, Flame, Printer, ShoppingBag, UtensilsCrossed, X } from "lucide-react";
+import { Clock, Eye, Flame, Printer, Search, ShoppingBag, UtensilsCrossed, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
-import { formatCOP, formatHora } from "@/lib/format";
+import { formatCOP, formatHora, claveDia } from "@/lib/format";
 import { ESTADO_PEDIDO } from "@/lib/roles";
 import { requerirRolDe } from "@/lib/session";
 import { cerrarSesion } from "@/app/login/actions";
 import { empezarComanda, terminarComanda, cancelarComanda } from "./acciones";
 import { AutoRefresco } from "./refresco";
 
-export const metadata = { title: "Cocina · El Buen Gusto" };
+export const metadata = { title: "Gestión de Comandas · El Buen Gusto" };
 
-const TIPO_COLOR: Record<string, string> = {
-  PROTEINA: "bg-amber-brand/20 text-amber-brand",
-  PRINCIPIO: "bg-success/20 text-[#a7dd83]",
-  ENSALADA: "bg-[#4ec27e]/25 text-[#8ce8ae]",
-  SOPA: "bg-[#b06fd0]/25 text-[#d8a6f0]",
-  BEBIDA: "bg-[#4aa3ff]/20 text-[#8cc7ff]",
-  ADICIONAL: "bg-[#d08050]/25 text-[#f0b58c]",
-};
-
-const COLUMNA: Record<
-  string,
-  { titulo: string; sub: string; borde: string }
-> = {
-  ENVIADO: {
-    titulo: "Por cocinar",
-    sub: "Comandas recién enviadas",
-    borde: "border-amber-brand/40",
-  },
-  EN_PREPARACION: {
-    titulo: "En la olla",
-    sub: "Pedidos en preparación",
-    borde: "border-[#4aa3ff]/40",
-  },
-  SERVIDO: {
-    titulo: "Listas para servir",
-    sub: "Listas para llevar a la mesa",
-    borde: "border-success/40",
-  },
-};
-
-export default async function PaginaCocina() {
+export default async function PaginaCocina(
+  props: PageProps<"/cocina">,
+) {
   const sesion = await requerirRolDe(["COCINA", "ADMIN"]);
+  const { busqueda, fecha } = await props.searchParams;
   const esAdmin = sesion.rol === "ADMIN";
 
-  const pedidos = await db.pedido.findMany({
-    where: {
-      estado: {
-        in: [
-          ESTADO_PEDIDO.ENVIADO,
-          ESTADO_PEDIDO.EN_PREPARACION,
-          ESTADO_PEDIDO.SERVIDO,
-        ],
-      },
-      createdAt: { gte: inicioDeHoy() },
-    },
-    include: { items: { include: { producto: true } }, mesa: true, mesero: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const dia = fecha ? String(fecha) : claveDia(new Date());
 
-  const hace = (fecha: Date) => {
-    const min = Math.max(0, Math.floor((Date.now() - fecha.getTime()) / 60000));
-    return min === 0 ? "recién" : `hace ${min} min`;
+  const where: any = {
+    createdAt: {
+      gte: new Date(dia + "T00:00:00"),
+      lte: new Date(dia + "T23:59:59"),
+    },
   };
 
-  const Tarjeta = ({ pedido }: { pedido: (typeof pedidos)[number] }) => (
-    <article
-      className={
-        "rounded-2xl border-2 bg-brown-900/60 p-4 " +
-        (COLUMNA[pedido.estado]?.borde ?? "border-brown-700/50")
-      }
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-display text-2xl leading-none text-cream-100">
-            Mesa #{pedido.mesa.numero}
-          </p>
-          <p className="mt-1.5 text-xs text-cream-200/70">
-            #{pedido.id} · {formatHora(pedido.createdAt)} · {hace(pedido.createdAt)}
-          </p>
-          {pedido.paraLlevar ? (
-            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-brand px-2.5 py-0.5 text-[10px] font-bold text-brown-950">
-              <ShoppingBag className="h-3 w-3" /> PARA LLEVAR · icopor
-            </span>
-          ) : null}
-        </div>
-        <Link
-          href={`/cocina/comanda/${pedido.id}`}
-          className="rounded-xl bg-brown-800 px-2.5 py-2 text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
-          aria-label={`Imprimir comanda ${pedido.id}`}
-          title="Imprimir comanda"
-        >
-          <Printer className="h-4.5 w-4.5" />
-        </Link>
-      </div>
+  if (busqueda) {
+    const query = String(busqueda).trim();
+    const esNumero = /^\d+$/.test(query);
+    if (esNumero) {
+      where.OR = [
+        { id: Number.parseInt(query, 10) },
+        { mesa: { numero: Number.parseInt(query, 10) } },
+      ];
+    }
+  }
 
-      <ul className="mt-3 space-y-1.5">
-        {pedido.items.map((item) => (
-          <li key={item.id} className="flex items-center gap-2 text-sm">
-            <span
-              className={
-                "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase " +
-                (TIPO_COLOR[item.tipo] ?? "bg-brown-700/60 text-cream-200")
-              }
-            >
-              {item.tipo === "PROTEINA"
-                ? "Prot"
-                : item.tipo === "PRINCIPIO"
-                  ? "Prin"
-                  : item.tipo === "ENSALADA"
-                    ? "Ens"
-                    : item.tipo === "SOPA"
-                      ? "Sopa"
-                      : item.tipo === "BEBIDA"
-                        ? "Beb"
-                        : "Adic"}
-            </span>
-            <span className="min-w-0 flex-1 truncate font-bold text-cream-100">
-              {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
-              {item.producto.nombre}
-            </span>
-            {item.conSopa === false ? (
-              <span className="rounded-md bg-brown-700/50 px-1.5 py-0.5 text-[10px] font-bold text-cream-200/80">
-                sin sopa
-              </span>
-            ) : null}
-            {precioUnitarioItem(item) > 0 ? (
-              <span className="text-xs text-cream-200/75">
-                {formatCOP(precioUnitarioItem(item) * item.cantidad)}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-
-      {pedido.observaciones ? (
-        <p className="mt-3 rounded-xl bg-amber-brand/10 px-3 py-2 text-xs font-bold text-amber-brand">
-          📝 {pedido.observaciones}
-        </p>
-      ) : null}
-
-      <div className="mt-4">
-        {esAdmin ? (
-          <p
-            className={
-              "flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold " +
-              (pedido.estado === ESTADO_PEDIDO.ENVIADO
-                ? "bg-amber-brand/10 text-amber-brand"
-                : pedido.estado === ESTADO_PEDIDO.EN_PREPARACION
-                  ? "bg-[#4aa3ff]/15 text-[#8cc7ff]"
-                  : "bg-success/15 text-[#a7dd83]")
-            }
-          >
-            <Eye className="h-4 w-4" />
-            {pedido.estado === ESTADO_PEDIDO.ENVIADO
-              ? "En cola: cocina no la ha empezado"
-              : pedido.estado === ESTADO_PEDIDO.EN_PREPARACION
-                ? "En preparación en este momento"
-                : "Listo: en camino a la mesa"}
-          </p>
-        ) : pedido.estado === ESTADO_PEDIDO.ENVIADO ? (
-          <>
-            <form action={empezarComanda} className="flex-1">
-              <input type="hidden" name="pedidoId" value={pedido.id} />
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-brand py-2.5 font-bold text-brown-950 transition hover:bg-orange-brand hover:text-white"
-              >
-                <Flame className="h-4 w-4" /> Empezar
-              </button>
-            </form>
-            <form action={cancelarComanda}>
-              <input type="hidden" name="pedidoId" value={pedido.id} />
-              <button
-                type="submit"
-                aria-label={`Cancelar comanda ${pedido.id}`}
-                title="Cancelar (devuelve las porciones)"
-                className="rounded-xl border border-danger/40 px-3 py-2.5 text-danger transition hover:bg-danger/20"
-              >
-                <X className="h-4.5 w-4.5" />
-              </button>
-            </form>
-          </>
-        ) : pedido.estado === ESTADO_PEDIDO.EN_PREPARACION ? (
-          <>
-            <form action={terminarComanda} className="flex-1">
-              <input type="hidden" name="pedidoId" value={pedido.id} />
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-success py-2.5 font-bold text-brown-950 transition hover:bg-[#8fca57]"
-              >
-                Listo ✓
-              </button>
-            </form>
-            <form action={cancelarComanda}>
-              <input type="hidden" name="pedidoId" value={pedido.id} />
-              <button
-                type="submit"
-                aria-label={`Cancelar comanda ${pedido.id}`}
-                title="Cancelar (devuelve las porciones)"
-                className="rounded-xl border border-danger/40 px-3 py-2.5 text-danger transition hover:bg-danger/20"
-              >
-                <X className="h-4.5 w-4.5" />
-              </button>
-            </form>
-          </>
-        ) : pedido.estado === ESTADO_PEDIDO.SERVIDO ? (
-          <p className="flex w-full items-center justify-center gap-2 rounded-xl bg-success/15 py-2 text-sm font-bold text-[#a7dd83]">
-            <UtensilsCrossed className="h-4 w-4" /> Llevar a la mesa
-          </p>
-        ) : null}
-      </div>
-    </article>
-  );
+  const pedidos = await db.pedido.findMany({
+    where,
+    include: { items: { include: { producto: true } }, mesa: true, mesero: true },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-[#150d08] text-cream-100">
@@ -224,27 +53,15 @@ export default async function PaginaCocina() {
           <Image src="/logo.png" alt="Logo" width={44} height={44} unoptimized />
           <div>
             <p className="font-display leading-none text-amber-brand">
-              Comandas · Cocina
+              Gestión de Comandas
             </p>
             <p className="mt-1 text-xs text-cream-200/70">
-              {esAdmin ? (
-                <>
-                  Seguimiento en vivo · vista de solo lectura para{" "}
-                  {sesion.nombre}
-                </>
-              ) : (
-                `${sesion.nombre} conectado`
-              )}
+              Consulta, control e impresión de pedidos
             </p>
           </div>
-          {esAdmin ? (
-            <span className="flex items-center gap-1 rounded-full bg-amber-brand/15 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-brand ring-1 ring-amber-brand/40">
-              <Eye className="h-3 w-3" /> Solo mirar
-            </span>
-          ) : null}
         </div>
         <div className="flex items-center gap-4">
-          <AutoRefresco segundos={20} />
+          <AutoRefresco segundos={30} />
           {esAdmin ? (
             <Link
               href="/admin"
@@ -263,52 +80,129 @@ export default async function PaginaCocina() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl flex-1 p-5 pie-seguro">
+        {/* Barra de búsqueda y filtros */}
+        <section className="mb-6 rounded-3xl bg-brown-900/40 p-5 ring-1 ring-brown-700/50">
+          <form method="GET" className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[240px]">
+              <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
+                Buscar comanda o mesa
+              </label>
+              <div className="flex items-center gap-2.5 rounded-2xl bg-brown-800/50 px-4 py-3 ring-1 ring-brown-700 focus-within:ring-amber-brand">
+                <Search className="h-4 w-4 text-brown-400" />
+                <input
+                  name="busqueda"
+                  defaultValue={busqueda}
+                  placeholder="Ej: 105 o Mesa 4..."
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-brown-500"
+                />
+              </div>
+            </div>
+            <div className="w-full sm:w-auto">
+              <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
+                Fecha
+              </label>
+              <input
+                type="date"
+                name="fecha"
+                defaultValue={dia}
+                className="w-full rounded-2xl bg-brown-800/50 px-4 py-3 text-sm ring-1 ring-brown-700 focus:ring-amber-brand outline-none [color-scheme:dark]"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-2xl bg-amber-brand px-6 py-3 font-display text-brown-950 transition hover:bg-orange-brand hover:text-white active:scale-95"
+            >
+              Filtrar
+            </button>
+            { (busqueda || fecha !== claveDia(new Date())) && (
+              <Link
+                href="/cocina"
+                className="rounded-2xl border border-brown-700 px-6 py-3 text-sm font-bold text-cream-200/70 transition hover:bg-brown-800"
+              >
+                Limpiar
+              </Link>
+            )}
+          </form>
+        </section>
+
         {pedidos.length === 0 ? (
-          <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-            <span className="flex h-24 w-24 items-center justify-center rounded-3xl bg-brown-800 text-amber-brand">
-              <Clock className="h-12 w-12" />
+          <div className="flex min-h-[40vh] flex-col items-center justify-center text-center">
+            <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-brown-800 text-amber-brand">
+              <Clock className="h-10 w-10" />
             </span>
-            <h1 className="mt-6 font-display text-3xl">
-              Sin comandas por ahora
+            <h1 className="mt-6 font-display text-2xl text-cream-100">
+              No se encontraron comandas
             </h1>
-            <p className="mt-3 max-w-md text-cream-200/80">
-              Cuando un mesero presione «Ordenar», su comanda aparece aquí al
-              instante con la mesa, los platos y la nota si la lleva.
+            <p className="mt-2 text-sm text-cream-200/60">
+              Prueba ajustando la búsqueda o la fecha elegida.
             </p>
           </div>
         ) : (
-          <div className="grid gap-5 lg:grid-cols-3">
-            {[
-              ESTADO_PEDIDO.ENVIADO,
-              ESTADO_PEDIDO.EN_PREPARACION,
-              ESTADO_PEDIDO.SERVIDO,
-            ].map((estado) => {
-              const lista = pedidos.filter((p) => p.estado === estado);
-              const col = COLUMNA[estado];
-              return (
-                <section key={estado} aria-label={col.titulo}>
-                  <div className="mb-3 flex items-baseline justify-between">
-                    <h2 className="font-display text-xl text-cream-100">
-                      {col.titulo}
-                    </h2>
-                    <span className="rounded-full bg-brown-800 px-3 py-0.5 text-sm font-bold text-amber-brand">
-                      {lista.length}
-                    </span>
-                  </div>
-                  <p className="mb-3 text-xs text-cream-200/60">{col.sub}</p>
-                  <div className="space-y-4">
-                    {lista.map((pedido) => (
-                      <Tarjeta key={pedido.id} pedido={pedido} />
-                    ))}
-                    {lista.length === 0 ? (
-                      <p className="rounded-2xl border-2 border-dashed border-brown-700/40 p-6 text-center text-sm text-cream-200/40">
-                        Nada aquí
-                      </p>
-                    ) : null}
-                  </div>
-                </section>
-              );
-            })}
+          <div className="overflow-hidden rounded-3xl bg-brown-900/40 shadow-xl ring-1 ring-brown-700/50">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-brown-800/60 text-[10px] font-bold uppercase tracking-widest text-cream-200/50">
+                <tr>
+                  <th className="px-6 py-4">Comanda</th>
+                  <th className="px-6 py-4">Mesa</th>
+                  <th className="px-6 py-4">Hora</th>
+                  <th className="px-6 py-4">Mesero</th>
+                  <th className="px-6 py-4">Estado</th>
+                  <th className="px-6 py-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brown-700/50">
+                {pedidos.map((pedido) => (
+                  <tr key={pedido.id} className="transition hover:bg-brown-800/30">
+                    <td className="px-6 py-4">
+                      <span className="font-display text-lg text-amber-brand">#{pedido.id}</span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-cream-100">
+                      Mesa #{pedido.mesa.numero}
+                      {pedido.paraLlevar && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-orange-brand/20 px-1.5 py-0.5 text-[9px] font-bold text-orange-brand">
+                          LLEVAR
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-cream-200/70">
+                      {formatHora(pedido.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 text-cream-200/70">
+                      {pedido.mesero?.nombre ?? "—"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={
+                        "inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
+                        (pedido.estado === "ENVIADO" ? "bg-amber-brand/20 text-amber-brand" :
+                         pedido.estado === "SERVIDO" ? "bg-success/20 text-[#a7dd83]" :
+                         pedido.estado === "COBRADO" ? "bg-brown-700 text-cream-200/60" :
+                         "bg-brown-800 text-cream-200/80")
+                      }>
+                        {pedido.estado.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/cocina/comanda/${pedido.id}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
+                          title="Ver detalle"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                        <Link
+                          href={`/cocina/comanda/${pedido.id}?autoPrint=1&reprint=1`}
+                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-orange-brand"
+                          title="Reimprimir (Copia)"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </main>
