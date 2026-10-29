@@ -182,22 +182,13 @@ export default async function PaginaCocina(
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Link
-                          href={`/cocina/comanda/${pedido.id}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
-                          title="Ver detalle"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                        <Link
-                          href={`/cocina/comanda/${pedido.id}?autoPrint=1&reprint=1`}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-orange-brand"
-                          title="Reimprimir (Copia)"
-                        >
-                          <Printer className="h-4 w-4" />
-                        </Link>
-                      </div>
+                      <Link
+                        href={`/cocina/comanda/${pedido.id}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-brown-800 text-cream-100 transition hover:bg-amber-brand hover:text-brown-950"
+                        title="Ver e Imprimir"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Link>
                     </td>
                   </tr>
                 ))}
