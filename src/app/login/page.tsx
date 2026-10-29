@@ -8,50 +8,65 @@ import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 
+// Ancla visual del acceso: la casa servida, a sangre completa.
+const FONDO_ACCESO =
+  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Cinematic%20dark%20restaurant%20interior%20at%20night%2C%20warm%20amber%20pendant%20lamps%20over%20a%20rustic%20wooden%20table%2C%20elegant%20plated%20gourmet%20dish%2C%20soft%20bokeh%2C%20deep%20shadows%2C%20moody%20premium%20food%20photography%2C%20shallow%20depth%20of%20field%2C%20no%20text%2C%20no%20people&image_size=landscape_16_9";
+
 export default async function LoginPage() {
   const sesion = await getSesion();
   if (sesion) redirect(destinoRol(sesion.rol));
   const logo = rutaLogo();
 
   return (
-    <main className="min-h-screen lg:grid lg:grid-cols-[1.15fr_1fr]">
-      {/* Panel de marca (escritorio) */}
-      <section className="hidden lg:flex flex-col items-center justify-center gap-8 bg-brown-950 p-12">
-        <Image
-          src={logo.src}
-          alt="El Buen Gusto Restaurante"
-          width={logo.esArchivo ? 420 : 340}
-          height={logo.esArchivo ? 480 : 340}
-          unoptimized={logo.esArchivo}
-          priority
+    <main className="relative flex min-h-[100svh] flex-col overflow-hidden bg-fondo-kds">
+      {/* Ancla visual: fotografía a sangre completa con velo oscuro */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={FONDO_ACCESO}
+          alt=""
+          className="animar-zoom-lento h-full w-full object-cover opacity-80"
         />
-        <div className="max-w-md text-center">
-          <h1 className="font-display text-4xl text-amber-brand">
-            Menús de almuerzo, sin papeleos
-          </h1>
-          <p className="mt-3 text-lg text-cream-200/85">
-            El mesero pide desde su teléfono, la cocina recibe su comanda al
-            instante y el stock se descuenta en tiempo real.
-          </p>
-        </div>
-        <div className="grid w-full max-w-lg grid-cols-3 gap-4 text-center">
-          {[
-            { t: "Pedido rápido", d: "Desde el celular" },
-            { t: "Comanda instantánea", d: "Directo a cocina" },
-            { t: "Stock en vivo", d: "Porciones exactas" },
-          ].map((f) => (
-            <div key={f.t} className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-              <p className="font-semibold text-cream-100">{f.t}</p>
-              <p className="mt-1 text-sm text-amber-brand/90">{f.d}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+        <div className="absolute inset-0 bg-gradient-to-b from-fondo-kds/80 via-fondo-kds/90 to-fondo-kds" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-fondo-kds via-fondo-kds/60 to-transparent" />
+      </div>
 
-      {/* Login (o panel derecho) — con aire para la barra del sistema */}
-      <section className="flex min-h-screen items-center justify-center bg-fondo-kds p-6 pie-seguro">
-        <FormularioLogin logoSrc={logo.src} />
-      </section>
+      {/* Escenario: marca a la izquierda, acceso a la derecha */}
+      <div className="cabeza-seguro pie-seguro relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-10 px-6 py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:py-16">
+        <section className="animar-entrar max-w-xl">
+          <div className="flex items-center gap-4">
+            <Image
+              src={logo.src}
+              alt="El Buen Gusto"
+              width={96}
+              height={96}
+              unoptimized
+              priority
+              className="h-20 w-20 rounded-2xl object-contain lg:h-24 lg:w-24"
+            />
+            <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-amber-brand/70">
+              Restaurante
+            </span>
+          </div>
+          <h1 className="mt-6 font-display text-5xl leading-[0.95] text-white lg:text-6xl">
+            El Buen Gusto
+          </h1>
+          <p className="mt-5 max-w-sm text-lg text-cream-200/60">
+            Comandas de la mesa a la cocina, en tiempo real.
+          </p>
+        </section>
+
+        <section
+          className="animar-entrar w-full lg:w-[26rem] lg:shrink-0"
+          style={{ animationDelay: "120ms" }}
+        >
+          <FormularioLogin />
+        </section>
+      </div>
+
+      <p className="relative z-10 hidden pb-6 text-center text-[10px] font-bold uppercase tracking-[0.3em] text-cream-200/20 lg:block">
+        El Buen Gusto · Sistema de comandas
+      </p>
     </main>
   );
 }

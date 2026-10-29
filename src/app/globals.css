@@ -82,9 +82,43 @@ html {
   color: var(--color-brown-950);
 }
 
+/* ============ Acceso (/login) ============ */
+@keyframes zoom-lento {
+  from { transform: scale(1.05); }
+  to { transform: scale(1.16); }
+}
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sacudir {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(9px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+.animar-zoom-lento {
+  animation: zoom-lento 26s ease-in-out infinite alternate;
+}
+.animar-entrar {
+  animation: entrar 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animar-sacudir {
+  animation: sacudir 0.4s ease-in-out;
+}
+
 /* Impresión de comandas en la impresora térmica de la cocina */
 @media print {
   body {
     background: #ffffff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animar-zoom-lento,
+  .animar-entrar,
+  .animar-sacudir {
+    animation: none;
   }
 }

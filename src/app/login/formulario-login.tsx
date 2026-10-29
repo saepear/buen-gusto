@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  ChefHat,
-  Delete,
-  UserRound,
-  UtensilsCrossed,
-} from "lucide-react";
-import Image from "next/image";
+import { ChefHat, Delete, UserRound, UtensilsCrossed } from "lucide-react";
 import {
   startTransition,
   useActionState,
@@ -44,7 +38,7 @@ const OPCIONES: OpcionRol[] = [
   },
 ];
 
-export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string }) {
+export function FormularioLogin() {
   const [rol, setRol] = useState<OpcionRol | null>(null);
   const [pin, setPin] = useState("");
   // Espejo del PIN para leer el valor real aunque React agrupe los toques
@@ -109,49 +103,44 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol, estado, pendiente]);
 
-  const puntos = "●".repeat(pin.length) + "○".repeat(4 - pin.length);
-
   return (
-    <div className="w-full max-w-sm rounded-[2rem] bg-brown-900/60 p-5 sm:p-8 ring-1 ring-white/10 shadow-2xl">
-      {/* Logo compacto en móvil */}
-      {rol === null && (
-        <div className="mb-6 text-center lg:hidden">
-          <Image
-            src={logoSrc}
-            alt="El Buen Gusto"
-            width={144}
-            height={144}
-            unoptimized
-            className="mx-auto h-36 w-auto"
-            priority
-          />
-        </div>
-      )}
-
+    <div className="w-full rounded-[2rem] bg-brown-950/60 p-6 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl sm:p-8">
       {rol === null ? (
         <>
-          <h2 className="font-display text-2xl text-white">¿Quién entra?</h2>
-          <p className="mt-1 text-sm text-cream-200/70">
-            Selecciona tu rol y luego ingresa tu PIN.
-          </p>
-          <div className="mt-6 grid gap-3">
+          <header>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-brand/70">
+              Acceso
+            </p>
+            <h2 className="mt-2 font-display text-3xl text-white">
+              ¿Quién entra?
+            </h2>
+            <p className="mt-2 text-sm text-cream-200/60">
+              Elige tu rol e ingresa tu PIN de 4 dígitos.
+            </p>
+          </header>
+
+          <div className="mt-7 grid gap-2.5">
             {OPCIONES.map(({ rol: r, titulo, detalle, Icono }) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => elegirRol(OPCIONES.find((o) => o.rol === r)!)}
-                className="group flex items-center gap-4 rounded-2xl bg-white/5 p-4 text-left ring-1 ring-white/10 transition hover:bg-white/10"
+                className="group flex items-center gap-4 rounded-2xl bg-white/[0.04] p-4 text-left ring-1 ring-white/10 transition hover:bg-white/[0.08] hover:ring-amber-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
               >
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-brand/20 text-orange-brand transition group-hover:bg-amber-brand/30">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-brand/15 text-amber-brand ring-1 ring-amber-brand/20 transition group-hover:bg-amber-brand group-hover:text-brown-950">
                   <Icono className="h-6 w-6" />
                 </span>
-                <span>
-                  <span className="block font-bold text-white transition group-hover:text-cream-100">
-                    {titulo}
-                  </span>
-                  <span className="block text-sm text-cream-200/45 transition group-hover:text-cream-200/80">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold text-white">{titulo}</span>
+                  <span className="block text-sm text-cream-200/50">
                     {detalle}
                   </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="text-xl text-cream-200/30 transition group-hover:translate-x-0.5 group-hover:text-amber-brand"
+                >
+                  ›
                 </span>
               </button>
             ))}
@@ -162,46 +151,63 @@ export function FormularioLogin({ logoSrc = "/logo.svg" }: { logoSrc?: string })
           <button
             type="button"
             onClick={() => setRol(null)}
-            className="text-sm text-cream-200/45 transition hover:text-orange-brand"
+            className="text-sm font-semibold text-cream-200/50 transition hover:text-amber-brand"
           >
             ← Cambiar de rol
           </button>
-          <h2 className="mt-2 font-display text-2xl text-white">
-            {rol.titulo}
-          </h2>
-          <p className="mt-1 text-sm text-cream-200/70">
-            {rol.detalle} · ingresa tu PIN de 4 dígitos
-          </p>
 
-          <div className="mt-5 flex justify-center gap-3 font-display text-3xl tracking-[0.35em] text-white">
-            {puntos}
-            <span className="sr-only">{pin}</span>
+          <header className="mt-3 flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-2xl text-white">{rol.titulo}</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/30">
+              PIN · 4 dígitos
+            </span>
+          </header>
+
+          <div
+            key={estado.error ?? "listo"}
+            className={
+              "mt-7 flex justify-center gap-3.5 " +
+              (estado.error ? "animar-sacudir" : "")
+            }
+          >
+            <span className="sr-only">PIN ingresado: {pin}</span>
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                className={
+                  "h-3.5 w-3.5 rounded-full transition-all duration-200 " +
+                  (i < pin.length
+                    ? "scale-110 bg-amber-brand shadow-[0_0_0_5px_rgba(242,166,61,0.12)]"
+                    : "bg-white/15")
+                }
+              />
+            ))}
           </div>
 
-          {pendiente ? (
-            <p className="mt-3 text-center text-sm font-medium text-cream-200/45">
-              Verificando…
-            </p>
-          ) : estado.error ? (
-            <p className="mt-3 text-center text-sm font-semibold text-danger">
-              {estado.error}
-            </p>
-          ) : null}
+          <div className="mt-3 h-5 text-center">
+            {pendiente ? (
+              <p className="text-sm font-medium text-cream-200/50">
+                Verificando…
+              </p>
+            ) : estado.error ? (
+              <p className="text-sm font-semibold text-[#f0a6a3]">
+                {estado.error}
+              </p>
+            ) : null}
+          </div>
 
-          <div className="mt-4 select-none">
-            <div className="grid grid-cols-3 gap-2.5">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
-                <TeclaPin key={d} d={d} onClick={marcar} />
-              ))}
-              <TeclaPin d="x" onClick={limpiar} borrar />
-              <TeclaPin d="0" onClick={marcar} />
-              <TeclaPin
-                d="b"
-                onClick={borrarUltimo}
-                borrar
-                icono={<Delete className="h-6 w-6" />}
-              />
-            </div>
+          <div className="mt-3 grid select-none grid-cols-3 gap-2.5">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
+              <TeclaPin key={d} d={d} onClick={marcar} />
+            ))}
+            <TeclaPin d="x" onClick={limpiar} borrar />
+            <TeclaPin d="0" onClick={marcar} />
+            <TeclaPin
+              d="b"
+              onClick={borrarUltimo}
+              borrar
+              icono={<Delete className="h-6 w-6" />}
+            />
           </div>
         </>
       )}
@@ -224,9 +230,17 @@ function TeclaPin({
     <button
       type="button"
       onClick={() => onClick(d)}
-      className="h-14 rounded-xl bg-white/5 font-display text-xl text-white ring-1 ring-white/10 transition enabled:hover:bg-amber-brand/25 active:scale-95"
+      className="flex h-16 items-center justify-center rounded-2xl bg-white/[0.05] text-2xl font-display text-white ring-1 ring-white/10 transition hover:bg-white/[0.1] hover:ring-amber-brand/40 active:scale-[0.96]"
     >
-      {icono ?? (borrar ? "Limpiar" : d)}
+      {icono ?? (
+        borrar ? (
+          <span className="text-xs font-bold uppercase tracking-[0.15em] text-cream-200/60">
+            Limpiar
+          </span>
+        ) : (
+          d
+        )
+      )}
     </button>
   );
 }
