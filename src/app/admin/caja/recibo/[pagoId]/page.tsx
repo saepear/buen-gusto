@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
-import { ESTADO_PEDIDO } from "@/lib/roles";
+import { ESTADO_PEDIDO, ordenDeItem } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
@@ -97,23 +97,28 @@ export default async function PaginaRecibo(
               </p>
             ) : null}
             <ul className="mt-1 space-y-1.5">
-              {pedido.items.map((item) => (
-                <li key={item.id} className="flex gap-2 text-sm">
-                  <span className="font-bold">{item.cantidad}×</span>
-                  <span className="flex-1 font-bold uppercase">
-                    {item.producto.nombre}
-                    {item.tipo === "PROTEINA" && item.conSopa === false
-                      ? " (sin sopa)"
-                      : ""}
-                    {item.nota ? ` (${item.nota})` : ""}
-                  </span>
-                  {precioUnitarioItem(item) > 0 ? (
-                    <span className="font-bold">
-                      {formatCOP(precioUnitarioItem(item) * item.cantidad)}
+              {[...pedido.items]
+                .sort(
+                  (a, b) =>
+                    ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
+                )
+                .map((item) => (
+                  <li key={item.id} className="flex gap-2 text-sm">
+                    <span className="font-bold">{item.cantidad}×</span>
+                    <span className="flex-1 font-bold uppercase">
+                      {item.producto.nombre}
+                      {item.tipo === "PROTEINA" && item.conSopa === false
+                        ? " (sin sopa)"
+                        : ""}
+                      {item.nota ? ` (${item.nota})` : ""}
                     </span>
-                  ) : null}
-                </li>
-              ))}
+                    {precioUnitarioItem(item) > 0 ? (
+                      <span className="font-bold">
+                        {formatCOP(precioUnitarioItem(item) * item.cantidad)}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
             </ul>
             {pedido.observaciones ? (
               <p className="mt-1 text-[11px]">📝 {pedido.observaciones}</p>

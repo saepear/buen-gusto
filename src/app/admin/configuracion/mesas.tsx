@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Eye, EyeOff, Plus } from "lucide-react";
 import { type EstadoMesa } from "@/lib/roles";
 import { alternarMesa, crearMesa, type EstadoAccionConfig } from "./acciones";
@@ -98,8 +98,43 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
     crearMesa,
     INICIAL,
   );
+  const [nombre, setNombre] = useState("");
+  const [aprobada, setAprobada] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const activas = mesas.filter((m) => m.activa);
   const ocultas = mesas.filter((m) => !m.activa);
+
+  // Al crear una mesa con éxito, se limpia el campo para la siguiente
+  // (setState durante el render, del modo que recomienda la documentación)
+  if (estado.ok !== null && estado.ok !== aprobada) {
+    setAprobada(estado.ok);
+    setNombre("");
+  }
+
+  /** Siguiente número libre mirando los nombres existentes (ej. "Mesa 3") */
+  const siguienteNumero = () => {
+    const numeros = mesas
+      .map((m) => m.nombre.match(/\d+/))
+      .filter(Boolean)
+      .map((m) => Number(m![0]));
+    setNombre(String(numeros.length ? Math.max(...numeros) + 1 : 1));
+  };
+
+  /** Primera letra A–Z que aún no esté usada como nombre de una sola letra */
+  const siguienteLetra = () => {
+    const usadas = new Set(
+      mesas
+        .map((m) => m.nombre.trim().toUpperCase())
+        .filter((n) => n.length === 1)
+        .map((n) => n.charCodeAt(0)),
+    );
+    for (let c = 65; c <= 90; c++) {
+      if (!usadas.has(c)) {
+        setNombre(String.fromCharCode(c));
+        break;
+      }
+    }
+  };
 
   return (
     <section className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
@@ -118,12 +153,37 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
           <Plus className="h-4.5 w-4.5" />
         </span>
         <input
+          ref={inputRef}
           name="nombre"
           type="text"
-          placeholder="Nombre de la mesa"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Nombre de la mesa (1, 2… o A, B…)"
           aria-label="Nombre de la mesa nueva"
           className="min-w-0 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60"
         />
+        <button
+          type="button"
+          onClick={() => {
+            siguienteNumero();
+            inputRef.current?.focus();
+          }}
+          title="Sugerir el siguiente número"
+          className="rounded-xl bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
+        >
+          Núm…
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            siguienteLetra();
+            inputRef.current?.focus();
+          }}
+          title="Sugerir la siguiente letra disponible"
+          className="rounded-xl bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
+        >
+          A…
+        </button>
         <button
           type="submit"
           disabled={pendiente}

@@ -32,7 +32,7 @@ export function FilaPorciones({ item }: { item: Item }) {
   return (
     <li
       className={
-        "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app " +
+        "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app lg:p-5 " +
         (item.visible ? "" : "opacity-70")
       }
     >
@@ -64,7 +64,7 @@ export function FilaPorciones({ item }: { item: Item }) {
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2.5">
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2.5">
         <form action={guardarPorcion} className="flex items-center gap-1.5">
           <input type="hidden" name="itemId" value={item.id} />
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-texto-muted/70">
@@ -86,13 +86,13 @@ export function FilaPorciones({ item }: { item: Item }) {
             defaultValue={item.stockPorciones ?? ""}
             disabled={ilimitado}
             placeholder="Porciones"
-            className="w-20 rounded-lg border-0 bg-panel-app px-2 py-1.5 text-right text-sm text-texto-app ring-1 ring-borde-app focus:ring-amber-brand/60 disabled:opacity-40"
+            className="w-24 rounded-lg border-0 bg-panel-app px-2.5 py-2 text-right text-sm text-texto-app ring-1 ring-borde-app focus:ring-amber-brand/60 disabled:opacity-40"
           />
           <button
             type="submit"
             aria-label={`Guardar porciones de ${item.producto.nombre}`}
             title="Guardar porciones"
-            className="rounded-lg bg-panel-app px-2 py-1.5 text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand/30"
+            className="rounded-lg bg-panel-app p-2 text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand/30"
           >
             <CheckCircle2 className="h-4 w-4" />
           </button>

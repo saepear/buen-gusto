@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
+import { ordenDeItem } from "@/lib/roles";
 import { requerirRolDe } from "@/lib/session";
 import { BotonImprimir } from "./boton-imprimir";
 
@@ -33,6 +34,12 @@ export default async function PaginaComanda(
   if (!pedido) notFound();
 
   const tieneSopa = pedido.items.some((i) => i.tipo === "SOPA");
+
+  // La comanda se imprime como arman la bandeja (ver ORDEN_IMPRIMIR):
+  // principio → proteína → adicionales (huevo…) → sopa, luego lo demás.
+  const itemsTicket = [...pedido.items].sort(
+    (a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
+  );
 
   const totalComanda = pedido.items.reduce(
     (suma, i) => suma + precioUnitarioItem(i) * i.cantidad,
@@ -88,7 +95,7 @@ export default async function PaginaComanda(
         <div className="my-3 border-t border-dashed border-brown-950/30" />
 
         <ul className="space-y-1.5">
-          {pedido.items.map((item) => (
+          {itemsTicket.map((item) => (
             <li key={item.id} className="flex gap-2 text-sm">
               <span className="font-bold">{item.cantidad}×</span>
               <span className="flex-1 font-bold uppercase">

@@ -85,7 +85,7 @@ export default async function PaginaMenuDia() {
         subtitulo={formatFecha(new Date())}
       />
 
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <span className="rounded-full bg-success/10 px-4 py-1.5 text-sm font-bold text-success-text ring-1 ring-success/20">
           Activo · {menu.items.length} opciones
         </span>
@@ -95,7 +95,9 @@ export default async function PaginaMenuDia() {
         </span>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-4">
+      {/* Dos columnas vivas (2×2): en pantallas 2xl a zoom 100% el salto a
+          4 columnas dejaba cada tarjeta de ~250px y el contenido se pegaba. */}
+      <div className="grid gap-6 xl:gap-7 md:grid-cols-2">
         {TIPOS_MENU_DIA.map((tipo: TipoProducto) => {
           const Icono = ICONO[tipo];
           const delTipo = menu.items
@@ -108,9 +110,9 @@ export default async function PaginaMenuDia() {
           return (
             <section
               key={tipo}
-              className="rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app"
+              className="rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app lg:p-7"
             >
-              <h2 className="mb-5 flex items-center gap-2.5 font-display text-lg text-texto-app">
+              <h2 className="mb-6 flex items-center gap-2.5 font-display text-lg text-texto-app">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
                 </span>
@@ -122,7 +124,7 @@ export default async function PaginaMenuDia() {
                   Todavía no hay {TITULO[tipo].toLowerCase()} en el menú.
                 </p>
               ) : (
-                <ul className="space-y-3">
+                <ul className="space-y-3.5">
                   {delTipo.map((item) => (
                     <FilaPorciones
                       key={item.id + "-" + (item.stockPorciones === null ? "inf" : item.stockPorciones)}
@@ -134,7 +136,7 @@ export default async function PaginaMenuDia() {
               )}
 
               {faltantes.length > 0 ? (
-                <form action={agregarAlMenu} className="mt-4 flex gap-2">
+                <form action={agregarAlMenu} className="mt-5 flex gap-2">
                   <input type="hidden" name="menuId" value={menu.id} />
                   <select
                     name="productoId"

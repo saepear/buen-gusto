@@ -87,26 +87,10 @@ export function AdminShell({
       if (main) gsap.set(main, { clearProps: "maxWidth" });
     }
 
-    // Micro-escala del contenido (sin tocar la opacidad → no parece recarga):
-    // al cerrar crece, al abrir se achica.
-    if (debeAnimar && main) {
-      const bloques = Array.from(main.children);
-      if (bloques.length) {
-        const creciendo = !abierto;
-        gsap.fromTo(
-          bloques,
-          { scale: creciendo ? 0.96 : 1.04 },
-          {
-            scale: 1,
-            duration: 0.55,
-            ease: creciendo ? "back.out(1.4)" : "power2.inOut",
-            stagger: { each: 0.04, from: "start" },
-            overwrite: "auto",
-            onComplete: () => gsap.set(bloques, { clearProps: "transform" }),
-          },
-        );
-      }
-    }
+    // Nota: sin animaciones de escala sobre los bloques internos. Re-escalar
+    // todo el contenido al ocultar/mostrar convivía con el reflow del ancho
+    // y daba la sensación de recarga de página. Un solo movimiento (slide +
+    // ensanchado con el mismo ease y duración) se ve continuo y suave.
 
     // Reposiciona sin animación si cambia el tamaño de la ventana
     const alRedimensionar = () => {

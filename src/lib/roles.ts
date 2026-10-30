@@ -36,6 +36,24 @@ export const ES_TIPO_VALIDO = (v: string): v is TipoProducto =>
   v === "BEBIDA" || v === "ADICIONAL";
 export const TIPOS_MENU_DIA: TipoProducto[] = ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"];
 
+/**
+ * Orden de impresión en la comanda y en el recibo: como arman la bandeja
+ * (principio abajo → proteinas encima → adicionales como el huevo → sopa
+ * aparte). Empates dentro del grupo quedan en el orden en que se pidieron.
+ */
+export const ORDEN_IMPRIMIR: Record<TipoProducto, number> = {
+  PRINCIPIO: 1,
+  ENSALADA: 2,
+  PROTEINA: 3,
+  ADICIONAL: 4,
+  SOPA: 5,
+  BEBIDA: 6,
+};
+
+export function ordenDeItem(tipo: string): number {
+  return (ORDEN_IMPRIMIR as Record<string, number | undefined>)[tipo] ?? 99;
+}
+
 export const ESTADO_MESA = {
   LIBRE: "LIBRE",
   OCUPADA: "OCUPADA",

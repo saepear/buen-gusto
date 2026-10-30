@@ -157,8 +157,9 @@ export async function crearMesa(
   }
 
   const nombre = String(datos.get("nombre") ?? "").trim().slice(0, 30);
-  if (nombre.length < 2) {
-    return { error: "El nombre de la mesa necesita al menos 2 letras.", ok: null };
+  // Se admite de 1 carácter en adelante: mesas "1", "2"… o "A", "B"…
+  if (nombre.length < 1) {
+    return { error: "Escribe el nombre de la mesa (p. ej. 1 o A).", ok: null };
   }
 
   const existente = await db.mesa.findUnique({ where: { nombre } });

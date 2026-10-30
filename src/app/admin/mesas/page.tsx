@@ -39,7 +39,11 @@ export default async function PaginaMesas() {
         (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
         0,
       ),
-      platos: items.reduce((suma, item) => suma + item.cantidad, 0),
+      // Platos = almuerzos de la mesa (su línea de PROTEINA), no todas las
+      // líneas de la comanda: sopa, principio y extras no son platos extra.
+      platos: items
+        .filter((item) => item.tipo === "PROTEINA")
+        .reduce((suma, item) => suma + item.cantidad, 0),
       // Marca de tiempo del primer pedido activo (el cliente calcula los minutos en vivo)
       desde: primero ? primero.createdAt.getTime() : null,
       comandas: propios.map((pedido) => ({

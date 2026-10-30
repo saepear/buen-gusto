@@ -12,9 +12,10 @@ export const metadata = { title: "Órdenes · El Buen Gusto" };
 
 export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
   const sesion = await requerirRol("ADMIN");
-  const { busqueda, fecha } = await props.searchParams;
+  const { busqueda } = await props.searchParams;
 
-  const dia = fecha ? String(fecha) : claveDia(new Date());
+  // Siempre el día de hoy: las órdenes se borran al cerrar caja
+  const dia = claveDia(new Date());
 
   const cierre = await db.cierreCaja.findUnique({ where: { fecha: dia } });
 
@@ -97,12 +98,6 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                 className="h-12 w-64 rounded-2xl bg-panel-app pl-11 pr-4 text-sm text-texto-app outline-none ring-1 ring-borde-app transition focus:ring-amber-brand/50 placeholder:text-texto-muted/25"
               />
             </div>
-            <input
-              type="date"
-              name="fecha"
-              defaultValue={dia}
-              className="h-12 rounded-2xl bg-panel-app px-4 text-sm text-texto-app outline-none ring-1 ring-borde-app transition focus:ring-amber-brand/50 [color-scheme:dark]"
-            />
             <button
               type="submit"
               className="h-12 rounded-2xl bg-amber-brand px-8 font-display text-sm font-bold text-brown-950 transition hover:scale-[1.02] active:scale-95"

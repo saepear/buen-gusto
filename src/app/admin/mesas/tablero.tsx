@@ -17,7 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatCOP } from "@/lib/format";
 import type { EstadoMesa } from "@/lib/roles";
@@ -213,51 +213,55 @@ function ModalMesa({
 
     const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
     gsap
-      .timeline({ onComplete: onClose })
-      .to(
-        filas,
-        { autoAlpha: 0, y: 10, duration: 0.18, stagger: 0.02, ease: "power2.in" },
-        0,
-      )
+      .timeline({ onComplete: onClose, defaults: { ease: "power2.inOut" } })
+      .to(filas, { autoAlpha: 0, y: 8, duration: 0.16, stagger: 0.015 }, 0)
       .to(
         panel,
-        { autoAlpha: 0, y: 20, scale: 0.95, duration: 0.3, ease: "power2.in" },
-        0.04,
+        { autoAlpha: 0, y: 16, scale: 0.965, duration: 0.34, ease: "power3.in" },
+        0.03,
       )
-      .to(overlay, { autoAlpha: 0, duration: 0.26, ease: "power2.in" }, 0.06);
+      .to(overlay, { autoAlpha: 0, duration: 0.3, ease: "power2.in" }, 0.05);
   }, [onClose]);
 
-  useEffect(() => {
+  // useLayoutEffect (no useEffect): aplica el estado inicial ANTES del primer
+  // render del navegador, así el modal nunca se ve "aparecer" y luego
+  // esconderse (ese parpadeo daba la sensación de recarga).
+  useLayoutEffect(() => {
     const overlay = overlayRef.current;
     const panel = panelRef.current;
     if (!overlay || !panel) return;
 
     const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
+
+    // Estado inicial aplicado sincrónicamente: nada parpadea al montar
     if (reducido) {
       gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
       return;
     }
+    gsap.set([overlay, panel, ...filas], { autoAlpha: 0 });
 
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-    tl.fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.22 }, 0)
+    // Apertura suave: sin rebotes (power4.out) y el contenido entra después,
+    // en cascada corta, para que el panel no "salte".
+    tl.fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
       .fromTo(
         panel,
-        { autoAlpha: 0, y: 30, scale: 0.94 },
+        { autoAlpha: 0, y: 36, scale: 0.96 },
         {
           autoAlpha: 1,
           y: 0,
           scale: 1,
-          duration: 0.5,
-          ease: "back.out(1.25)",
+          duration: 0.52,
+          ease: "power4.out",
         },
-        0.03,
+        0.04,
       )
       .fromTo(
         filas,
-        { autoAlpha: 0, y: 14 },
-        { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.05 },
-        0.16,
+        { autoAlpha: 0, y: 16 },
+        { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.045, ease: "power3.out" },
+        0.15,
       );
 
     return () => {
@@ -463,9 +467,14 @@ export function TableroMesas({ mesas }: { mesas: MesaDetalle[] }) {
   const [ahora, setAhora] = useState<number | null>(null);
 
   useEffect(() => {
-    setAhora(Date.now());
+    // El primer tick va async (frame) para no llamar setState sincrónico
+    // mientras corre el efecto; luego continúa cada 30 s.
+    const primera = requestAnimationFrame(() => setAhora(Date.now()));
     const t = setInterval(() => setAhora(Date.now()), 30_000);
-    return () => clearInterval(t);
+    return () => {
+      cancelAnimationFrame(primera);
+      clearInterval(t);
+    };
   }, []);
 
   return (
