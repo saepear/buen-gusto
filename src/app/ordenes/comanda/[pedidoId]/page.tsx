@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
-import { requerirRol } from "@/lib/session";
+import { requerirRolDe } from "@/lib/session";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const metadata = { title: "Comanda · El Buen Gusto" };
@@ -11,7 +11,9 @@ export const metadata = { title: "Comanda · El Buen Gusto" };
 export default async function PaginaComanda(
   props: PageProps<"/ordenes/comanda/[pedidoId]">,
 ) {
-  await requerirRol("ADMIN");
+  // El ticket lo abre el ADMIN (tablero Órdenes) o el MESERO tras enviar
+  // una comanda (autoPrint). El tablero /ordenes sigue siendo solo ADMIN.
+  const sesion = await requerirRolDe(["ADMIN", "MESERO"]);
   const { pedidoId: crudo } = await props.params;
   const { reprint } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
@@ -132,7 +134,9 @@ export default async function PaginaComanda(
         </p>
       </div>
 
-      <BotonImprimir />
+      <BotonImprimir
+        volverHref={sesion.rol === "ADMIN" ? "/ordenes" : "/mesero"}
+      />
     </div>
   );
 }

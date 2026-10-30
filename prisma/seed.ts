@@ -1,5 +1,7 @@
 // Semilla inicial del sistema El Buen Gusto
 // Uso: npm run db:seed
+// ⚠ CUIDADO: resetea TODA la base (pedidos, domicilios, pagos, cierres de
+// caja y menú del día desaparecen). Solo correr en un arranque limpio.
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
@@ -9,6 +11,7 @@ const USUARIOS = [
   { nombre: "Laura", pin: "1111", rol: "MESERO" },
   { nombre: "Carlos", pin: "2222", rol: "MESERO" },
   { nombre: "Repartidor", pin: "4444", rol: "DOMICILIARIO" },
+  { nombre: "Cristian", pin: "5555", rol: "DOMICILIARIO" },
 ];
 
 // Mesas del salón identificadas por nombre (cualitativo), no por número.
@@ -42,8 +45,10 @@ const PRODUCTOS = [
   { nombre: "Frijoles", tipo: "PRINCIPIO", precio: 0 },
   { nombre: "Lentejas", tipo: "PRINCIPIO", precio: 0 },
   { nombre: "Papa a la francesa", tipo: "PRINCIPIO", precio: 0 },
-  { nombre: "Ensalada", tipo: "PRINCIPIO", precio: 0 },
   { nombre: "Pasta", tipo: "PRINCIPIO", precio: 0 },
+  // Ensaladas: apartado aparte de los principios (Fase 8), siempre incluidas
+  { nombre: "Ensalada verde", tipo: "ENSALADA", precio: 0 },
+  { nombre: "Pico de gallo", tipo: "ENSALADA", precio: 0 },
   // Sopas
   { nombre: "Sopa de verduras", tipo: "SOPA", precio: 0 },
   { nombre: "Sopa de frijol", tipo: "SOPA", precio: 0 },
@@ -67,6 +72,7 @@ const PRODUCTOS = [
 const STOCK_DEMO: Record<string, number> = {
   PROTEINA: 35,
   PRINCIPIO: 40,
+  ENSALADA: 30,
   SOPA: 45,
 };
 
@@ -109,7 +115,7 @@ async function main() {
   });
 
   const itemsMenu = PRODUCTOS.filter((p) =>
-    ["PROTEINA", "PRINCIPIO", "SOPA"].includes(p.tipo),
+    ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(p.tipo),
   ).map((p) => ({
     menuDiaId: menu.id,
     productoId: porNombre.get(p.nombre)!.id,

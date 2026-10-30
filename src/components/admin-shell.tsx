@@ -138,7 +138,7 @@ export function AdminShell({
         onClick={() => setAbierto((v) => !v)}
         aria-label={abierto ? "Ocultar menú" : "Mostrar menú"}
         title={abierto ? "Ocultar menú" : "Mostrar menú"}
-        className="fixed left-4 top-5 z-50 hidden h-10 w-10 items-center justify-center rounded-xl bg-panel-app text-texto-app ring-1 ring-borde-app shadow-flotante transition hover:bg-amber-brand hover:text-brown-950 lg:flex"
+        className="fixed left-5 top-7 z-50 hidden h-10 w-10 items-center justify-center rounded-xl bg-panel-app text-texto-app ring-1 ring-borde-app shadow-flotante transition hover:bg-amber-brand hover:text-brown-950 lg:flex"
       >
         {abierto ? (
           <PanelLeftClose className="h-5 w-5" />

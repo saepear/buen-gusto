@@ -48,7 +48,7 @@ export function SidebarAdmin({
         ref={ref}
         className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-borde-app/50 bg-fondo-app lg:flex"
       >
-        <div className="flex items-center gap-3 pb-4 pl-16 pr-5 pt-6">
+        <div className="flex items-center gap-2.5 border-b border-borde-app/50 pb-5 pl-[4.75rem] pr-3 pt-6">
           <div className="relative shrink-0">
             <div className="absolute -inset-1 rounded-full bg-amber-brand/20 blur-sm"></div>
             <Image

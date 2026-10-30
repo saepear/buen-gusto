@@ -8,9 +8,9 @@ import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 
-// Ancla visual del acceso: la casa servida, a sangre completa.
-const FONDO_ACCESO =
-  "https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Cinematic%20dark%20restaurant%20interior%20at%20night%2C%20warm%20amber%20pendant%20lamps%20over%20a%20rustic%20wooden%20table%2C%20elegant%20plated%20gourmet%20dish%2C%20soft%20bokeh%2C%20deep%20shadows%2C%20moody%20premium%20food%20photography%2C%20shallow%20depth%20of%20field%2C%20no%20text%2C%20no%20people&image_size=landscape_16_9";
+// Ancla visual del acceso: fotografía del ambiente guardada en /public
+// (antes era hotlink a trae.ai, que podría caer o cambiar de URL).
+const FONDO_ACCESO = "/fondo-acceso.jpg";
 
 export default async function LoginPage() {
   const sesion = await getSesion();

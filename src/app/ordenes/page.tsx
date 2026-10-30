@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { formatHora, claveDia } from "@/lib/format";
 import { requerirRol } from "@/lib/session";
 import { AutoRefresco } from "./refresco";
+import { AccionesComanda } from "./botones-comanda";
 
 export const metadata = { title: "Órdenes · El Buen Gusto" };
 
@@ -181,13 +182,19 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                         </span>
                       </td>
                       <td className="px-8 py-6 text-right">
-                        <Link
-                          href={`/ordenes/comanda/${pedido.id}`}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-panel-app text-texto-app transition hover:bg-amber-brand hover:text-brown-950 hover:scale-110 active:scale-95 shadow-lg"
-                          title="Gestionar Comanda"
-                        >
-                          <Printer className="h-5 w-5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <AccionesComanda
+                            pedidoId={pedido.id}
+                            estado={pedido.estado}
+                          />
+                          <Link
+                            href={`/ordenes/comanda/${pedido.id}`}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-panel-app text-texto-app transition hover:bg-amber-brand hover:text-brown-950 hover:scale-110 active:scale-95 shadow-lg"
+                            title="Gestionar Comanda"
+                          >
+                            <Printer className="h-5 w-5" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
