@@ -8,6 +8,9 @@ import { SidebarAdmin } from "./sidebar-admin";
 // w-64 = 256px (ancho del sidebar) · canal mínimo visible cuando está cerrado
 const ANCHO_SIDEBAR = 256;
 const CANAL = 64;
+// Ancho máximo del contenido: se amplía al ocultar el sidebar para que crezca de verdad
+const MAX_CONTENIDO = 1152; // 72rem (max-w-6xl)
+const MAX_CONTENIDO_AMPLIO = 1440;
 
 export function AdminShell({
   nombre,
@@ -20,57 +23,86 @@ export function AdminShell({
   const sidebarRef = useRef<HTMLElement>(null);
   const contenidoRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const activoRef = useRef(false);
   const inicial = useRef(true);
+
+  // Marca si hay una animación en curso para ignorar el "resize" que dispara el navegador
+  type Objetivo = Parameters<typeof gsap.to>[0];
+  type Vars = NonNullable<Parameters<typeof gsap.to>[1]>;
+  const animar = (objetivo: Objetivo, vars: Vars, dur: number) => {
+    if (dur === 0) {
+      gsap.set(objetivo, vars);
+      return;
+    }
+    activoRef.current = true;
+    gsap.to(objetivo, {
+      ...vars,
+      duration: dur,
+      onComplete: () => {
+        activoRef.current = false;
+      },
+    });
+  };
 
   useEffect(() => {
     const sidebar = sidebarRef.current;
     const contenido = contenidoRef.current;
+    const main = mainRef.current;
     if (!sidebar || !contenido) return;
 
-    const animar = !inicial.current;
+    const debeAnimar = !inicial.current;
     inicial.current = false;
-    const dur = animar ? 0.5 : 0;
+    const dur = debeAnimar ? 0.55 : 0;
     const ease = "power3.inOut";
     const escritorio = window.matchMedia("(min-width: 1024px)").matches;
 
     // El sidebar se desliza fuera de pantalla al cerrarse
-    gsap.to(sidebar, {
-      x: escritorio && !abierto ? -ANCHO_SIDEBAR : 0,
-      duration: dur,
-      ease,
-      overwrite: "auto",
-    });
+    animar(
+      sidebar,
+      { x: escritorio && !abierto ? -ANCHO_SIDEBAR : 0, ease, overwrite: "auto" },
+      dur,
+    );
 
-    // El contenido se expande ocupando el espacio liberado
     if (escritorio) {
-      gsap.to(contenido, {
-        paddingLeft: abierto ? ANCHO_SIDEBAR : CANAL,
-        duration: dur,
-        ease,
-        overwrite: "auto",
-      });
+      // El contenido ocupa el espacio liberado…
+      animar(
+        contenido,
+        { paddingLeft: abierto ? ANCHO_SIDEBAR : CANAL, ease, overwrite: "auto" },
+        dur,
+      );
+      // …y crece de verdad en ancho, por lo que los divs se agrandan
+      if (main) {
+        animar(
+          main,
+          {
+            maxWidth: abierto ? MAX_CONTENIDO : MAX_CONTENIDO_AMPLIO,
+            ease,
+            overwrite: "auto",
+          },
+          dur,
+        );
+      }
     } else {
       gsap.set(contenido, { clearProps: "paddingLeft" });
+      if (main) gsap.set(main, { clearProps: "maxWidth" });
     }
 
-    // Al cerrar el sidebar los bloques crecen; al abrirlo se achican.
-    const main = mainRef.current;
-    if (animar && main) {
+    // Micro-escala del contenido (sin tocar la opacidad → no parece recarga):
+    // al cerrar crece, al abrir se achica.
+    if (debeAnimar && main) {
       const bloques = Array.from(main.children);
       if (bloques.length) {
         const creciendo = !abierto;
         gsap.fromTo(
           bloques,
-          { scale: creciendo ? 0.94 : 1.06, opacity: creciendo ? 0.7 : 0.85 },
+          { scale: creciendo ? 0.96 : 1.04 },
           {
             scale: 1,
-            opacity: 1,
             duration: 0.55,
-            ease: creciendo ? "back.out(1.5)" : "power2.inOut",
-            stagger: { each: 0.045, from: "start" },
+            ease: creciendo ? "back.out(1.4)" : "power2.inOut",
+            stagger: { each: 0.04, from: "start" },
             overwrite: "auto",
-            onComplete: () =>
-              gsap.set(bloques, { clearProps: "opacity,transform" }),
+            onComplete: () => gsap.set(bloques, { clearProps: "transform" }),
           },
         );
       }
@@ -78,14 +110,19 @@ export function AdminShell({
 
     // Reposiciona sin animación si cambia el tamaño de la ventana
     const alRedimensionar = () => {
+      if (activoRef.current) return; // ignora el resize provocado por la propia animación
       const esc = window.matchMedia("(min-width: 1024px)").matches;
       gsap.set(sidebar, { x: esc && !abierto ? -ANCHO_SIDEBAR : 0 });
       if (esc) {
-        gsap.set(contenido, {
-          paddingLeft: abierto ? ANCHO_SIDEBAR : CANAL,
-        });
+        gsap.set(contenido, { paddingLeft: abierto ? ANCHO_SIDEBAR : CANAL });
+        if (main) {
+          gsap.set(main, {
+            maxWidth: abierto ? MAX_CONTENIDO : MAX_CONTENIDO_AMPLIO,
+          });
+        }
       } else {
         gsap.set(contenido, { clearProps: "paddingLeft" });
+        if (main) gsap.set(main, { clearProps: "maxWidth" });
       }
     };
     window.addEventListener("resize", alRedimensionar);
