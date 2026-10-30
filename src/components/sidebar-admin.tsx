@@ -16,6 +16,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Ref } from "react";
 import { cerrarSesion } from "@/app/login/actions";
 
 const NAV: { href: string; etiqueta: string; Icono: LucideIcon }[] = [
@@ -31,14 +32,23 @@ const NAV: { href: string; etiqueta: string; Icono: LucideIcon }[] = [
   { href: "/admin/configuracion", etiqueta: "Configuración", Icono: Settings },
 ];
 
-export function SidebarAdmin({ nombre }: { nombre: string }) {
+export function SidebarAdmin({
+  nombre,
+  ref,
+}: {
+  nombre: string;
+  ref?: Ref<HTMLElement>;
+}) {
   const ruta = usePathname();
 
   return (
     <>
       {/* Escritorio: sidebar fijo */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-borde-app/50 bg-fondo-app lg:flex">
-        <div className="flex items-center gap-3 px-5 pb-4 pt-6">
+      <aside
+        ref={ref}
+        className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-borde-app/50 bg-fondo-app lg:flex"
+      >
+        <div className="flex items-center gap-3 pb-4 pl-16 pr-5 pt-6">
           <div className="relative shrink-0">
             <div className="absolute -inset-1 rounded-full bg-amber-brand/20 blur-sm"></div>
             <Image
