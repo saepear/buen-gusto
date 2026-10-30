@@ -29,8 +29,8 @@ const CHIP_COMANDA: Record<string, string> = {
   ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
   EN_PREPARACION: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
   PARCIAL_SERVIDO: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
-  SERVIDO: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
-  POR_PAGAR: "bg-warning/10 text-[#f0cf6d] ring-1 ring-warning/20",
+  SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
+  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
 
 const CHIP_COMANDA_TXT: Record<string, string> = {
@@ -43,7 +43,7 @@ const CHIP_COMANDA_TXT: Record<string, string> = {
 
 const ESTILO_MESA: Record<string, string> = {
   OCUPADA: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
-  POR_PAGAR: "bg-warning/10 text-[#f0cf6d] ring-1 ring-warning/20",
+  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
 
 export type ItemCuenta = {
@@ -64,7 +64,7 @@ export type ComandaCuenta = {
 
 export type MesaParaCobrar = {
   id: number;
-  numero: number;
+  nombre: string;
   estado: string;
   total: number;
   pedidos: ComandaCuenta[];
@@ -86,33 +86,33 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   ).length;
 
   return (
-    <article className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10">
+    <article className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-display text-2xl text-white">
-            Mesa #{mesa.numero}
+          <p className="font-display text-2xl text-texto-app">
+            {mesa.nombre}
           </p>
           <span
             className={
               "mt-1 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide " +
-              (ESTILO_MESA[mesa.estado] ?? "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+              (ESTILO_MESA[mesa.estado] ?? "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
             }
           >
             {mesa.estado === "POR_PAGAR" ? "Por pagar" : "Ocupada"}
           </span>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
             Total a cobrar
           </p>
-          <p className="font-display text-3xl text-white">
+          <p className="font-display text-3xl text-texto-app">
             {formatCOP(mesa.total)}
           </p>
         </div>
       </div>
 
       {mesa.pedidos.length === 0 ? (
-        <p className="mt-4 rounded-xl border-2 border-dashed border-white/10 p-4 text-center text-sm text-cream-200/45">
+        <p className="mt-4 rounded-xl border-2 border-dashed border-borde-app p-4 text-center text-sm text-texto-muted/45">
           La mesa está ocupada pero no tiene comandas activas hoy.
           Revisa con el mesero antes de cobrar.
         </p>
@@ -122,17 +122,17 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
             {mesa.pedidos.map((pedido) => (
               <div
                 key={pedido.id}
-                className="rounded-xl bg-white/5 px-3.5 py-3 ring-1 ring-white/10"
+                className="rounded-xl bg-panel-app px-3.5 py-3 ring-1 ring-borde-app"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-bold text-cream-100">
+                  <p className="text-sm font-bold text-texto-app">
                     Comanda #{pedido.id} · {pedido.hora}
                   </p>
                   <span
                     className={
                       "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
                       (CHIP_COMANDA[pedido.estado] ??
-                        "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+                        "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                     }
                   >
                     {CHIP_COMANDA_TXT[pedido.estado] ?? pedido.estado}
@@ -150,21 +150,21 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                       key={`${pedido.id}-${i}`}
                       className="flex items-baseline gap-2 text-sm"
                     >
-                      <span className="min-w-0 flex-1 font-bold text-white">
+                      <span className="min-w-0 flex-1 font-bold text-texto-app">
                         {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
                         {item.nombre}
                         {item.sinSopa ? (
-                          <span className="ml-1.5 rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-bold uppercase text-cream-200/45">
+                          <span className="ml-1.5 rounded-md bg-panel-app px-1.5 py-0.5 text-[10px] font-bold uppercase text-texto-muted/45">
                             sin sopa
                           </span>
                         ) : null}
                       </span>
                       {item.precio > 0 ? (
-                        <span className="font-bold text-cream-100">
+                        <span className="font-bold text-texto-app">
                           {formatCOP(item.precio * item.cantidad)}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold uppercase text-cream-200/35">
+                        <span className="text-[10px] font-bold uppercase text-texto-muted/35">
                           incluido
                         </span>
                       )}
@@ -173,7 +173,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                 </ul>
 
                 {pedido.observaciones ? (
-                  <p className="mt-2 text-xs text-cream-200/45">
+                  <p className="mt-2 text-xs text-texto-muted/45">
                     📝 {pedido.observaciones}
                   </p>
                 ) : null}
@@ -182,7 +182,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
           </div>
 
           {enCocina > 0 ? (
-            <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-[#f0cf6d] ring-1 ring-warning/20">
+            <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-warning-text ring-1 ring-warning/20">
               ⏳ {enCocina}{" "}
               {enCocina === 1 ? "comanda sigue" : "comandas siguen"} en
               cocina: al cobrar se marcan como pagadas y salen de la lista.
@@ -194,13 +194,13 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
             <input type="hidden" name="metodo" value={metodo} />
 
             {estado.error ? (
-              <p className="rounded-xl border-2 border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-[#f0a6a3]">
+              <p className="rounded-xl border-2 border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger-text">
                 {estado.error}
               </p>
             ) : null}
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
                 Método de pago
               </p>
               <div className="mt-1.5 grid grid-cols-3 gap-2">
@@ -213,7 +213,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                       "flex flex-col items-center gap-1 rounded-xl py-2.5 text-xs font-bold transition " +
                       (metodo === valor
                         ? "bg-amber-brand text-brown-950"
-                        : "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+                        : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                     }
                   >
                     <Icono className="h-4 w-4" /> {txt}
@@ -223,7 +223,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
             </div>
 
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
                 Propina (opcional)
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -233,7 +233,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                   onChange={(e) => setPropinaTxt(e.target.value)}
                   inputMode="numeric"
                   placeholder="0"
-                  className="w-28 rounded-xl border-0 bg-white/5 px-3 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 focus:ring-2 focus:ring-amber-brand/60 placeholder:text-cream-200/25"
+                  className="w-28 rounded-xl border-0 bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60 placeholder:text-texto-muted/25"
                 />
                 {PRESET_PROPINA.map((p) => (
                   <button
@@ -249,7 +249,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                       "rounded-full px-3 py-1.5 text-xs font-bold transition " +
                       (propinaTxt === p.valor
                         ? "bg-amber-brand text-brown-950"
-                        : "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+                        : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                     }
                   >
                     {p.txt}
@@ -264,8 +264,8 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
               className={
                 "flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-lg transition " +
                 (pendiente
-                  ? "bg-white/5 text-cream-200/60"
-                  : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-white")
+                  ? "bg-panel-app text-texto-muted/60"
+                  : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
               }
             >
               <Wallet className="h-5 w-5" />
@@ -279,3 +279,4 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
     </article>
   );
 }
+

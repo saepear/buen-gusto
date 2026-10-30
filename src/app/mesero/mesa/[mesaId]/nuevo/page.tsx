@@ -32,25 +32,25 @@ export default async function PaginaNuevoPedido(
 
   if (menu.length === 0) {
     return (
-      <div className="min-h-screen bg-fondo-kds">
+      <div className="min-h-screen bg-fondo-app">
         <EncabezadoMesero
           usuario={sesion.nombre}
-          titulo={`Mesa #${mesa.numero}`}
+          titulo={mesa.nombre}
           volver={{ href: "/mesero", texto: "Mesas" }}
         />
         <main className="mx-auto max-w-lg sm:max-w-2xl p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="flex flex-col items-center gap-2.5 rounded-[2rem] border-2 border-dashed border-white/10 bg-white/[0.02] p-10 text-center ring-1 ring-white/10 shadow-2xl">
-            <UtensilsCrossed className="h-8 w-8 text-cream-200/35" />
-            <p className="font-display text-xl text-white">
+          <div className="flex flex-col items-center gap-2.5 rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center ring-1 ring-borde-app shadow-2xl">
+            <UtensilsCrossed className="h-8 w-8 text-texto-muted/35" />
+            <p className="font-display text-xl text-texto-app">
               Todavía no hay menú para hoy
             </p>
-            <p className="text-sm text-cream-200/70">
+            <p className="text-sm text-texto-muted/70">
               Avísale al administrador para que arme el menú del día antes de
               tomar pedidos.
             </p>
             <Link
               href={volver}
-              className="mt-4 flex items-center gap-2 rounded-2xl bg-white/5 px-5 py-3 font-display text-md text-cream-100 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white active:scale-95"
+              className="mt-4 flex items-center gap-2 rounded-2xl bg-panel-app px-5 py-3 font-display text-md text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:text-texto-app active:scale-95"
             >
               <ArrowLeft className="h-4 w-4" /> Volver a la mesa
             </Link>
@@ -61,15 +61,15 @@ export default async function PaginaNuevoPedido(
   }
 
   return (
-    <div className="min-h-screen bg-fondo-kds">
+    <div className="min-h-screen bg-fondo-app">
       <EncabezadoMesero
         usuario={sesion.nombre}
-        titulo={`Mesa #${mesa.numero} · Nuevo almuerzo`}
+        titulo={`${mesa.nombre} · Nuevo almuerzo`}
         volver={{ href: volver, texto: "Mesa" }}
       />
 
       <FormularioPedido
-        mesa={{ id: mesa.id, numero: mesa.numero }}
+        mesa={{ id: mesa.id, nombre: mesa.nombre }}
         menu={menu}
         extras={extras.map((p) => ({
           id: p.id,

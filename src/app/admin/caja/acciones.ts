@@ -57,7 +57,7 @@ export async function cobrarMesa(
     nuevoPagoId = await db.$transaction(async (tx) => {
       const mesa = await tx.mesa.findUnique({
         where: { id: mesaId },
-        select: { numero: true, estado: true, activa: true },
+        select: { nombre: true, estado: true, activa: true },
       });
       if (!mesa || !mesa.activa) throw new ErrorDeCaja("Esa mesa ya no existe.");
       if (
@@ -65,7 +65,7 @@ export async function cobrarMesa(
         mesa.estado !== ESTADO_MESA.POR_PAGAR
       ) {
         throw new ErrorDeCaja(
-          `La mesa #${mesa.numero} ya está libre: no hay nada que cobrar.`,
+          `La mesa «${mesa.nombre}» ya está libre: no hay nada que cobrar.`,
         );
       }
 
@@ -84,7 +84,7 @@ export async function cobrarMesa(
       });
       if (pedidos.length === 0) {
         throw new ErrorDeCaja(
-          `La mesa #${mesa.numero} no tiene comandas activas para cobrar hoy.`,
+          `La mesa «${mesa.nombre}» no tiene comandas activas para cobrar hoy.`,
         );
       }
 
@@ -132,7 +132,7 @@ export async function cobrarMesa(
 
   revalidatePath("/admin", "layout");
   revalidatePath("/mesero", "layout");
-  revalidatePath("/cocina", "layout");
+  revalidatePath("/ordenes", "layout");
   realtime.broadcast("update");
 
   redirect(`/admin/caja/recibo/${nuevoPagoId}`);

@@ -87,7 +87,7 @@ export async function eliminarProducto(datos: FormData): Promise<void> {
   revalidatePath("/admin/productos");
   revalidatePath("/admin/menu-dia");
   revalidatePath("/mesero");
-  revalidatePath("/cocina");
+  revalidatePath("/ordenes");
 }
 
 /** Reactivar un producto que ya se había eliminado (el historial se conserva) */

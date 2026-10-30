@@ -317,7 +317,7 @@ export async function tomarPedido(
     });
   } catch (e) {
     if (e instanceof SeAgoto) {
-      fallo = `«${e.message}» se acabó en la cocina. Revisa la selección e intenta otra vez.`;
+      fallo = `«${e.message}» se agotó. Revisa la selección e intenta otra vez.`;
     } else if (
       e instanceof Error &&
       typeof e === "object" &&
@@ -336,10 +336,10 @@ export async function tomarPedido(
   }
 
   revalidatePath("/mesero", "layout");
-  revalidatePath("/cocina");
+  revalidatePath("/ordenes");
   revalidatePath("/admin", "layout");
   revalidatePath("/");
   realtime.broadcast("update");
 
-  redirect(`/cocina/comanda/${nuevoId}?autoPrint=1`);
+  redirect(`/ordenes/comanda/${nuevoId}?autoPrint=1`);
 }

@@ -48,10 +48,10 @@ function TituloSeccion({
         <Icono className="h-4.5 w-4.5" />
       </span>
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/40">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
           {titulo}
         </p>
-        <p className="text-[11px] text-cream-200/35">{sub}</p>
+        <p className="text-[11px] text-texto-muted/35">{sub}</p>
       </div>
     </div>
   );
@@ -71,7 +71,7 @@ export function FormularioPedido({
   menu,
   extras,
 }: {
-  mesa: { id: number; numero: number };
+  mesa: { id: number; nombre: string };
   menu: ItemMenuHoy[];
   extras: Extra[];
 }) {
@@ -209,20 +209,20 @@ export function FormularioPedido({
         className={
           "flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition active:scale-95 " +
           (agotado
-            ? "bg-white/5 text-cream-200/35 ring-1 ring-white/10"
+            ? "bg-panel-app text-texto-muted/35 ring-1 ring-borde-app"
             : elegido
               ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-              : "bg-white/5 text-white ring-1 ring-white/10 hover:ring-amber-brand/60")
+              : "bg-panel-app text-texto-app ring-1 ring-borde-app hover:ring-amber-brand/60")
         }
       >
         <span
           className={
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl " +
             (agotado
-              ? "bg-white/5 text-cream-200/35"
+              ? "bg-panel-app text-texto-muted/35"
               : elegido
-                ? "bg-brown-950/20 text-brown-950"
-                : "bg-white/5 text-cream-200/35 ring-1 ring-white/10")
+                ? "bg-panel-app text-brown-950"
+                : "bg-panel-app text-texto-muted/35 ring-1 ring-borde-app")
           }
         >
           <Icono className="h-4 w-4" />
@@ -235,16 +235,16 @@ export function FormularioPedido({
             className={
               "text-[10px] font-bold " +
               (agotado
-                ? "text-danger"
+                ? "text-danger-text"
                 : item.disponibles === null
                   ? elegido
                     ? "text-brown-950/70"
-                    : "text-cream-200/35"
+                    : "text-texto-muted/35"
                   : item.disponibles <= 5
-                    ? "text-warning"
+                    ? "text-warning-text"
                     : elegido
                       ? "text-brown-950/70"
-                      : "text-cream-200/35")
+                      : "text-texto-muted/35")
             }
           >
             {agotado
@@ -267,7 +267,7 @@ export function FormularioPedido({
           "flex items-center overflow-hidden rounded-2xl transition " +
           (activo
             ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-            : "bg-white/5 ring-1 ring-white/10")
+            : "bg-panel-app ring-1 ring-borde-app")
         }
       >
         {activo ? (
@@ -286,7 +286,7 @@ export function FormularioPedido({
           className="flex flex-1 items-center gap-2 px-2.5 py-2.5 text-left"
         >
           {!activo ? (
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-cream-200/35 ring-1 ring-white/10">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-panel-app text-texto-muted/35 ring-1 ring-borde-app">
               <Plus className="h-3.5 w-3.5" />
             </span>
           ) : null}
@@ -297,7 +297,7 @@ export function FormularioPedido({
             </span>
             <span
               className={
-                "text-[10px] font-bold " + (activo ? "text-brown-950/70" : "text-cream-200/35")
+                "text-[10px] font-bold " + (activo ? "text-brown-950/70" : "text-texto-muted/35")
               }
             >
               {e.precio > 0 ? formatCOP(e.precio) : "Gratis"}
@@ -311,20 +311,20 @@ export function FormularioPedido({
   return (
     <form ref={formRef} action={accion} className="mx-auto w-full max-w-xl sm:max-w-2xl px-4 pt-4 pb-44">
       {estado.error ? (
-        <p className="mb-3 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-bold text-danger ring-1 ring-danger/30">
+        <p className="mb-3 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-bold text-danger-text ring-1 ring-danger/30">
           {estado.error}
         </p>
       ) : null}
 
       {/* 1. Canal: en mesa / para llevar */}
-      <section className="rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={ShoppingBag}
           clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
           titulo="¿Cómo se sirve?"
           sub={`En mesa ${formatCOP(PRECIO_COMPLETO)} · llevar +${formatCOP(PRECIO_ICOPOR)} de icopor`}
         />
-        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1.5 ring-1 ring-white/10">
+        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-1.5 ring-1 ring-borde-app">
           {(
             [
               { ok: false, txt: "En mesa", Icono: UtensilsCrossed },
@@ -339,7 +339,7 @@ export function FormularioPedido({
                 "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 font-display text-md transition active:scale-95 " +
                 (llevar === ok
                   ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-                  : "text-cream-200/70 hover:bg-white/10")
+                  : "text-texto-muted/70 hover:bg-panel-hover")
               }
             >
               <span className="flex items-center gap-2">
@@ -354,14 +354,14 @@ export function FormularioPedido({
       </section>
 
       {/* 2. Sopa o bandeja */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={Soup}
           clase="bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20"
           titulo="¿El almuerzo lleva sopa?"
           sub="La bandeja es el mismo almuerzo sin sopa"
         />
-        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-white/5 p-1.5 ring-1 ring-white/10">
+        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-1.5 ring-1 ring-borde-app">
           {(
             [
               { ok: true, txt: "Con sopa" },
@@ -376,7 +376,7 @@ export function FormularioPedido({
                 "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 font-display text-md transition active:scale-95 " +
                 (conSopa === o.ok
                   ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-                  : "text-cream-200/70 hover:bg-white/10")
+                  : "text-texto-muted/70 hover:bg-panel-hover")
               }
             >
               <span className="flex items-center gap-2">
@@ -391,7 +391,7 @@ export function FormularioPedido({
       </section>
 
       {/* 3. Proteína */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={Drumstick}
           clase="bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20"
@@ -411,10 +411,10 @@ export function FormularioPedido({
       </section>
 
       {/* 4. Principios */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={Wheat}
-          clase="bg-success/10 text-[#a7dd83] ring-1 ring-success/20"
+          clase="bg-success/10 text-success-text ring-1 ring-success/20"
           titulo="Principios"
           sub="Los que pidan · frijoles, papa, pasta…"
         />
@@ -431,7 +431,7 @@ export function FormularioPedido({
       </section>
 
       {/* 5. Ensaladas (apartado especial) */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={Salad}
           clase="bg-[#4ec27e]/10 text-[#8fdcae] ring-1 ring-[#4ec27e]/20"
@@ -452,7 +452,7 @@ export function FormularioPedido({
 
       {/* 6. Sopa del día (solo si lleva) */}
       {conSopa ? (
-        <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+        <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
           <TituloSeccion
             Icono={Soup}
             clase="bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20"
@@ -473,7 +473,7 @@ export function FormularioPedido({
       ) : null}
 
       {/* 7. Bebidas */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={CupSoda}
           clase="bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20"
@@ -488,7 +488,7 @@ export function FormularioPedido({
       </section>
 
       {/* 8. Adicionales */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={Star}
           clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
@@ -503,22 +503,22 @@ export function FormularioPedido({
       </section>
 
       {/* 8. Nota para la cocina */}
-      <section className="mt-3.5 rounded-[2rem] bg-white/[0.02] p-4 ring-1 ring-white/10 shadow-2xl">
+      <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
         <TituloSeccion
           Icono={StickyNote}
-          clase="bg-white/5 text-cream-200/70"
+          clase="bg-panel-app text-texto-muted/70"
           titulo="Nota para la cocina"
           sub="Sin arroz, sin cebolla, huevo blando…"
         />
-        <label className="mt-3 flex items-center gap-2.5 rounded-2xl bg-white/5 px-3.5 py-3.5 ring-1 ring-white/10 focus-within:ring-2 focus-within:ring-amber-brand/60">
-          <StickyNote className="h-4 w-4 shrink-0 text-cream-200/35" />
+        <label className="mt-3 flex items-center gap-2.5 rounded-2xl bg-panel-app px-3.5 py-3.5 ring-1 ring-borde-app focus-within:ring-2 focus-within:ring-amber-brand/60">
+          <StickyNote className="h-4 w-4 shrink-0 text-texto-muted/35" />
           <input
             name="observaciones"
             value={nota}
             onChange={(e) => setNota(e.target.value)}
             maxLength={140}
             placeholder="Escribe la nota…"
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-cream-200/25"
+            className="w-full bg-transparent text-sm text-texto-app outline-none placeholder:text-texto-muted/25"
           />
         </label>
       </section>
@@ -526,8 +526,8 @@ export function FormularioPedido({
       {/* Barra fija: total + ordenar (respetando la barra del sistema) */}
       <div className="fixed inset-x-0 bottom-0 z-40">
         <div className="mx-auto max-w-xl sm:max-w-2xl px-3 barra-seguro">
-          <div className="flex items-center gap-3 rounded-[1.75rem] bg-brown-950/95 px-4 py-3.5 shadow-flotante ring-1 ring-white/10 backdrop-blur">
-            <div className="min-w-0 flex-1 text-cream-100">
+          <div className="flex items-center gap-3 rounded-[1.75rem] bg-brown-950/95 px-4 py-3.5 shadow-flotante ring-1 ring-borde-app backdrop-blur">
+            <div className="min-w-0 flex-1 text-texto-app">
               <p className="truncate text-sm font-bold">
                 {proteina === null ? (
                   "Falta la proteína"
@@ -542,7 +542,7 @@ export function FormularioPedido({
                   </>
                 )}
               </p>
-              <p className="text-[11px] text-cream-200/70">
+              <p className="text-[11px] text-texto-muted/70">
                 {proteina === null ? (
                   "El precio del almuerzo se muestra arriba"
                 ) : (
@@ -570,8 +570,8 @@ export function FormularioPedido({
               className={
                 "flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 font-display text-lg transition active:scale-95 " +
                 (noSePermite
-                  ? "bg-brown-800/60 text-cream-200/50"
-                  : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-white")
+                  ? "bg-brown-800/60 text-texto-muted/50"
+                  : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
               }
             >
               <Send className="h-5 w-5" />
@@ -584,7 +584,7 @@ export function FormularioPedido({
       {/* Modal de confirmación del pedido */}
       {confirmar ? (
         <div
-          className="animar-aparecer fixed inset-0 z-50 flex items-end justify-center bg-brown-950/60 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4"
+          className="animar-aparecer fixed inset-0 z-50 flex items-end justify-center bg-glass-app p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center sm:pb-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setConfirmar(false);
           }}
@@ -596,13 +596,13 @@ export function FormularioPedido({
           aria-modal="true"
           aria-label="Confirmar pedido"
         >
-          <div className="animar-subir w-full max-w-md rounded-[2rem] bg-brown-900 p-5 shadow-pop ring-1 ring-white/10">
+          <div className="animar-subir w-full max-w-md rounded-[2rem] bg-brown-900 p-5 shadow-pop ring-1 ring-borde-app">
             <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-brand/20 text-amber-brand ring-1 ring-amber-brand/30">
                 <UtensilsCrossed className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <p className="font-display text-lg leading-none text-white">
+                <p className="font-display text-lg leading-none text-texto-app">
                   Confirmar pedido
                 </p>
                 <p
@@ -610,7 +610,7 @@ export function FormularioPedido({
                     "mt-1.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
                     (llevar
                       ? "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
-                      : "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+                      : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                   }
                 >
                   {llevar ? (
@@ -618,7 +618,7 @@ export function FormularioPedido({
                       <ShoppingBag className="h-3 w-3" /> Para llevar
                     </>
                   ) : (
-                    <>Mesa #{mesa.numero} · en mesa</>
+                    <>{mesa.nombre} · en mesa</>
                   )}
                 </p>
               </div>
@@ -627,42 +627,42 @@ export function FormularioPedido({
             <ul className="mt-4 space-y-2 text-sm">
               {lineasResumen.map((l, i) => (
                 <li key={i} className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 truncate font-bold text-white">
+                  <span className="min-w-0 flex-1 truncate font-bold text-texto-app">
                     {l.texto}
                     {l.detalle ? (
-                      <span className="ml-1.5 text-[11px] font-normal text-cream-200/35">
+                      <span className="ml-1.5 text-[11px] font-normal text-texto-muted/35">
                         {l.detalle}
                       </span>
                     ) : null}
                   </span>
                   {l.precio > 0 ? (
-                    <span className="text-xs font-bold text-cream-200/70">
+                    <span className="text-xs font-bold text-texto-muted/70">
                       {formatCOP(l.precio)}
                     </span>
                   ) : (
-                    <span className="text-[10px] font-bold uppercase text-cream-200/35">
+                    <span className="text-[10px] font-bold uppercase text-texto-muted/35">
                       incluido
                     </span>
                   )}
                 </li>
               ))}
               {nota.trim() ? (
-                <li className="flex items-start gap-2 rounded-xl bg-white/5 px-3 py-2 text-xs text-cream-200/70">
-                  <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cream-200/35" />
+                <li className="flex items-start gap-2 rounded-xl bg-panel-app px-3 py-2 text-xs text-texto-muted/70">
+                  <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-texto-muted/35" />
                   Nota: {nota}
                 </li>
               ) : null}
             </ul>
 
-            <div className="my-4 border-t border-dashed border-white/10" />
+            <div className="my-4 border-t border-dashed border-borde-app" />
 
             <div className="flex items-baseline justify-between">
-              <span className="text-sm font-bold text-cream-200/70">Total</span>
+              <span className="text-sm font-bold text-texto-muted/70">Total</span>
               <span className="flex items-baseline gap-1.5">
                 {llevar ? (
                   <Banknote className="h-4 w-4 text-orange-brand" />
                 ) : null}
-                <span className="font-display text-3xl text-white">
+                <span className="font-display text-3xl text-texto-app">
                   {formatCOP(totalComanda)}
                 </span>
               </span>
@@ -672,7 +672,7 @@ export function FormularioPedido({
               <button
                 type="button"
                 onClick={() => setConfirmar(false)}
-                className="rounded-2xl bg-white/5 py-3.5 font-display text-md text-cream-200/70 ring-1 ring-white/10 transition hover:bg-white/10 active:scale-95"
+                className="rounded-2xl bg-panel-app py-3.5 font-display text-md text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-panel-hover active:scale-95"
               >
                 Seguir editando
               </button>
@@ -684,7 +684,7 @@ export function FormularioPedido({
                   "flex items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-md transition active:scale-95 " +
                   (pendiente
                     ? "bg-brown-800/50 text-cream-50/60"
-                    : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-white")
+                    : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
                 }
               >
                 <Send className="h-4.5 w-4.5" />

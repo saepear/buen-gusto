@@ -12,8 +12,9 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  // Deja que el teléfono (misma WiFi) use el servidor de desarrollo
-  allowedDevOrigins: ["10.151.95.119"],
+  // Deja que el teléfono (misma WiFi) use el servidor de desarrollo.
+  // Comodines por rango: la IP del equipo cambia con el DHCP.
+  allowedDevOrigins: ["192.168.*.*", "10.*.*.*"],
 };
 
 export default nextConfig;

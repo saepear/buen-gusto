@@ -1,7 +1,8 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Fredoka, Nunito } from "next/font/google";
 import "./globals.css";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
+import { getTemaActual } from "@/lib/config";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -43,13 +44,17 @@ export const viewport: Viewport = {
   themeColor: "#241006",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const tema = await getTemaActual();
+  const claseTema = tema === "light" ? "tema-claro" : "";
+
   return (
-    <html lang="es" className={`${fredoka.variable} ${nunito.variable} h-full antialiased`}>
-      <body className="min-h-full bg-fondo-kds font-sans text-cream-100">
+    <html lang="es" className={`${fredoka.variable} ${nunito.variable} ${claseTema} h-full antialiased`}>
+      <body className="min-h-full bg-fondo-app font-sans text-texto-app">
         {children}
         <RealtimeRefresh />
       </body>
     </html>
   );
 }
+

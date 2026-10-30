@@ -28,9 +28,36 @@
   --color-fondo-kds: #0f0a07;
 
   /* Semánticos */
-  --color-success: #7cb93f;
-  --color-danger: #d9534f;
-  --color-warning: #eab308;
+  --color-success: #84cc16;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Clases de tema para Tailwind */
+  --color-fondo-app: var(--fondo-app);
+  --color-texto-app: var(--texto-app);
+  --color-texto-muted: var(--texto-muted);
+  --color-panel-app: var(--panel-app);
+  --color-borde-app: var(--borde-app);
+  --color-glass-app: var(--glass-bg);
+  --color-panel-hover: var(--panel-hover);
+
+  /* Texto de contraste semántico */
+  --color-success-text: var(--success-text);
+  --color-danger-text: var(--danger-text);
+  --color-warning-text: var(--warning-text);
+
+  /* Colores dinámicos del tema (CSS Variables) */
+  --fondo-app: var(--color-fondo-kds);
+  --texto-app: var(--color-cream-100);
+  --texto-muted: var(--color-cream-200);
+  --panel-app: rgba(255, 255, 255, 0.05);
+  --panel-hover: rgba(255, 255, 255, 0.08);
+  --borde-app: rgba(255, 255, 255, 0.1);
+  --boton-texto: var(--color-brown-950);
+  --glass-bg: rgba(36, 16, 6, 0.6);
+  --success-text: #b1ff7d;
+  --danger-text: #ff7d7d;
+  --warning-text: #ffdb6e;
 
   /* Sombras suaves (tarjetas del mesero y modales) */
   --shadow-suave: 0 8px 24px -10px rgb(59 29 15 / 0.16);
@@ -52,8 +79,51 @@
 
 /* ============ Esquema oscuro de la casa (KDS) ============ */
 body {
-  background: var(--color-fondo-kds);
-  color: var(--color-cream-100);
+  background: var(--fondo-app);
+  color: var(--texto-app);
+}
+
+/* ============ Modo Claro (Inspirado en el Logo) ============ */
+.tema-claro {
+  --fondo-app: var(--color-cream-50);
+  --texto-app: var(--color-brown-950);
+  --texto-muted: var(--color-brown-700);
+  --panel-app: var(--color-cream-100);
+  --panel-hover: rgba(36, 16, 6, 0.06);
+  --borde-app: rgba(36, 16, 6, 0.12);
+  --boton-texto: var(--color-cream-50);
+  --glass-bg: rgba(252, 246, 234, 0.92);
+  --success-text: #166534;
+  --danger-text: #991b1b;
+  --warning-text: #854d0e;
+  color-scheme: light;
+}
+
+/* Sobrescribir acentos para que resalten más sobre el crema del logo */
+.tema-claro .text-amber-brand {
+  color: #ed7d1f; /* Un naranja un poco más intenso para legibilidad */
+}
+.tema-claro .bg-amber-brand {
+  background-color: #f2a63d;
+}
+.tema-claro .ring-amber-brand {
+  --tw-ring-color: #f2a63d;
+}
+
+/* ============ Forzar Modo Oscuro (para Login) ============ */
+.tema-oscuro {
+  --fondo-app: var(--color-fondo-kds);
+  --texto-app: var(--color-cream-100);
+  --texto-muted: var(--color-cream-200);
+  --panel-app: rgba(255, 255, 255, 0.05);
+  --panel-hover: rgba(255, 255, 255, 0.08);
+  --borde-app: rgba(255, 255, 255, 0.1);
+  --boton-texto: var(--color-brown-950);
+  --glass-bg: rgba(36, 16, 6, 0.6);
+  --success-text: #b1ff7d;
+  --danger-text: #ff7d7d;
+  --warning-text: #ffdb6e;
+  color-scheme: dark;
 }
 
 /* ============ Fase 9 · Móvil (Android / iOS / tablet) ============ */

@@ -15,7 +15,7 @@ model Usuario {
   id        Int      @id @default(autoincrement())
   nombre    String
   pin       String // 4 dígitos, único por rol (la búsqueda se hace por pin + rol)
-  rol       String // ADMIN | MESERO | COCINA
+  rol       String // ADMIN | MESERO
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -63,7 +63,7 @@ model MenuDiaItem {
 
 model Mesa {
   id     Int     @id @default(autoincrement())
-  numero Int     @unique
+  nombre String  @unique // identificador cualitativo (ej. "Ventana", "Para llevar · Juan")
   estado String  @default("LIBRE") // LIBRE | OCUPADA | POR_PAGAR
   activa Boolean @default(true) // false = oculta (sin pedidos nuevos)
 
@@ -124,4 +124,10 @@ model CierreCaja {
   numeroComandas  Int // comandas servidas o cobradas del día
   efectivoContado Int? // plata contada a mano (opcional); null = no se contó
   createdAt       DateTime @default(now())
+}
+
+model Configuracion {
+  id    Int    @id @default(autoincrement())
+  clave String @unique
+  valor String
 }

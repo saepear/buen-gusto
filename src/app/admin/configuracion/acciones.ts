@@ -13,6 +13,7 @@ const PIN_LIMPIO = (v: unknown) => String(v ?? "").replace(/[^0-9]/g, "");
 function revalidarTodo() {
   revalidatePath("/admin", "layout");
   revalidatePath("/mesero", "layout");
+  revalidatePath("/ordenes", "layout");
   realtime.broadcast("update");
 }
 
@@ -155,28 +156,25 @@ export async function crearMesa(
     return { error: "Solo el administrador puede agregar mesas.", ok: null };
   }
 
-  const numero = Number.parseInt(
-    PIN_LIMPIO(datos.get("numero")) || String(datos.get("numero") ?? "0"),
-    10,
-  );
-  if (!Number.isInteger(numero) || numero < 1 || numero > 500) {
-    return { error: "El número de mesa debe ir de 1 a 500.", ok: null };
+  const nombre = String(datos.get("nombre") ?? "").trim().slice(0, 30);
+  if (nombre.length < 2) {
+    return { error: "El nombre de la mesa necesita al menos 2 letras.", ok: null };
   }
 
-  const existente = await db.mesa.findUnique({ where: { numero } });
+  const existente = await db.mesa.findUnique({ where: { nombre } });
   if (existente) {
     return {
-      error: `Ya existe la mesa #${numero}${
+      error: `Ya existe la mesa «${nombre}»${
         existente.activa ? "" : " (está oculta; muéstrala de nuevo)"
       }.`,
       ok: null,
     };
   }
 
-  await db.mesa.create({ data: { numero, estado: "LIBRE", activa: true } });
+  await db.mesa.create({ data: { nombre, estado: "LIBRE", activa: true } });
 
   revalidarTodo();
-  return { error: null, ok: `Mesa #${numero} agregada al salón.` };
+  return { error: null, ok: `Mesa «${nombre}» agregada al salón.` };
 }
 
 /** Oculta o vuelve a mostrar una mesa (solo si está libre) */
@@ -198,7 +196,7 @@ export async function alternarMesa(
 
   if (mesa.activa && mesa.estado !== "LIBRE") {
     return {
-      error: `La mesa #${mesa.numero} está ocupada: cobra o cancela sus comandas antes de ocultarla.`,
+      error: `La mesa «${mesa.nombre}» está ocupada: cobra o cancela sus comandas antes de ocultarla.`,
       ok: null,
     };
   }
@@ -209,7 +207,7 @@ export async function alternarMesa(
   return {
     error: null,
     ok: mesa.activa
-      ? `La mesa #${mesa.numero} ya no aparece en el salón.`
-      : `La mesa #${mesa.numero} volvió al salón.`,
+      ? `La mesa «${mesa.nombre}» ya no aparece en el salón.`
+      : `La mesa «${mesa.nombre}» volvió al salón.`,
   };
 }

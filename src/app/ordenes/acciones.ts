@@ -9,7 +9,7 @@ import { exigirActor } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
 function revalidarComandas() {
-  revalidatePath("/cocina", "layout");
+  revalidatePath("/ordenes", "layout");
   revalidatePath("/mesero", "layout");
   revalidatePath("/admin", "layout");
   realtime.broadcast("update");
@@ -21,9 +21,9 @@ const VIVOS: EstadoPedido[] = [
   ESTADO_PEDIDO.PARCIAL_SERVIDO,
 ];
 
-/** Cocina empieza a preparar la comanda */
+/** El administrador empieza a preparar la comanda */
 export async function empezarComanda(datos: FormData): Promise<void> {
-  await exigirActor(["COCINA"]);
+  await exigirActor(["ADMIN"]);
   const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
   if (!Number.isInteger(id)) return;
   const pedido = await db.pedido.findUnique({
@@ -40,7 +40,7 @@ export async function empezarComanda(datos: FormData): Promise<void> {
 
 /** Comanda lista: los platos están servidos en la bandeja */
 export async function terminarComanda(datos: FormData): Promise<void> {
-  await exigirActor(["COCINA"]);
+  await exigirActor(["ADMIN"]);
   const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
   if (!Number.isInteger(id)) return;
   const pedido = await db.pedido.findUnique({
@@ -57,7 +57,7 @@ export async function terminarComanda(datos: FormData): Promise<void> {
 
 /** Cancelar una comanda viva: devuelve las porciones al menú del día */
 export async function cancelarComanda(datos: FormData): Promise<void> {
-  await exigirActor(["COCINA"]);
+  await exigirActor(["ADMIN"]);
   const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
   if (!Number.isInteger(id)) return;
 

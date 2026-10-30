@@ -1,4 +1,4 @@
-export function EncabezadoPagina({
+﻿export function EncabezadoPagina({
   titulo,
   subtitulo,
 }: {
@@ -7,8 +7,9 @@ export function EncabezadoPagina({
 }) {
   return (
     <header className="mb-9">
-      <h1 className="font-display text-4xl text-white">{titulo}</h1>
-      {subtitulo && <p className="mt-2 text-cream-200/50">{subtitulo}</p>}
+      <h1 className="font-display text-4xl text-texto-app">{titulo}</h1>
+      {subtitulo && <p className="mt-2 text-texto-muted/50">{subtitulo}</p>}
     </header>
   );
 }
+

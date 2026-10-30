@@ -63,7 +63,7 @@ export async function requerirRol(rol: Rol): Promise<Sesion> {
   return s;
 }
 
-/** Como requerirRol, pero admite varios roles (p. ej. COCINA y ADMIN) */
+/** Como requerirRol, pero admite varios roles (p. ej. ADMIN y MESERO) */
 export async function requerirRolDe(roles: Rol[]): Promise<Sesion> {
   const s = await getSesion();
   if (!s) redirect("/login");

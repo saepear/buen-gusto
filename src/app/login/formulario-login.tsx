@@ -1,6 +1,6 @@
 "use client";
 
-import { ChefHat, Delete, UserRound, UtensilsCrossed } from "lucide-react";
+import { Delete, UserRound, UtensilsCrossed } from "lucide-react";
 import {
   startTransition,
   useActionState,
@@ -11,7 +11,7 @@ import {
 import { iniciarSesion, type LoginState } from "./actions";
 
 type OpcionRol = {
-  rol: "ADMIN" | "MESERO" | "COCINA";
+  rol: "ADMIN" | "MESERO";
   titulo: string;
   detalle: string;
   Icono: typeof UserRound;
@@ -29,12 +29,6 @@ const OPCIONES: OpcionRol[] = [
     titulo: "Mesero",
     detalle: "Tomar pedidos",
     Icono: UtensilsCrossed,
-  },
-  {
-    rol: "COCINA",
-    titulo: "Cocina",
-    detalle: "Ver comandas",
-    Icono: ChefHat,
   },
 ];
 
@@ -104,17 +98,17 @@ export function FormularioLogin() {
   }, [rol, estado, pendiente]);
 
   return (
-    <div className="w-full rounded-[2rem] bg-brown-950/60 p-6 shadow-2xl ring-1 ring-white/10 backdrop-blur-2xl sm:p-8">
+    <div className="w-full rounded-[2rem] bg-glass-app p-6 shadow-2xl ring-1 ring-borde-app backdrop-blur-2xl sm:p-8">
       {rol === null ? (
         <>
           <header>
             <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-brand/70">
               Acceso
             </p>
-            <h2 className="mt-2 font-display text-3xl text-white">
+            <h2 className="mt-2 font-display text-3xl text-texto-app">
               ¿Quién entra?
             </h2>
-            <p className="mt-2 text-sm text-cream-200/60">
+            <p className="mt-2 text-sm text-texto-muted/60">
               Elige tu rol e ingresa tu PIN de 4 dígitos.
             </p>
           </header>
@@ -125,20 +119,20 @@ export function FormularioLogin() {
                 key={r}
                 type="button"
                 onClick={() => elegirRol(OPCIONES.find((o) => o.rol === r)!)}
-                className="group flex items-center gap-4 rounded-2xl bg-white/[0.04] p-4 text-left ring-1 ring-white/10 transition hover:bg-white/[0.08] hover:ring-amber-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
+                className="group flex items-center gap-4 rounded-2xl bg-panel-app p-4 text-left ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-brand/15 text-amber-brand ring-1 ring-amber-brand/20 transition group-hover:bg-amber-brand group-hover:text-brown-950">
                   <Icono className="h-6 w-6" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-bold text-white">{titulo}</span>
-                  <span className="block text-sm text-cream-200/50">
+                  <span className="block font-bold text-texto-app">{titulo}</span>
+                  <span className="block text-sm text-texto-muted/50">
                     {detalle}
                   </span>
                 </span>
                 <span
                   aria-hidden
-                  className="text-xl text-cream-200/30 transition group-hover:translate-x-0.5 group-hover:text-amber-brand"
+                  className="text-xl text-texto-muted/30 transition group-hover:translate-x-0.5 group-hover:text-amber-brand"
                 >
                   ›
                 </span>
@@ -151,14 +145,14 @@ export function FormularioLogin() {
           <button
             type="button"
             onClick={() => setRol(null)}
-            className="text-sm font-semibold text-cream-200/50 transition hover:text-amber-brand"
+            className="text-sm font-semibold text-texto-muted/50 transition hover:text-amber-brand"
           >
             ← Cambiar de rol
           </button>
 
           <header className="mt-3 flex items-baseline justify-between gap-3">
-            <h2 className="font-display text-2xl text-white">{rol.titulo}</h2>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-200/30">
+            <h2 className="font-display text-2xl text-texto-app">{rol.titulo}</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/30">
               PIN · 4 dígitos
             </span>
           </header>
@@ -186,11 +180,11 @@ export function FormularioLogin() {
 
           <div className="mt-3 h-5 text-center">
             {pendiente ? (
-              <p className="text-sm font-medium text-cream-200/50">
+              <p className="text-sm font-medium text-texto-muted/50">
                 Verificando…
               </p>
             ) : estado.error ? (
-              <p className="text-sm font-semibold text-[#f0a6a3]">
+              <p className="text-sm font-semibold text-danger-text">
                 {estado.error}
               </p>
             ) : null}
@@ -230,11 +224,11 @@ function TeclaPin({
     <button
       type="button"
       onClick={() => onClick(d)}
-      className="flex h-16 items-center justify-center rounded-2xl bg-white/[0.05] text-2xl font-display text-white ring-1 ring-white/10 transition hover:bg-white/[0.1] hover:ring-amber-brand/40 active:scale-[0.96]"
+      className="flex h-16 items-center justify-center rounded-2xl bg-panel-app text-2xl font-display text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 active:scale-[0.96]"
     >
       {icono ?? (
         borrar ? (
-          <span className="text-xs font-bold uppercase tracking-[0.15em] text-cream-200/60">
+          <span className="text-xs font-bold uppercase tracking-[0.15em] text-texto-muted/60">
             Limpiar
           </span>
         ) : (
@@ -244,3 +238,4 @@ function TeclaPin({
     </button>
   );
 }
+

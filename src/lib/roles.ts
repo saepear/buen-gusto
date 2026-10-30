@@ -3,13 +3,12 @@
 export const ROLES = {
   ADMIN: "ADMIN",
   MESERO: "MESERO",
-  COCINA: "COCINA",
 } as const;
 
 export type Rol = keyof typeof ROLES;
 
 export const ES_ROL_VALIDO = (v: string): v is Rol =>
-  v === "ADMIN" || v === "MESERO" || v === "COCINA";
+  v === "ADMIN" || v === "MESERO";
 
 export const TIPO_PRODUCTO = {
   PROTEINA: "PROTEINA",
@@ -82,7 +81,5 @@ export function destinoRol(rol: Rol): string {
       return "/admin";
     case "MESERO":
       return "/mesero";
-    case "COCINA":
-      return "/cocina";
   }
 }

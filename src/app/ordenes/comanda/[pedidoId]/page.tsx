@@ -2,16 +2,16 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
-import { requerirRolDe } from "@/lib/session";
+import { requerirRol } from "@/lib/session";
 import { BotonImprimir } from "./boton-imprimir";
 
 export const metadata = { title: "Comanda · El Buen Gusto" };
 
 /** Ticket de comanda para la impresora térmica de 80 mm */
 export default async function PaginaComanda(
-  props: PageProps<"/cocina/comanda/[pedidoId]">,
+  props: PageProps<"/ordenes/comanda/[pedidoId]">,
 ) {
-  await requerirRolDe(["COCINA", "ADMIN"]);
+  await requerirRol("ADMIN");
   const { pedidoId: crudo } = await props.params;
   const { reprint } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
@@ -50,9 +50,7 @@ export default async function PaginaComanda(
         <div className="my-3 border-t-2 border-dashed border-brown-950/40" />
 
         <div className="flex items-baseline justify-between">
-          <span className="text-base font-bold">
-            MESA #{pedido.mesa.numero}
-          </span>
+          <span className="text-base font-bold">{pedido.mesa.nombre}</span>
           <span className="text-base font-bold">#{pedido.id}</span>
         </div>
         {pedido.paraLlevar ? (

@@ -18,12 +18,12 @@ export function EncabezadoMesero({
   volver?: { href: string; texto: string };
 }) {
   return (
-    <header className="sticky top-0 z-30 rounded-b-[1.75rem] border-b border-white/5 bg-fondo-kds/80 px-4 pb-3.5 cabeza-seguro shadow-flotante backdrop-blur-xl">
+    <header className="sticky top-0 z-30 rounded-b-[1.75rem] border-b border-borde-app/50 bg-fondo-app/80 px-4 pb-3.5 cabeza-seguro shadow-flotante backdrop-blur-xl">
       <div className="mx-auto flex max-w-lg sm:max-w-2xl items-center justify-between gap-3">
         {volver ? (
           <Link
             href={volver.href}
-            className="flex items-center gap-1.5 rounded-full bg-white/5 ring-1 ring-white/10 px-3.5 py-2.5 text-xs font-bold text-cream-100 transition hover:bg-white/10"
+            className="flex items-center gap-1.5 rounded-full bg-panel-app ring-1 ring-borde-app px-3.5 py-2.5 text-xs font-bold text-texto-app transition hover:bg-panel-hover"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             {volver.texto}
@@ -37,7 +37,7 @@ export function EncabezadoMesero({
               <span className="block font-display text-sm leading-none text-amber-brand">
                 El Buen Gusto
               </span>
-              <span className="mt-1 block truncate text-[11px] text-cream-200/70">
+              <span className="mt-1 block truncate text-[11px] text-texto-muted/70">
                 Mesero · {usuario}
               </span>
             </span>
@@ -45,7 +45,7 @@ export function EncabezadoMesero({
         )}
 
         {titulo ? (
-          <p className="min-w-0 flex-1 truncate text-center font-display text-lg text-cream-100">
+          <p className="min-w-0 flex-1 truncate text-center font-display text-lg text-texto-app">
             {titulo}
           </p>
         ) : (
@@ -57,7 +57,7 @@ export function EncabezadoMesero({
             type="submit"
             title="Cerrar sesión"
             aria-label="Cerrar sesión"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10 text-cream-100 transition hover:bg-danger"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-app ring-1 ring-borde-app text-texto-app transition hover:bg-danger"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -66,3 +66,4 @@ export function EncabezadoMesero({
     </header>
   );
 }
+

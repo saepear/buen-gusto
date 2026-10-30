@@ -8,7 +8,21 @@ const USUARIOS = [
   { nombre: "Administrador", pin: "1234", rol: "ADMIN" },
   { nombre: "Laura", pin: "1111", rol: "MESERO" },
   { nombre: "Carlos", pin: "2222", rol: "MESERO" },
-  { nombre: "Chef de cocina", pin: "3333", rol: "COCINA" },
+];
+
+// Mesas del salón identificadas por nombre (cualitativo), no por número.
+// "Para llevar" ilustra el uso del salón como zona de espera de domicilios.
+const MESAS = [
+  "Ventana",
+  "Centro",
+  "Barra",
+  "Esquina",
+  "Terraza",
+  "Jardín",
+  "Familiar",
+  "Parejas",
+  "Pasillo",
+  "Para llevar",
 ];
 
 const PRODUCTOS = [
@@ -74,7 +88,7 @@ async function main() {
   await db.usuario.createMany({ data: USUARIOS });
   await db.producto.createMany({ data: PRODUCTOS });
   await db.mesa.createMany({
-    data: Array.from({ length: 10 }, (_, i) => ({ numero: i + 1 })),
+    data: MESAS.map((nombre) => ({ nombre })),
   });
 
   // Menú del día de HOY con porciones de demostración
@@ -97,7 +111,7 @@ async function main() {
   console.log("✔ Usuarios:");
   for (const u of USUARIOS) console.log(`   ${u.rol.padEnd(7)} ${u.nombre} → PIN ${u.pin}`);
   console.log(`✔ ${PRODUCTOS.length} productos del catálogo`);
-  console.log(`✔ 10 mesas creadas`);
+  console.log(`✔ ${MESAS.length} mesas creadas`);
   console.log(`✔ Menú de hoy (${menu.fecha}) con porciones de muestra`);
   console.log("Listo. Corre `npm run dev` y abre http://localhost:3000");
 }

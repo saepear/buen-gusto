@@ -46,12 +46,12 @@ export default async function PaginaMenuDia() {
           titulo="Menú del día"
           subtitulo={formatFecha(new Date())}
         />
-        <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+        <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
           <CalendarPlus className="h-12 w-12 text-amber-brand" />
-          <h2 className="mt-4 font-display text-2xl text-white">
+          <h2 className="mt-4 font-display text-2xl text-texto-app">
             Aún no has armado el menú de hoy
           </h2>
-          <p className="mt-2 max-w-md text-cream-200/70">
+          <p className="mt-2 max-w-md text-texto-muted/70">
             Elige las proteínas, principios, ensaladas y sopas que se servirán
             y define cuántas porciones quedan disponibles. El stock se
             descontará en tiempo real al tomar pedidos.
@@ -59,12 +59,12 @@ export default async function PaginaMenuDia() {
           <form action={crearMenuHoy} className="mt-6">
             <button
               type="submit"
-              className="rounded-2xl bg-amber-brand px-6 py-3 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-white"
+              className="rounded-2xl bg-amber-brand px-6 py-3 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-texto-app"
             >
               Crear menú de hoy
             </button>
           </form>
-          <p className="mt-3 text-xs text-cream-200/45">
+          <p className="mt-3 text-xs text-texto-muted/45">
             Necesitas primero crear productos en la sección «Productos».
           </p>
         </div>
@@ -86,10 +86,10 @@ export default async function PaginaMenuDia() {
       />
 
       <div className="mb-6 flex items-center gap-3">
-        <span className="rounded-full bg-success/10 px-4 py-1.5 text-sm font-bold text-[#a7dd83] ring-1 ring-success/20">
+        <span className="rounded-full bg-success/10 px-4 py-1.5 text-sm font-bold text-success-text ring-1 ring-success/20">
           Activo · {menu.items.length} opciones
         </span>
-        <span className="text-sm text-cream-200/45">
+        <span className="text-sm text-texto-muted/45">
           Las porciones se agotan solo cuando le pones un límite
           <IconoInfinito className="ml-1 inline h-3.5 w-3.5" />
         </span>
@@ -108,17 +108,17 @@ export default async function PaginaMenuDia() {
           return (
             <section
               key={tipo}
-              className="rounded-[2rem] bg-white/[0.02] p-5 ring-1 ring-white/10"
+              className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app"
             >
-              <h2 className="mb-4 flex items-center gap-2.5 font-display text-lg text-white">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-orange-brand ring-1 ring-white/10">
+              <h2 className="mb-4 flex items-center gap-2.5 font-display text-lg text-texto-app">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
                 </span>
                 {TITULO[tipo]}
               </h2>
 
               {delTipo.length === 0 ? (
-                <p className="mb-4 rounded-xl border-2 border-dashed border-white/10 p-3 text-center text-sm text-cream-200/45">
+                <p className="mb-4 rounded-xl border-2 border-dashed border-borde-app p-3 text-center text-sm text-texto-muted/45">
                   Todavía no hay {TITULO[tipo].toLowerCase()} en el menú.
                 </p>
               ) : (
@@ -138,7 +138,7 @@ export default async function PaginaMenuDia() {
                   <input type="hidden" name="menuId" value={menu.id} />
                   <select
                     name="productoId"
-                    className="min-w-0 flex-1 rounded-xl border-0 bg-white/5 px-3 py-2 text-sm text-white ring-1 ring-white/10 placeholder:text-cream-200/25 focus:ring-amber-brand/60"
+                    className="min-w-0 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2 text-sm text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/25 focus:ring-amber-brand/60"
                   >
                     {faltantes.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -149,13 +149,13 @@ export default async function PaginaMenuDia() {
                   <button
                     type="submit"
                     title="Agregar al menú"
-                    className="shrink-0 rounded-xl bg-white/5 px-3 py-2 text-cream-100 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white"
+                    className="shrink-0 rounded-xl bg-panel-app px-3 py-2 text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:text-texto-app"
                   >
                     <span className="font-bold">+</span>
                   </button>
                 </form>
               ) : (
-                <p className="mt-4 rounded-xl bg-white/5 p-2 text-center text-xs text-cream-200/45">
+                <p className="mt-4 rounded-xl bg-panel-app p-2 text-center text-xs text-texto-muted/45">
                   Todo el catálogo de esta categoría ya está en el menú.
                 </p>
               )}
@@ -164,10 +164,11 @@ export default async function PaginaMenuDia() {
         })}
       </div>
 
-      <p className="mt-6 flex items-center gap-2 text-sm text-cream-200/45">
+      <p className="mt-6 flex items-center gap-2 text-sm text-texto-muted/45">
         <Trash2 className="h-4 w-4" />
         Tu catálogo nunca se borra: quitar un ítem del menú solo lo deja fuera de HOY.
       </p>
     </>
   );
 }
+

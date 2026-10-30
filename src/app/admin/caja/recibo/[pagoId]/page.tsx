@@ -5,7 +5,7 @@ import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_PEDIDO } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
-import { BotonImprimir } from "@/app/cocina/comanda/[pedidoId]/boton-imprimir";
+import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
 export const metadata = { title: "Recibo · El Buen Gusto" };
 
@@ -56,7 +56,7 @@ export default async function PaginaRecibo(
   });
 
   return (
-    <div className="min-h-screen bg-fondo-kds py-8">
+    <div className="min-h-screen bg-fondo-app py-8">
       <div className="mx-auto w-full max-w-[340px] bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
         <div className="text-center">
           <p className="font-display text-xl font-bold tracking-wide">
@@ -71,7 +71,7 @@ export default async function PaginaRecibo(
 
         <div className="flex items-baseline justify-between">
           <span className="text-base font-bold">
-            MESA #{pago.pedido.mesa.numero}
+            {pago.pedido.mesa.nombre}
           </span>
           <span className="text-base font-bold">PAGO #{pago.id}</span>
         </div>

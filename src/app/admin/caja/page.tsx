@@ -11,7 +11,7 @@ import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 export const metadata = { title: "Caja y recibos" };
 
 const CHIP_METODO: Record<string, string> = {
-  EFECTIVO: "bg-success/10 text-[#a7dd83] ring-1 ring-success/20",
+  EFECTIVO: "bg-success/10 text-success-text ring-1 ring-success/20",
   TARJETA: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
   TRANSFERENCIA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
 };
@@ -31,7 +31,7 @@ export default async function PaginaCaja() {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
         activa: true,
       },
-      orderBy: { numero: "asc" },
+      orderBy: { nombre: "asc" },
     }),
     db.pago.findMany({
       where: { createdAt: { gte: fecha } },
@@ -64,7 +64,7 @@ export default async function PaginaCaja() {
     const propios = pedidos.filter((p) => p.mesaId === mesa.id);
     return {
       id: mesa.id,
-      numero: mesa.numero,
+      nombre: mesa.nombre,
       estado: mesa.estado,
       total: propios.reduce(
         (suma, pedido) =>
@@ -102,13 +102,13 @@ export default async function PaginaCaja() {
       />
 
       {/* Resumen del día */}
-      <div className="mb-6 rounded-[2rem] bg-brown-900/60 p-6 text-cream-100 ring-1 ring-white/10 shadow-2xl">
+      <div className="mb-6 rounded-[2rem] bg-glass-app p-6 text-texto-app ring-1 ring-borde-app shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="font-display text-3xl text-amber-brand">
               {formatCOP(totalHoy)}
             </p>
-            <p className="mt-1 text-sm text-cream-200/80">
+            <p className="mt-1 text-sm text-texto-muted/80">
               {cantidadPagos === 0
                 ? "Aún no hay pagos registrados hoy"
                 : `Cobrado en caja hoy · ${cantidadPagos} ${
@@ -116,25 +116,25 @@ export default async function PaginaCaja() {
                   }`}
             </p>
           </div>
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/5 text-amber-brand ring-1 ring-white/10">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-panel-app text-amber-brand ring-1 ring-borde-app">
             <Receipt className="h-7 w-7" />
           </span>
         </div>
       </div>
 
       {/* Mesas por cobrar */}
-      <h2 className="mb-3 font-display text-xl text-white">
+      <h2 className="mb-3 font-display text-xl text-texto-app">
         Mesas por cobrar
       </h2>
       {paraCobrar.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-          <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/5 text-cream-200/45">
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
+          <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-panel-app text-texto-muted/45">
             <Coffee className="h-10 w-10" />
           </span>
-          <p className="mt-5 font-display text-2xl text-white">
+          <p className="mt-5 font-display text-2xl text-texto-app">
             Caja en calma
           </p>
-          <p className="mt-2 max-w-md text-cream-200/70">
+          <p className="mt-2 max-w-md text-texto-muted/70">
             Todas las mesas están libres. Cuando el mesero tome un pedido,
             la mesa aparecerá aquí con su cuenta lista para cobrar.
           </p>
@@ -150,7 +150,7 @@ export default async function PaginaCaja() {
       {/* Recibos emitidos hoy */}
       {pagosHoy.length > 0 ? (
         <>
-          <h2 className="mb-3 mt-8 font-display text-xl text-white">
+          <h2 className="mb-3 mt-8 font-display text-xl text-texto-app">
             Recibos de hoy
           </h2>
           <div className="space-y-2">
@@ -158,27 +158,27 @@ export default async function PaginaCaja() {
               <Link
                 key={pago.id}
                 href={`/admin/caja/recibo/${pago.id}`}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-white/[0.02] px-4 py-3 ring-1 ring-white/10 transition hover:ring-amber-brand"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-panel-app px-4 py-3 ring-1 ring-borde-app transition hover:ring-amber-brand"
               >
-                <Receipt className="h-4 w-4 text-cream-200/70" />
-                <span className="text-sm font-bold text-white">
+                <Receipt className="h-4 w-4 text-texto-muted/70" />
+                <span className="text-sm font-bold text-texto-app">
                   Pago #{pago.id}
                 </span>
-                <span className="text-sm text-cream-200/70">
-                  Mesa #{pago.pedido.mesa.numero}
+                <span className="text-sm text-texto-muted/70">
+                  {pago.pedido.mesa.nombre}
                 </span>
-                <span className="text-xs text-cream-200/45">
+                <span className="text-xs text-texto-muted/45">
                   {formatHora(pago.createdAt)}
                 </span>
                 <span
                   className={
                     "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-                    (CHIP_METODO[pago.metodo] ?? "bg-white/5 text-cream-200/60 ring-1 ring-white/10")
+                    (CHIP_METODO[pago.metodo] ?? "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                   }
                 >
                   {METODO_TXT[pago.metodo] ?? pago.metodo}
                 </span>
-                <span className="ml-auto text-sm font-bold text-white">
+                <span className="ml-auto text-sm font-bold text-texto-app">
                   {formatCOP(pago.total + pago.propina)}
                 </span>
               </Link>
@@ -189,3 +189,4 @@ export default async function PaginaCaja() {
     </>
   );
 }
+
