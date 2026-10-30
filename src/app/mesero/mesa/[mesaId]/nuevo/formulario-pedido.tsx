@@ -560,7 +560,7 @@ export function FormularioPedido({
             Icono={Soup}
             clase="bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20"
             titulo="Sopa del día"
-            sub="Elige una · queda incluida"
+            sub="Opcional · si no eliges, la cocina pone la del día"
           />
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {sopasMenu.map((item) => (

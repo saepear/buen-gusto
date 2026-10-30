@@ -25,9 +25,12 @@ export default async function PaginaComanda(
       items: { include: { producto: true } },
       mesa: true,
       mesero: true,
+      domicilio: true,
     },
   });
   if (!pedido) notFound();
+
+  const tieneSopa = pedido.items.some((i) => i.tipo === "SOPA");
 
   const totalComanda = pedido.items.reduce(
     (suma, i) => suma + precioUnitarioItem(i) * i.cantidad,
@@ -53,7 +56,24 @@ export default async function PaginaComanda(
           <span className="text-base font-bold">{pedido.mesa.nombre}</span>
           <span className="text-base font-bold">#{pedido.id}</span>
         </div>
-        {pedido.paraLlevar ? (
+        {pedido.domicilio ? (
+          <>
+            <p className="mt-2 text-center text-[11px] font-bold tracking-widest">
+              *** DOMICILIO ***
+            </p>
+            <p className="mt-1 text-[12px] font-bold">
+              Cliente: {pedido.domicilio.cliente}
+            </p>
+            <p className="text-[12px]">
+              Dirección: {pedido.domicilio.direccion}
+              {pedido.domicilio.barrio ? `, ${pedido.domicilio.barrio}` : ""}
+            </p>
+            <p className="text-[12px]">Tel: {pedido.domicilio.telefono}</p>
+            {pedido.domicilio.referencia ? (
+              <p className="text-[11px]">Ref: {pedido.domicilio.referencia}</p>
+            ) : null}
+          </>
+        ) : pedido.paraLlevar ? (
           <p className="mt-1 text-center text-[11px] font-bold tracking-widest">
             *** PARA LLEVAR · ICOPOR ***
           </p>
@@ -71,8 +91,12 @@ export default async function PaginaComanda(
               <span className="font-bold">{item.cantidad}×</span>
               <span className="flex-1 font-bold uppercase">
                 {item.producto.nombre}
-                {item.tipo === "PROTEINA" && item.conSopa === false
-                  ? " (sin sopa)"
+                {item.tipo === "PROTEINA" && item.conSopa !== null
+                  ? item.conSopa === false
+                    ? " (sin sopa)"
+                    : !tieneSopa
+                      ? " (sopa por servir)"
+                      : ""
                   : ""}
               </span>
               {precioUnitarioItem(item) > 0 ? (

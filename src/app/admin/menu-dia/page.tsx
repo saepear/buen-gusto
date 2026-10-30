@@ -108,9 +108,9 @@ export default async function PaginaMenuDia() {
           return (
             <section
               key={tipo}
-              className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app"
+              className="rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app"
             >
-              <h2 className="mb-4 flex items-center gap-2.5 font-display text-lg text-texto-app">
+              <h2 className="mb-5 flex items-center gap-2.5 font-display text-lg text-texto-app">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
                 </span>
@@ -122,7 +122,7 @@ export default async function PaginaMenuDia() {
                   Todavía no hay {TITULO[tipo].toLowerCase()} en el menú.
                 </p>
               ) : (
-                <ul className="space-y-2.5">
+                <ul className="space-y-3">
                   {delTipo.map((item) => (
                     <FilaPorciones
                       key={item.id + "-" + (item.stockPorciones === null ? "inf" : item.stockPorciones)}

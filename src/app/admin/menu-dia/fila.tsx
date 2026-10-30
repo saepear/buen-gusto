@@ -32,12 +32,12 @@ export function FilaPorciones({ item }: { item: Item }) {
   return (
     <li
       className={
-        "rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app " +
+        "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app " +
         (item.visible ? "" : "opacity-70")
       }
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 flex-1 truncate font-bold text-texto-app">
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0 flex-1 font-bold leading-snug text-texto-app">
           {item.producto.nombre}
         </span>
         {!item.visible ? (
@@ -64,7 +64,7 @@ export function FilaPorciones({ item }: { item: Item }) {
         </span>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-2">
+      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2.5">
         <form action={guardarPorcion} className="flex items-center gap-1.5">
           <input type="hidden" name="itemId" value={item.id} />
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-texto-muted/70">
@@ -133,7 +133,7 @@ export function FilaPorciones({ item }: { item: Item }) {
         </form>
       </div>
       {item.vendidos > 0 && (
-        <p className="mt-1 text-[11px] text-texto-muted/45">
+        <p className="mt-2 text-[11px] text-texto-muted/45">
           Vendidas hoy: {item.vendidos}
         </p>
       )}

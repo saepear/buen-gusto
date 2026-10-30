@@ -53,21 +53,21 @@ export function AdminShell({
       gsap.set(contenido, { clearProps: "paddingLeft" });
     }
 
-    // Revelado suave de los bloques (divs/páneles) al abrir o cerrar
+    // Al cerrar el sidebar los bloques crecen; al abrirlo se achican.
     const main = mainRef.current;
     if (animar && main) {
       const bloques = Array.from(main.children);
       if (bloques.length) {
+        const creciendo = !abierto;
         gsap.fromTo(
           bloques,
-          { opacity: 0.55, y: 16, scale: 0.99 },
+          { scale: creciendo ? 0.94 : 1.06, opacity: creciendo ? 0.7 : 0.85 },
           {
-            opacity: 1,
-            y: 0,
             scale: 1,
-            duration: 0.5,
-            ease: "power2.out",
-            stagger: 0.06,
+            opacity: 1,
+            duration: 0.55,
+            ease: creciendo ? "back.out(1.5)" : "power2.inOut",
+            stagger: { each: 0.045, from: "start" },
             overwrite: "auto",
             onComplete: () =>
               gsap.set(bloques, { clearProps: "opacity,transform" }),

@@ -86,6 +86,7 @@ export async function crearDomicilio(
       meseroId: null,
       carga,
       observaciones,
+      permitirMesaVirtual: true,
     });
   } catch (e) {
     return {

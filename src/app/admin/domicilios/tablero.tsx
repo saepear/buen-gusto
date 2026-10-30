@@ -5,11 +5,13 @@ import {
   MapPin,
   Navigation,
   Phone,
+  Printer,
   StickyNote,
   UserPlus,
   X,
 } from "lucide-react";
 import { useActionState } from "react";
+import Link from "next/link";
 import { formatCOP } from "@/lib/format";
 import { ESTADO_DOMICILIO, ESTADO_DOMICILIO_LABEL } from "@/lib/roles";
 import {
@@ -24,6 +26,7 @@ export type Repartidor = { id: number; nombre: string };
 
 export type DomicilioVista = {
   id: number;
+  pedidoId: number;
   estado: string;
   cliente: string;
   telefono: string;
@@ -148,6 +151,15 @@ function TarjetaDomicilio({
       <p className="mt-3 rounded-xl bg-panel-app px-3 py-2 text-xs text-texto-muted/70 ring-1 ring-borde-app">
         {domicilio.resumen}
       </p>
+      <Link
+        href={`/ordenes/comanda/${domicilio.pedidoId}`}
+        target="_blank"
+        className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
+        title="Comanda para la cocina / el empaque"
+      >
+        <Printer className="h-3.5 w-3.5" />
+        Comanda
+      </Link>
       {domicilio.observaciones ? (
         <p className="mt-2 flex items-start gap-2 text-xs text-texto-muted/60">
           <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />

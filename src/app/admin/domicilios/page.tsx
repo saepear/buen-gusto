@@ -48,6 +48,7 @@ export default async function PaginaDomicilios() {
         .join(" · ") || "Sin ítems";
     return {
       id: d.id,
+      pedidoId: d.pedidoId,
       estado: d.estado,
       cliente: d.cliente,
       telefono: d.telefono,

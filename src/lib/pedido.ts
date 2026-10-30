@@ -86,8 +86,16 @@ export async function crearPedido(opciones: {
   meseroId: number | null;
   carga: CargaPedido;
   observaciones: string | null;
+  /** Solo Admin→Domicilios: crear comandas sobre la mesa virtual "Domicilios" */
+  permitirMesaVirtual?: boolean;
 }): Promise<number> {
-  const { mesaId, meseroId, carga, observaciones } = opciones;
+  const {
+    mesaId,
+    meseroId,
+    carga,
+    observaciones,
+    permitirMesaVirtual = false,
+  } = opciones;
 
   // La mesa puede haber sido ocultada entre el render y el envío del pedido.
   const mesaViva = await db.mesa.findFirst({
@@ -96,6 +104,11 @@ export async function crearPedido(opciones: {
   });
   if (!mesaViva) {
     throw new ErrorDePedido("Esa mesa está oculta o ya no existe.");
+  }
+  if (mesaViva.esDomicilio && !permitirMesaVirtual) {
+    throw new ErrorDePedido(
+      "Los domicilios se registran desde Domicilios (admin), no desde el salón.",
+    );
   }
 
   const proteinaId = carga.proteinaId;
@@ -132,8 +145,10 @@ export async function crearPedido(opciones: {
   }
 
   let sopaElegida: ItemMenuHoy | null = null;
-  if (carga.conSopa) {
-    const s = porItemId.get(sopaId as number);
+  // Sopa OPCIONAL: "con sopa" puede enviarse sin elegir cuál (la cocina decide);
+  // solo se valida la sopa cuando el mesero sí la escogió.
+  if (carga.conSopa && sopaId !== null) {
+    const s = porItemId.get(sopaId);
     if (!s || s.tipo !== "SOPA") {
       throw new ErrorDePedido("Esa sopa no está en el menú de hoy.");
     }
