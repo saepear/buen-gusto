@@ -30,6 +30,8 @@ export default async function PaginaCaja() {
       where: {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
         activa: true,
+        // Los domicilios se cobran contra entrega, no en la caja
+        esDomicilio: false,
       },
       orderBy: { nombre: "asc" },
     }),

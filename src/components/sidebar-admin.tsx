@@ -2,6 +2,7 @@
 
 import {
   BarChart3,
+  Bike,
   CalendarDays,
   ClipboardList,
   Home,
@@ -20,6 +21,7 @@ import { cerrarSesion } from "@/app/login/actions";
 const NAV: { href: string; etiqueta: string; Icono: LucideIcon }[] = [
   { href: "/admin", etiqueta: "Inicio", Icono: Home },
   { href: "/admin/mesas", etiqueta: "Mesas", Icono: LayoutGrid },
+  { href: "/admin/domicilios", etiqueta: "Domicilios", Icono: Bike },
   { href: "/admin/menu-dia", etiqueta: "Menú del día", Icono: CalendarDays },
   { href: "/admin/productos", etiqueta: "Productos", Icono: Package },
   // Órdenes: tablero de comandas en vivo del salón

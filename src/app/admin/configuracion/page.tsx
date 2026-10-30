@@ -8,12 +8,13 @@ import { getTemaActual } from "@/lib/config";
 
 export const metadata = { title: "Configuración" };
 
-const ORDEN_ROL: Record<string, number> = { ADMIN: 0, MESERO: 1 };
+const ORDEN_ROL: Record<string, number> = { ADMIN: 0, MESERO: 1, DOMICILIARIO: 2 };
 
 export default async function PaginaConfiguracion() {
   const [usuarios, mesas, temaActual] = await Promise.all([
     db.usuario.findMany(),
-    db.mesa.findMany({ orderBy: { nombre: "asc" } }),
+    // La mesa virtual de domicilios no se administra como mesa del salón
+    db.mesa.findMany({ where: { esDomicilio: false }, orderBy: { nombre: "asc" } }),
     getTemaActual(),
   ]);
 

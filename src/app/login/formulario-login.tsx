@@ -1,6 +1,6 @@
 "use client";
 
-import { Delete, UserRound, UtensilsCrossed } from "lucide-react";
+import { Bike, Delete, UserRound, UtensilsCrossed } from "lucide-react";
 import {
   startTransition,
   useActionState,
@@ -11,7 +11,7 @@ import {
 import { iniciarSesion, type LoginState } from "./actions";
 
 type OpcionRol = {
-  rol: "ADMIN" | "MESERO";
+  rol: "ADMIN" | "MESERO" | "DOMICILIARIO";
   titulo: string;
   detalle: string;
   Icono: typeof UserRound;
@@ -29,6 +29,12 @@ const OPCIONES: OpcionRol[] = [
     titulo: "Mesero",
     detalle: "Tomar pedidos",
     Icono: UtensilsCrossed,
+  },
+  {
+    rol: "DOMICILIARIO",
+    titulo: "Domiciliario",
+    detalle: "Repartir pedidos",
+    Icono: Bike,
   },
 ];
 

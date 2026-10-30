@@ -12,7 +12,8 @@ export default async function PaginaMesero() {
   const sesion = await requerirRol("MESERO");
   const [mesas, comandas] = await Promise.all([
     db.mesa.findMany({
-      where: { activa: true },
+      // La mesa virtual de domicilios no es una mesa del salón
+      where: { activa: true, esDomicilio: false },
       orderBy: { nombre: "asc" },
     }),
     db.pedido.findMany({

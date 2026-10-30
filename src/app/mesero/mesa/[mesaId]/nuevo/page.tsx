@@ -17,7 +17,9 @@ export default async function PaginaNuevoPedido(
   const mesaId = Number.parseInt(crudo, 10);
   if (!Number.isInteger(mesaId)) notFound();
 
-  const mesa = await db.mesa.findFirst({ where: { id: mesaId, activa: true } });
+  const mesa = await db.mesa.findFirst({
+    where: { id: mesaId, activa: true, esDomicilio: false },
+  });
   if (!mesa) notFound();
 
   const [menu, extras] = await Promise.all([

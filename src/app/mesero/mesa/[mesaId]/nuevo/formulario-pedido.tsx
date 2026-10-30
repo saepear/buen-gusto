@@ -4,7 +4,9 @@ import {
   Banknote,
   CupSoda,
   Drumstick,
+  MapPin,
   Minus,
+  Phone,
   Plus,
   Salad,
   Send,
@@ -12,17 +14,26 @@ import {
   Soup,
   Star,
   StickyNote,
+  User,
   UtensilsCrossed,
   Wheat,
   type LucideIcon,
 } from "lucide-react";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, type ReactNode } from "react";
 import { formatCOP } from "@/lib/format";
 import { PRECIO_COMPLETO, PRECIO_ICOPOR, precioAlmuerzo } from "@/lib/precios";
 import type { ItemMenuHoy } from "@/lib/pedido";
-import { tomarPedido, type EstadoAccionPedido } from "@/app/mesero/actions";
+import { tomarPedido } from "@/app/mesero/actions";
 
-const SIN_ENVIAR: EstadoAccionPedido = { error: null, ok: null };
+export type EstadoFormularioPedido = { error: string | null; ok: string | null };
+
+/** Acción de servidor que guarda el pedido (mesero o domicilio) */
+export type AccionPedido = (
+  previa: EstadoFormularioPedido,
+  datos: FormData,
+) => Promise<EstadoFormularioPedido>;
+
+const SIN_ENVIAR: EstadoFormularioPedido = { error: null, ok: null };
 
 export type Extra = { id: number; nombre: string; tipo: string; precio: number };
 
@@ -57,6 +68,35 @@ function TituloSeccion({
   );
 }
 
+/** Campo de texto con ícono, usado en los datos del cliente (domicilio) */
+function Campo({
+  icono,
+  name,
+  placeholder,
+  inputMode,
+  requerido,
+}: {
+  icono: ReactNode;
+  name: string;
+  placeholder: string;
+  inputMode?: "text" | "tel" | "numeric";
+  requerido?: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-2.5 rounded-2xl bg-panel-app px-3.5 py-3 ring-1 ring-borde-app focus-within:ring-2 focus-within:ring-amber-brand/60">
+      <span className="shrink-0 text-texto-muted/35">{icono}</span>
+      <input
+        name={name}
+        placeholder={placeholder}
+        inputMode={inputMode}
+        required={requerido}
+        maxLength={120}
+        className="w-full bg-transparent text-sm text-texto-app outline-none placeholder:text-texto-muted/25"
+      />
+    </label>
+  );
+}
+
 const ICONO_TIPO: Record<string, LucideIcon> = {
   PROTEINA: Drumstick,
   PRINCIPIO: Wheat,
@@ -70,18 +110,25 @@ export function FormularioPedido({
   mesa,
   menu,
   extras,
+  modo = "mesa",
+  accion: accionPedido = tomarPedido,
 }: {
   mesa: { id: number; nombre: string };
   menu: ItemMenuHoy[];
   extras: Extra[];
+  /** "domicilio": siempre para llevar y pide los datos del cliente */
+  modo?: "mesa" | "domicilio";
+  /** Acción de servidor que guarda el pedido (por defecto, la del mesero) */
+  accion?: AccionPedido;
 }) {
-  const [estado, accion, pendiente] = useActionState<EstadoAccionPedido, FormData>(
-    tomarPedido,
-    SIN_ENVIAR,
-  );
+  const [estado, accion, pendiente] = useActionState<
+    EstadoFormularioPedido,
+    FormData
+  >(accionPedido, SIN_ENVIAR);
 
+  const esDomicilio = modo === "domicilio";
   const [conSopa, setConSopa] = useState(true);
-  const [llevar, setLlevar] = useState(false);
+  const [llevar, setLlevar] = useState(esDomicilio);
   const [proteina, setProteina] = useState<number | null>(null);
   const [principios, setPrincipios] = useState<number[]>([]);
   const [ensaladas, setEnsaladas] = useState<number[]>([]);
@@ -316,42 +363,98 @@ export function FormularioPedido({
         </p>
       ) : null}
 
-      {/* 1. Canal: en mesa / para llevar */}
-      <section className="rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
-        <TituloSeccion
-          Icono={ShoppingBag}
-          clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
-          titulo="¿Cómo se sirve?"
-          sub={`En mesa ${formatCOP(PRECIO_COMPLETO)} · llevar +${formatCOP(PRECIO_ICOPOR)} de icopor`}
-        />
-        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-1.5 ring-1 ring-borde-app">
-          {(
-            [
-              { ok: false, txt: "En mesa", Icono: UtensilsCrossed },
-              { ok: true, txt: "Para llevar", Icono: ShoppingBag },
-            ] as const
-          ).map(({ ok, txt, Icono }) => (
-            <button
-              key={txt}
-              type="button"
-              onClick={() => setLlevar(ok)}
-              className={
-                "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 font-display text-md transition active:scale-95 " +
-                (llevar === ok
-                  ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-                  : "text-texto-muted/70 hover:bg-panel-hover")
-              }
-            >
-              <span className="flex items-center gap-2">
-                <Icono className="h-4 w-4" /> {txt}
-              </span>
-              <span className="text-[10px] font-bold normal-case">
-                {ok ? `+ icopor ${formatCOP(PRECIO_ICOPOR)}` : "se sirve en la mesa"}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+      {/* 1. Canal: en mesa / para llevar · en domicilio siempre va para llevar */}
+      {esDomicilio ? (
+        <section className="rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
+          <TituloSeccion
+            Icono={ShoppingBag}
+            clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
+            titulo="Domicilio · para llevar"
+            sub={`Se cobra en la entrega · incluye icopor de ${formatCOP(PRECIO_ICOPOR)}`}
+          />
+        </section>
+      ) : (
+        <section className="rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
+          <TituloSeccion
+            Icono={ShoppingBag}
+            clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
+            titulo="¿Cómo se sirve?"
+            sub={`En mesa ${formatCOP(PRECIO_COMPLETO)} · llevar +${formatCOP(PRECIO_ICOPOR)} de icopor`}
+          />
+          <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-1.5 ring-1 ring-borde-app">
+            {(
+              [
+                { ok: false, txt: "En mesa", Icono: UtensilsCrossed },
+                { ok: true, txt: "Para llevar", Icono: ShoppingBag },
+              ] as const
+            ).map(({ ok, txt, Icono }) => (
+              <button
+                key={txt}
+                type="button"
+                onClick={() => setLlevar(ok)}
+                className={
+                  "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2.5 font-display text-md transition active:scale-95 " +
+                  (llevar === ok
+                    ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
+                    : "text-texto-muted/70 hover:bg-panel-hover")
+                }
+              >
+                <span className="flex items-center gap-2">
+                  <Icono className="h-4 w-4" /> {txt}
+                </span>
+                <span className="text-[10px] font-bold normal-case">
+                  {ok ? `+ icopor ${formatCOP(PRECIO_ICOPOR)}` : "se sirve en la mesa"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Datos del cliente (solo domicilio) */}
+      {esDomicilio ? (
+        <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
+          <TituloSeccion
+            Icono={MapPin}
+            clase="bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20"
+            titulo="Datos del cliente"
+            sub="A dónde llevamos el almuerzo"
+          />
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+            <Campo
+              icono={<User className="h-4 w-4" />}
+              name="cliente"
+              placeholder="Nombre del cliente *"
+              requerido
+            />
+            <Campo
+              icono={<Phone className="h-4 w-4" />}
+              name="telefono"
+              placeholder="Teléfono *"
+              inputMode="tel"
+              requerido
+            />
+            <div className="sm:col-span-2">
+              <Campo
+                icono={<MapPin className="h-4 w-4" />}
+                name="direccion"
+                placeholder="Dirección de entrega *"
+                requerido
+              />
+            </div>
+            <Campo
+              icono={<MapPin className="h-4 w-4" />}
+              name="barrio"
+              placeholder="Barrio"
+            />
+            <Campo
+              icono={<StickyNote className="h-4 w-4" />}
+              name="referencia"
+              placeholder="Referencia (ej: casa esquinera)"
+            />
+          </div>
+        </section>
+      ) : null}
 
       {/* 2. Sopa o bandeja */}
       <section className="mt-3.5 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
@@ -575,7 +678,7 @@ export function FormularioPedido({
               }
             >
               <Send className="h-5 w-5" />
-              {pendiente ? "Enviando…" : "Ordenar"}
+              {pendiente ? "Enviando…" : esDomicilio ? "Crear" : "Ordenar"}
             </button>
           </div>
         </div>
@@ -603,7 +706,7 @@ export function FormularioPedido({
               </span>
               <div className="min-w-0">
                 <p className="font-display text-lg leading-none text-texto-app">
-                  Confirmar pedido
+                  {esDomicilio ? "Confirmar domicilio" : "Confirmar pedido"}
                 </p>
                 <p
                   className={
@@ -615,7 +718,8 @@ export function FormularioPedido({
                 >
                   {llevar ? (
                     <>
-                      <ShoppingBag className="h-3 w-3" /> Para llevar
+                      <ShoppingBag className="h-3 w-3" />
+                      {esDomicilio ? "Domicilio · para llevar" : "Para llevar"}
                     </>
                   ) : (
                     <>{mesa.nombre} · en mesa</>
@@ -688,7 +792,11 @@ export function FormularioPedido({
                 }
               >
                 <Send className="h-4.5 w-4.5" />
-                {pendiente ? "Enviando…" : "Enviar a cocina"}
+                {pendiente
+                  ? "Enviando…"
+                  : esDomicilio
+                    ? "Crear domicilio"
+                    : "Enviar a cocina"}
               </button>
             </div>
           </div>

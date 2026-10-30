@@ -11,7 +11,8 @@ const ESTILO_ESTADO: Record<EstadoMesa, string> = {
 
 export default async function PaginaMesas() {
   const mesas = await db.mesa.findMany({
-    where: { activa: true },
+    // La mesa virtual de domicilios se gestiona en su propio tablero
+    where: { activa: true, esDomicilio: false },
     orderBy: { nombre: "asc" },
   });
 

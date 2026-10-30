@@ -1,4 +1,5 @@
 import {
+  Bike,
   CalendarDays,
   Clock,
   Coins,
@@ -12,7 +13,11 @@ import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
-import { METODOS_PAGO } from "@/lib/roles";
+import {
+  ESTADO_DOMICILIO,
+  ESTADOS_ACTIVOS_DOMICILIO,
+  METODOS_PAGO,
+} from "@/lib/roles";
 import { FormularioCierre } from "./boton-cierre";
 import { BarraUnidades, GraficoDinero } from "./graficos";
 
@@ -39,26 +44,32 @@ export default async function PaginaReportes() {
     return d;
   })();
 
-  const [pagosHoy, pedidosHoy, pagosSemana, cierres] = await Promise.all([
-    db.pago.findMany({
-      where: { createdAt: { gte: fecha } },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.pedido.findMany({
-      where: { createdAt: { gte: fecha } },
-      include: { items: { include: { producto: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.pago.findMany({
-      where: { createdAt: { gte: desdeSemana } },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.cierreCaja.findMany({
-      orderBy: { fecha: "desc" },
-      take: 7,
-      include: { cerradoPor: true },
-    }),
-  ]);
+  const [pagosHoy, pedidosHoy, pagosSemana, cierres, domiciliosHoy] =
+    await Promise.all([
+      db.pago.findMany({
+        where: { createdAt: { gte: fecha } },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.pedido.findMany({
+        where: { createdAt: { gte: fecha } },
+        include: { items: { include: { producto: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.pago.findMany({
+        where: { createdAt: { gte: desdeSemana } },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.cierreCaja.findMany({
+        orderBy: { fecha: "desc" },
+        take: 7,
+        include: { cerradoPor: true },
+      }),
+      db.domicilio.findMany({
+        where: { createdAt: { gte: fecha } },
+        include: { domiciliario: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
 
   // ---- Resumen de hoy ----
   const totalPagos = pagosHoy.reduce((s, p) => s + p.total, 0);
@@ -147,6 +158,33 @@ export default async function PaginaReportes() {
 
   // ---- Cierre de caja ----
   const cierreHoy = cierres.find((c) => c.fecha === claveHoy);
+
+  // ---- Domicilios de hoy ----
+  const domActivos = new Set<string>(ESTADOS_ACTIVOS_DOMICILIO);
+  const domEntregados = domiciliosHoy.filter(
+    (d) => d.estado === ESTADO_DOMICILIO.ENTREGADO,
+  );
+  const domEnCurso = domiciliosHoy.filter((d) => domActivos.has(d.estado));
+  const domFallidos = domiciliosHoy.filter(
+    (d) =>
+      d.estado === ESTADO_DOMICILIO.NO_ENTREGADO ||
+      d.estado === ESTADO_DOMICILIO.CANCELADO,
+  );
+  const recaudoDomicilios = domEntregados.reduce(
+    (s, d) => s + (d.cobradoMonto ?? 0),
+    0,
+  );
+  const porRepartidor = new Map<string, { entregas: number; recaudo: number }>();
+  for (const d of domEntregados) {
+    const nombre = d.domiciliario?.nombre ?? "Sin asignar";
+    const fila = porRepartidor.get(nombre) ?? { entregas: 0, recaudo: 0 };
+    fila.entregas += 1;
+    fila.recaudo += d.cobradoMonto ?? 0;
+    porRepartidor.set(nombre, fila);
+  }
+  const repartidoresLista = [...porRepartidor.entries()].sort(
+    (a, b) => b[1].entregas - a[1].entregas,
+  );
 
   return (
     <>
@@ -307,6 +345,58 @@ export default async function PaginaReportes() {
           </div>
         </section>
       </div>
+
+      {/* Domicilios */}
+      <section className="mt-4 rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
+        <h2 className="flex items-center gap-2 font-display text-lg text-texto-app">
+          <Bike className="h-5 w-5 text-orange-brand" /> Domicilios de hoy
+        </h2>
+
+        {domiciliosHoy.length === 0 ? (
+          <p className="mt-3 text-sm text-texto-muted/45">
+            Todavía no se ha creado ningún domicilio hoy.
+          </p>
+        ) : (
+          <>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-orange-brand/10 px-3 py-1.5 text-xs font-bold text-orange-brand ring-1 ring-orange-brand/20">
+                Creados: {domiciliosHoy.length}
+              </span>
+              <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
+                Entregados: {domEntregados.length} · {formatCOP(recaudoDomicilios)}
+              </span>
+              {domEnCurso.length > 0 ? (
+                <span className="rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning-text ring-1 ring-warning/20">
+                  En curso: {domEnCurso.length}
+                </span>
+              ) : null}
+              {domFallidos.length > 0 ? (
+                <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
+                  No entregados / cancelados: {domFallidos.length}
+                </span>
+              ) : null}
+            </div>
+
+            {repartidoresLista.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {repartidoresLista.map(([nombre, f]) => (
+                  <BarraUnidades
+                    key={nombre}
+                    etiqueta={nombre}
+                    unidades={f.entregas}
+                    max={Math.max(...repartidoresLista.map(([, x]) => x.entregas))}
+                    detalle={formatCOP(f.recaudo)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-texto-muted/45">
+                Aún no se ha entregado ningún domicilio hoy.
+              </p>
+            )}
+          </>
+        )}
+      </section>
 
       {/* Cierre de caja */}
       <section className="mt-8 rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app">

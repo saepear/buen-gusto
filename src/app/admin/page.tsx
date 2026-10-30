@@ -57,7 +57,7 @@ export default async function AdminInicio() {
           },
           {
             t: "PINs del equipo",
-            d: "Admin 1234 · Meseros 1111/2222. Los stock del menú del día se descuentan al enviar la comanda.",
+            d: "Admin 1234 · Meseros 1111/2222 · Domiciliario 4444. Los stock del menú del día se descuentan al enviar la comanda.",
           },
         ].map((tip) => (
           <a key={tip.t} href="/admin/mesas" className="block">

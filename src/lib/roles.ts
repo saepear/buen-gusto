@@ -3,12 +3,13 @@
 export const ROLES = {
   ADMIN: "ADMIN",
   MESERO: "MESERO",
+  DOMICILIARIO: "DOMICILIARIO",
 } as const;
 
 export type Rol = keyof typeof ROLES;
 
 export const ES_ROL_VALIDO = (v: string): v is Rol =>
-  v === "ADMIN" || v === "MESERO";
+  v === "ADMIN" || v === "MESERO" || v === "DOMICILIARIO";
 
 export const TIPO_PRODUCTO = {
   PROTEINA: "PROTEINA",
@@ -66,6 +67,34 @@ export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
   CANCELADO: "Cancelada",
 };
 
+export const ESTADO_DOMICILIO = {
+  PENDIENTE: "PENDIENTE",
+  ASIGNADO: "ASIGNADO",
+  EN_CAMINO: "EN_CAMINO",
+  ENTREGADO: "ENTREGADO",
+  NO_ENTREGADO: "NO_ENTREGADO",
+  CANCELADO: "CANCELADO",
+} as const;
+
+export type EstadoDomicilio = keyof typeof ESTADO_DOMICILIO;
+
+/** Etiquetas legibles de los estados del domicilio */
+export const ESTADO_DOMICILIO_LABEL: Record<EstadoDomicilio, string> = {
+  PENDIENTE: "Pendiente de asignar",
+  ASIGNADO: "Asignado",
+  EN_CAMINO: "En camino",
+  ENTREGADO: "Entregado",
+  NO_ENTREGADO: "No entregado",
+  CANCELADO: "Cancelado",
+};
+
+/** Estados en los que el domicilio sigue vivo (no cerrado) */
+export const ESTADOS_ACTIVOS_DOMICILIO: EstadoDomicilio[] = [
+  ESTADO_DOMICILIO.PENDIENTE,
+  ESTADO_DOMICILIO.ASIGNADO,
+  ESTADO_DOMICILIO.EN_CAMINO,
+];
+
 /** Métodos de pago aceptados en caja */
 export const METODOS_PAGO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA"] as const;
 
@@ -81,5 +110,7 @@ export function destinoRol(rol: Rol): string {
       return "/admin";
     case "MESERO":
       return "/mesero";
+    case "DOMICILIARIO":
+      return "/domicilios";
   }
 }

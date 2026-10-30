@@ -8,10 +8,11 @@ const USUARIOS = [
   { nombre: "Administrador", pin: "1234", rol: "ADMIN" },
   { nombre: "Laura", pin: "1111", rol: "MESERO" },
   { nombre: "Carlos", pin: "2222", rol: "MESERO" },
+  { nombre: "Repartidor", pin: "4444", rol: "DOMICILIARIO" },
 ];
 
 // Mesas del salón identificadas por nombre (cualitativo), no por número.
-// "Para llevar" ilustra el uso del salón como zona de espera de domicilios.
+// "Para llevar" ilustra el uso del salón como zona de espera de pedidos.
 const MESAS = [
   "Ventana",
   "Centro",
@@ -24,6 +25,10 @@ const MESAS = [
   "Pasillo",
   "Para llevar",
 ];
+
+// Mesa virtual que agrupa los domicilios. No aparece en el salón ni en la caja:
+// sirve para reutilizar el stock y el cobro de una comanda normal.
+const MESA_DOMICILIO = "Domicilios";
 
 const PRODUCTOS = [
   // Proteínas
@@ -77,6 +82,7 @@ async function main() {
 
   // Orden respetando llaves foráneas
   await db.pago.deleteMany();
+  await db.domicilio.deleteMany();
   await db.pedidoItem.deleteMany();
   await db.pedido.deleteMany();
   await db.menuDiaItem.deleteMany();
@@ -88,7 +94,10 @@ async function main() {
   await db.usuario.createMany({ data: USUARIOS });
   await db.producto.createMany({ data: PRODUCTOS });
   await db.mesa.createMany({
-    data: MESAS.map((nombre) => ({ nombre })),
+    data: [
+      ...MESAS.map((nombre) => ({ nombre })),
+      { nombre: MESA_DOMICILIO, esDomicilio: true },
+    ],
   });
 
   // Menú del día de HOY con porciones de demostración
@@ -111,7 +120,7 @@ async function main() {
   console.log("✔ Usuarios:");
   for (const u of USUARIOS) console.log(`   ${u.rol.padEnd(7)} ${u.nombre} → PIN ${u.pin}`);
   console.log(`✔ ${PRODUCTOS.length} productos del catálogo`);
-  console.log(`✔ ${MESAS.length} mesas creadas`);
+  console.log(`✔ ${MESAS.length} mesas del salón + mesa virtual «${MESA_DOMICILIO}»`);
   console.log(`✔ Menú de hoy (${menu.fecha}) con porciones de muestra`);
   console.log("Listo. Corre `npm run dev` y abre http://localhost:3000");
 }

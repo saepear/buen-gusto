@@ -15,12 +15,13 @@ model Usuario {
   id        Int      @id @default(autoincrement())
   nombre    String
   pin       String // 4 dígitos, único por rol (la búsqueda se hace por pin + rol)
-  rol       String // ADMIN | MESERO
+  rol       String // ADMIN | MESERO | DOMICILIARIO
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  pedidos Pedido[]
-  cierres CierreCaja[]
+  pedidos    Pedido[]
+  cierres    CierreCaja[]
+  domicilios Domicilio[] @relation("Domiciliario")
 
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
 }
@@ -62,10 +63,11 @@ model MenuDiaItem {
 }
 
 model Mesa {
-  id     Int     @id @default(autoincrement())
-  nombre String  @unique // identificador cualitativo (ej. "Ventana", "Para llevar · Juan")
-  estado String  @default("LIBRE") // LIBRE | OCUPADA | POR_PAGAR
-  activa Boolean @default(true) // false = oculta (sin pedidos nuevos)
+  id          Int     @id @default(autoincrement())
+  nombre      String  @unique // identificador cualitativo (ej. "Ventana", "Para llevar · Juan")
+  estado      String  @default("LIBRE") // LIBRE | OCUPADA | POR_PAGAR
+  activa      Boolean @default(true) // false = oculta (sin pedidos nuevos)
+  esDomicilio Boolean @default(false) // true = mesa virtual que agrupa los domicilios
 
   pedidos Pedido[]
 }
@@ -84,6 +86,8 @@ model Pedido {
 
   items PedidoItem[]
   pagos Pago[]
+
+  domicilio Domicilio?
 }
 
 model PedidoItem {
@@ -130,4 +134,27 @@ model Configuracion {
   id    Int    @id @default(autoincrement())
   clave String @unique
   valor String
+}
+
+// Domicilio: entrega a la dirección del cliente. 1:1 con la comanda (Pedido),
+// que se crea sobre la mesa virtual "Domicilios" para reutilizar stock y cobro.
+model Domicilio {
+  id             Int      @id @default(autoincrement())
+  pedidoId       Int      @unique
+  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  cliente        String
+  telefono       String
+  direccion      String
+  barrio         String?
+  referencia     String?
+  estado         String   @default("PENDIENTE") // PENDIENTE | ASIGNADO | EN_CAMINO | ENTREGADO | NO_ENTREGADO | CANCELADO
+  domiciliarioId Int?
+  domiciliario   Usuario? @relation("Domiciliario", fields: [domiciliarioId], references: [id])
+  cobradoMonto   Int? // total cobrado contra entrega (null = aún no cobrado)
+  cobradoMetodo  String? // EFECTIVO | TARJETA | TRANSFERENCIA
+  notaEntrega    String? // motivo de no entrega u observación del repartidor
+  asignadoAt     DateTime?
+  entregadoAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
