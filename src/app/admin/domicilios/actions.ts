@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { claveDia } from "@/lib/format";
+import { minutosDeHora } from "@/lib/hora";
 import {
   crearPedido,
   ErrorDePedido,
@@ -45,15 +46,19 @@ export async function crearDomicilio(
   const direccion = texto(datos.get("direccion"), 120);
   const barrio = texto(datos.get("barrio"), 60) || null;
   const referencia = texto(datos.get("referencia"), 120) || null;
+  // Los clientes fijos de la localidad se registran con el nombre solo
+  // ("un almuerzo para Martina"): el repartidor conoce la ruta de memoria.
+  // Teléfono y dirección quedan OPCIONALES; si los escriben, que valgan.
+  const horaEntrega = texto(datos.get("horaEntrega"), 40) || null;
 
   if (cliente.length < 2) {
     return { error: "Escribe el nombre del cliente.", ok: null };
   }
-  if (telefono.replace(/\D/g, "").length < 7) {
-    return { error: "Escribe un teléfono de contacto válido.", ok: null };
+  if (telefono.length > 0 && telefono.replace(/\D/g, "").length < 7) {
+    return { error: "El teléfono de contacto no es válido.", ok: null };
   }
-  if (direccion.length < 5) {
-    return { error: "Escribe la dirección de entrega.", ok: null };
+  if (direccion.length > 0 && direccion.length < 5) {
+    return { error: "La dirección de entrega queda corta.", ok: null };
   }
 
   let carga: CargaPedido | null = null;
@@ -112,6 +117,8 @@ export async function crearDomicilio(
       direccion,
       barrio,
       referencia,
+      horaEntrega,
+      horaEntregaMinutos: minutosDeHora(horaEntrega),
       estado: ESTADO_DOMICILIO.PENDIENTE,
     },
   });
@@ -153,21 +160,25 @@ export async function repetirUltimoDomicilio(
     return { error: "Su último pedido ya no se puede repetir. Usa el formulario.", ok: null };
   }
 
-  // Guardia: si ese cliente ya tiene un domicilio andando, no duplicarlo
-  const enCurso = await db.domicilio.findFirst({
-    where: {
-      telefono: origen.telefono,
-      estado: {
-        in: [
-          ESTADO_DOMICILIO.PENDIENTE,
-          ESTADO_DOMICILIO.ASIGNADO,
-          ESTADO_DOMICILIO.EN_CAMINO,
-        ],
-      },
-      NOT: { id: origenId },
-    },
-    select: { cliente: true },
-  });
+  // Guardia anti-duplicado: solo aplica cuando hay teléfono; los registros
+  // "solo el nombre" (sin teléfono) no se cruzan entre sí en esta búsqueda
+  // porque varios clientes distintos pueden ir sin número.
+  const enCurso = origen.telefono.trim()
+    ? await db.domicilio.findFirst({
+        where: {
+          telefono: origen.telefono,
+          estado: {
+            in: [
+              ESTADO_DOMICILIO.PENDIENTE,
+              ESTADO_DOMICILIO.ASIGNADO,
+              ESTADO_DOMICILIO.EN_CAMINO,
+            ],
+          },
+          NOT: { id: origenId },
+        },
+        select: { cliente: true },
+      })
+    : null;
   if (enCurso) {
     return {
       error: `${enCurso.cliente} ya tiene un domicilio en curso: asígnale domiciliario en el tablero en vez de repetirlo.`,
@@ -353,6 +364,8 @@ export async function repetirUltimoDomicilio(
       direccion: origen.direccion,
       barrio: origen.barrio,
       referencia: origen.referencia,
+      horaEntrega: origen.horaEntrega,
+      horaEntregaMinutos: origen.horaEntregaMinutos,
       estado: ESTADO_DOMICILIO.PENDIENTE,
     },
   });
@@ -452,8 +465,10 @@ export async function cancelarDomicilio(
       data: { estado: ESTADO_PEDIDO.CANCELADO },
     });
 
-    // Devolver porciones al menú de HOY (nunca a otro día)
-    const fecha = claveDia(new Date());
+    // Devolver porciones al menú del DÍA DEL PEDIDO (no al de hoy): un
+    // domicilio creado a las 11pm y cancelado mañana caería en el menú
+    // equivocado si se usara la fecha actual.
+    const fecha = claveDia(domicilio.pedido.createdAt);
     for (const item of domicilio.pedido.items) {
       if (!["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(item.tipo)) continue;
       await tx.$executeRaw`
@@ -467,4 +482,104 @@ export async function cancelarDomicilio(
 
   revalidarDomicilios();
   return { error: null, ok: "Domicilio cancelado y porciones devueltas." };
+}
+
+/** La cocina/empaque terminó: ENVIADO → EN_PREPARACION → SERVIDO en un toque */
+export async function marcarListaDomicilio(
+  _previa: EstadoAccionDomicilio,
+  datos: FormData,
+): Promise<EstadoAccionDomicilio> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador puede marcar comandas lista.", ok: null };
+  }
+
+  const pedidoId = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
+  if (!Number.isInteger(pedidoId)) {
+    return { error: "Comanda inválida.", ok: null };
+  }
+
+  const pedido = await db.pedido.findUnique({
+    where: { id: pedidoId },
+    include: { mesa: { select: { esDomicilio: true } } },
+  });
+  if (!pedido || !pedido.mesa?.esDomicilio) {
+    return { error: "Esa comanda no es de domicilios.", ok: null };
+  }
+  if (
+    pedido.estado !== ESTADO_PEDIDO.ENVIADO &&
+    pedido.estado !== ESTADO_PEDIDO.EN_PREPARACION &&
+    pedido.estado !== ESTADO_PEDIDO.PARCIAL_SERVIDO
+  ) {
+    return { error: null, ok: "Esa comanda ya estaba lista." };
+  }
+
+  await db.$transaction(async (tx) => {
+    if (pedido.estado === ESTADO_PEDIDO.ENVIADO) {
+      await tx.pedido.update({
+        where: { id: pedidoId },
+        data: { estado: ESTADO_PEDIDO.EN_PREPARACION },
+      });
+    }
+    await tx.pedido.update({
+      where: { id: pedidoId },
+      data: { estado: ESTADO_PEDIDO.SERVIDO },
+    });
+  });
+
+  revalidarDomicilios();
+  return { error: null, ok: "Comanda lista para empaque: ya puede salir." };
+}
+
+/** El intento falló pero se reintenta con la misma comida: NO_ENTREGADO → ASIGNADO */
+export async function reintentarDomicilio(
+  _previa: EstadoAccionDomicilio,
+  datos: FormData,
+): Promise<EstadoAccionDomicilio> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador puede reintentar entregas.", ok: null };
+  }
+
+  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
+  if (!Number.isInteger(domicilioId)) {
+    return { error: "Domicilio inválido.", ok: null };
+  }
+
+  const domicilio = await db.domicilio.findUnique({
+    where: { id: domicilioId },
+    select: {
+      estado: true,
+      pedidoId: true,
+      pedido: { select: { estado: true } },
+    },
+  });
+  if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
+  if (domicilio.estado !== ESTADO_DOMICILIO.NO_ENTREGADO) {
+    return { error: "Solo los no entregados se pueden reintentar.", ok: null };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.domicilio.update({
+      where: { id: domicilioId },
+      data: {
+        estado: ESTADO_DOMICILIO.ASIGNADO,
+        notaEntrega: null,
+        asignadoAt: new Date(),
+      },
+    });
+    // La comida no se desechará: la comanda vuelve a "lista" (ya estaba
+    // cocinada cuando falló la entrega)
+    if (domicilio.pedido.estado === ESTADO_PEDIDO.CANCELADO) {
+      await tx.pedido.update({
+        where: { id: domicilio.pedidoId },
+        data: { estado: ESTADO_PEDIDO.SERVIDO },
+      });
+    }
+  });
+
+  revalidarDomicilios();
+  return { error: null, ok: "Reintento listo: queda por salir con el mismo domiciliario." };
 }

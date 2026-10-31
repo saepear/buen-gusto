@@ -8,6 +8,8 @@ import { precioUnitarioItem } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_DOMICILIO, ESTADO_PEDIDO } from "@/lib/roles";
 import { exigirActor, type Sesion } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { enviarWhatsapp } from "@/lib/whatsapp";
+import { avisoEnCamino, avisoEntregado } from "@/lib/mensajes-whatsapp";
 
 export type EstadoAccionDomiciliario = { error: string | null; ok: string | null };
 
@@ -71,11 +73,27 @@ export async function salirDomicilio(
   if (res.domicilio.estado !== ESTADO_DOMICILIO.ASIGNADO) {
     return { error: "Ese domicilio ya no está pendiente de salida.", ok: null };
   }
+  // Guardia contra entregar comida que nunca entró a cocina: la comanda
+  // tiene que estar lista (marcada en Comandas) antes de salir a la calle
+  if (
+    res.domicilio.pedido.estado !== ESTADO_PEDIDO.SERVIDO &&
+    res.domicilio.pedido.estado !== ESTADO_PEDIDO.COBRADO
+  ) {
+    return {
+      error: "La comanda todavía está en cocina: márcala lista en Comandas antes de salir.",
+      ok: null,
+    };
+  }
 
   await db.domicilio.update({
     where: { id },
     data: { estado: ESTADO_DOMICILIO.EN_CAMINO },
   });
+
+  // Mejor esfuerzo: si el cliente dejó teléfono y el puente vive, se le avisa
+  // que la comida ya salió; si el teléfono es vacío (clientes fijos sin
+  // número), enviarWhatsapp no hace nada.
+  await enviarWhatsapp(res.domicilio.telefono, avisoEnCamino());
 
   revalidar();
   return { error: null, ok: "¡Buen viaje! Domicilio en camino." };
@@ -111,14 +129,27 @@ export async function entregarDomicilio(
     return { error: "Esa comanda ya fue cerrada.", ok: null };
   }
 
-  const total = domicilio.pedido.items.reduce(
+  // El monto cobrado: si el repartidor no lo digitó, el total calculado.
+  // Editable porque el cliente regatea el icopor o paga a medias: así el
+  // reporte dice lo que de verdad pasó, no lo que debió pasar.
+  const totalCalculado = domicilio.pedido.items.reduce(
     (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
     0,
   );
+  const crudoMonto = String(datos.get("monto") ?? "").replace(/[^0-9]/g, "");
+  const crudoPropina = String(datos.get("propina") ?? "").replace(/[^0-9]/g, "");
+  const monto = crudoMonto === "" ? totalCalculado : Number.parseInt(crudoMonto, 10);
+  const propina = crudoPropina === "" ? 0 : Number.parseInt(crudoPropina, 10);
+  if (!Number.isInteger(monto) || monto < 0 || monto > 100_000_000) {
+    return { error: "El monto cobrado no es válido.", ok: null };
+  }
+  if (!Number.isInteger(propina) || propina < 0 || propina > 5_000_000) {
+    return { error: "La propina no es válida.", ok: null };
+  }
 
   await db.$transaction(async (tx) => {
     await tx.pago.create({
-      data: { pedidoId: domicilio.pedidoId, total, propina: 0, metodo },
+      data: { pedidoId: domicilio.pedidoId, total: monto, propina, metodo },
     });
     await tx.pedido.update({
       where: { id: domicilio.pedidoId },
@@ -128,12 +159,15 @@ export async function entregarDomicilio(
       where: { id },
       data: {
         estado: ESTADO_DOMICILIO.ENTREGADO,
-        cobradoMonto: total,
+        cobradoMonto: monto,
         cobradoMetodo: metodo,
         entregadoAt: new Date(),
       },
     });
   });
+
+  // Mejor esfuerzo: el cliente (si dejó teléfono) se entera de que llegó
+  await enviarWhatsapp(domicilio.telefono, avisoEntregado());
 
   revalidar();
   return { error: null, ok: `Entregado y cobrado (${metodo.toLowerCase()}).` };

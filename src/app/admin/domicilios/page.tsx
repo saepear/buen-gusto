@@ -50,30 +50,52 @@ export default async function PaginaDomicilios() {
       id: d.id,
       pedidoId: d.pedidoId,
       estado: d.estado,
+      pedidoEstado: d.pedido.estado,
       cliente: d.cliente,
       telefono: d.telefono,
       direccion: d.direccion,
       barrio: d.barrio,
       referencia: d.referencia,
+      horaEntrega: d.horaEntrega,
+      horaMin: d.horaEntregaMinutos,
       observaciones: d.pedido.observaciones,
       notaEntrega: d.notaEntrega,
       domiciliarioId: d.domiciliarioId,
       cobradoMonto: d.cobradoMonto,
       cobradoMetodo: d.cobradoMetodo,
       creadoEn: formatHora(d.createdAt),
+      ordenTs: d.createdAt.getTime(),
       total,
       resumen,
     };
   });
 
-  const porAsignar = vistas.filter(
-    (d) => d.estado === ESTADO_DOMICILIO.PENDIENTE,
-  );
-  const enReparto = vistas.filter(
-    (d) =>
-      d.estado === ESTADO_DOMICILIO.ASIGNADO ||
-      d.estado === ESTADO_DOMICILIO.EN_CAMINO,
-  );
+  // Cola por llegada: lo más viejo al frente (los pedidos de WhatsApp tempranos
+  // salen primero). Los que dijeron "para las X" van primero entre sí por su
+  // hora: la cocina atiende la 12:00 antes que la 1 y media.
+  const porLlegada = (a: { ordenTs: number }, b: { ordenTs: number }) => a.ordenTs - b.ordenTs;
+
+  const porHora = (
+    a: { ordenTs: number; horaMin: number | null },
+    b: { ordenTs: number; horaMin: number | null },
+  ) => {
+    // Ambos con hora: gana el más temprano; uno solo con hora: ese primero
+    if (a.horaMin !== null && b.horaMin !== null) return a.horaMin - b.horaMin || a.ordenTs - b.ordenTs;
+    if (a.horaMin !== null) return -1;
+    if (b.horaMin !== null) return 1;
+    return porLlegada(a, b);
+  };
+
+  const porAsignar = vistas
+    .filter((d) => d.estado === ESTADO_DOMICILIO.PENDIENTE)
+    .sort(porHora);
+  const enReparto = vistas
+    .filter(
+      (d) =>
+        d.estado === ESTADO_DOMICILIO.ASIGNADO ||
+        d.estado === ESTADO_DOMICILIO.EN_CAMINO,
+    )
+    .sort(porLlegada);
   const cerrados = vistas.filter(
     (d) =>
       d.estado === ESTADO_DOMICILIO.ENTREGADO ||

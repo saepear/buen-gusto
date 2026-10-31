@@ -73,11 +73,20 @@ export default async function PaginaComanda(
             <p className="mt-1 text-[12px] font-bold">
               Cliente: {pedido.domicilio.cliente}
             </p>
-            <p className="text-[12px]">
-              Dirección: {pedido.domicilio.direccion}
-              {pedido.domicilio.barrio ? `, ${pedido.domicilio.barrio}` : ""}
-            </p>
-            <p className="text-[12px]">Tel: {pedido.domicilio.telefono}</p>
+            {pedido.domicilio.horaEntrega ? (
+              <p className="text-[12px] font-bold">
+                Entrega: {pedido.domicilio.horaEntrega}
+              </p>
+            ) : null}
+            {pedido.domicilio.direccion ? (
+              <p className="text-[12px]">
+                Dirección: {pedido.domicilio.direccion}
+                {pedido.domicilio.barrio ? `, ${pedido.domicilio.barrio}` : ""}
+              </p>
+            ) : null}
+            {pedido.domicilio.telefono ? (
+              <p className="text-[12px]">Tel: {pedido.domicilio.telefono}</p>
+            ) : null}
             {pedido.domicilio.referencia ? (
               <p className="text-[11px]">Ref: {pedido.domicilio.referencia}</p>
             ) : null}

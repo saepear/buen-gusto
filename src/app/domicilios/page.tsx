@@ -45,6 +45,7 @@ export default async function PaginaMisDomicilios() {
       direccion: d.direccion,
       barrio: d.barrio,
       referencia: d.referencia,
+      horaEntrega: d.horaEntrega,
       observaciones: d.pedido.observaciones,
       notaEntrega: d.notaEntrega,
       total,

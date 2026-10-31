@@ -3,6 +3,7 @@
 import {
   Bike,
   CheckCircle2,
+  Clock,
   MapPin,
   Navigation,
   Phone,
@@ -31,6 +32,8 @@ export type EntregaVista = {
   referencia: string | null;
   observaciones: string | null;
   notaEntrega: string | null;
+  /** Hora futura que pidió el cliente ("las 12", "la 1 y media") */
+  horaEntrega: string | null;
   total: number;
   creadoEn: string;
   resumen: string;
@@ -86,6 +89,12 @@ function Tarjeta({ entrega }: { entrega: EntregaVista }) {
         <span className="text-xs font-bold uppercase tracking-wide">
           {enCamino ? "En camino · cobrar al entregar" : "Listo para salir"}
         </span>
+        {entrega.horaEntrega ? (
+          <span className="rounded-full bg-orange-brand/15 px-2 py-0.5 text-[11px] font-bold normal-case">
+            <Clock className="mr-1 inline h-3 w-3" />
+            Entrega {entrega.horaEntrega}
+          </span>
+        ) : null}
         <span className="ml-auto font-mono text-[11px] opacity-70">
           {entrega.creadoEn}
         </span>
@@ -123,13 +132,43 @@ function Tarjeta({ entrega }: { entrega: EntregaVista }) {
           </p>
         ) : null}
 
-        <div className="mt-3 flex items-baseline justify-between rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-          <span className="text-sm font-bold text-texto-muted/60">
-            Cobrar al cliente
-          </span>
-          <span className="font-display text-3xl text-texto-app">
-            {formatCOP(entrega.total)}
-          </span>
+        <div className="mt-3 space-y-2 rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm font-bold text-texto-muted/60">
+              Cobrar al cliente
+            </span>
+            <span className="font-display text-3xl text-texto-app">
+              {formatCOP(entrega.total)}
+            </span>
+          </div>
+          {enCamino ? (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="grid gap-0.5">
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+                  Cobrado (si fue distinto)
+                </span>
+                <input
+                  name="monto"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder={String(entrega.total)}
+                  className="w-full rounded-xl border-0 bg-panel-app px-3 py-2 text-sm font-bold tabular-nums text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60"
+                />
+              </label>
+              <label className="grid gap-0.5">
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+                  Propina (opcional)
+                </span>
+                <input
+                  name="propina"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="0"
+                  className="w-full rounded-xl border-0 bg-panel-app px-3 py-2 text-sm font-bold tabular-nums text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60"
+                />
+              </label>
+            </div>
+          ) : null}
         </div>
 
         {!enCamino ? (

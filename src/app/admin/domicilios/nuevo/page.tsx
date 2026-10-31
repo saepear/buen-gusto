@@ -26,6 +26,9 @@ function clientesFijosDe(ultimosDomicilios: DomicilioConPedido[]): ClienteFijo[]
     { ultima: DomicilioConPedido; pedidos: number }
   >();
   for (const dom of ultimosDomicilios) {
+    // Sin teléfono no hay agrupación: varios clientes distintos van sin
+    // número ("solo el nombre") y no se deben cruzar entre sí en el atajo
+    if (dom.telefono.trim() === "") continue;
     const visto = porTelefono.get(dom.telefono);
     if (visto) {
       visto.pedidos += 1;

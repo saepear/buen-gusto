@@ -2,6 +2,8 @@
 
 import {
   Bike,
+  Check,
+  Clock,
   MapPin,
   Navigation,
   Phone,
@@ -17,6 +19,8 @@ import { ESTADO_DOMICILIO, ESTADO_DOMICILIO_LABEL } from "@/lib/roles";
 import {
   asignarDomiciliario,
   cancelarDomicilio,
+  marcarListaDomicilio,
+  reintentarDomicilio,
   type EstadoAccionDomicilio,
 } from "./actions";
 
@@ -28,17 +32,24 @@ export type DomicilioVista = {
   id: number;
   pedidoId: number;
   estado: string;
+  /** Estado de la comanda: para saber si la cocina la tiene lista */
+  pedidoEstado: string;
   cliente: string;
   telefono: string;
   direccion: string;
   barrio: string | null;
   referencia: string | null;
+  horaEntrega: string | null;
+  /** La misma hora en minutos (para ordenar la fila por hora de entrega) */
+  horaMin: number | null;
   observaciones: string | null;
   notaEntrega: string | null;
   domiciliarioId: number | null;
   cobradoMonto: number | null;
   cobradoMetodo: string | null;
   creadoEn: string;
+  /** epoch de creación, para ordenar la cola por llegada (FIFO) */
+  ordenTs: number;
   total: number;
   resumen: string;
 };
@@ -91,12 +102,26 @@ function TarjetaDomicilio({
     EstadoAccionDomicilio,
     FormData
   >(cancelarDomicilio, INICIAL);
+  const [lisEstado, lisAccion, lisPendiente] = useActionState<
+    EstadoAccionDomicilio,
+    FormData
+  >(marcarListaDomicilio, INICIAL);
+  const [reintEstado, reintAccion, reintPendiente] = useActionState<
+    EstadoAccionDomicilio,
+    FormData
+  >(reintentarDomicilio, INICIAL);
 
   const estado = domicilio.estado;
   const abierto =
     estado === ESTADO_DOMICILIO.PENDIENTE || estado === ESTADO_DOMICILIO.ASIGNADO;
   const repartidor =
     repartidores.find((r) => r.id === domicilio.domiciliarioId)?.nombre ?? null;
+  // La comanda todavía no pasó por "lista": hay que marcarla antes de salir
+  const comandaPendiente =
+    (estado === ESTADO_DOMICILIO.PENDIENTE || estado === ESTADO_DOMICILIO.ASIGNADO) &&
+    (domicilio.pedidoEstado === "ENVIADO" ||
+      domicilio.pedidoEstado === "EN_PREPARACION" ||
+      domicilio.pedidoEstado === "PARCIAL_SERVIDO");
 
   return (
     <div className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app">
@@ -113,6 +138,11 @@ function TarjetaDomicilio({
           {ESTADO_DOMICILIO_LABEL[estado as keyof typeof ESTADO_DOMICILIO_LABEL] ??
             estado}
         </span>
+        {domicilio.horaEntrega ? (
+          <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2.5 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
+            <Clock className="h-3 w-3" /> {domicilio.horaEntrega}
+          </span>
+        ) : null}
         <span className="ml-auto font-mono text-xs text-texto-muted/45">
           {domicilio.creadoEn}
         </span>
@@ -151,6 +181,25 @@ function TarjetaDomicilio({
       <p className="mt-3 rounded-xl bg-panel-app px-3 py-2 text-xs text-texto-muted/70 ring-1 ring-borde-app">
         {domicilio.resumen}
       </p>
+
+      {/* La cocina aún no la tiene lista: un toque marca ENVIADO → lista */}
+      {comandaPendiente ? (
+        <>
+          <form action={lisAccion} className="mt-2.5">
+            <input type="hidden" name="pedidoId" value={domicilio.pedidoId} />
+            <button
+              type="submit"
+              disabled={lisPendiente}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-warning-text ring-1 ring-warning/30 transition hover:bg-warning/20 disabled:opacity-50"
+            >
+              <Check className="h-3.5 w-3.5" />
+              {lisPendiente ? "Marcando…" : "Marcar lista para empaque"}
+            </button>
+          </form>
+          <Aviso estado={lisEstado} />
+        </>
+      ) : null}
+
       <Link
         href={`/ordenes/comanda/${domicilio.pedidoId}`}
         target="_blank"
@@ -190,6 +239,27 @@ function TarjetaDomicilio({
           <X className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {domicilio.notaEntrega}
         </p>
+      ) : null}
+
+      {estado === ESTADO_DOMICILIO.NO_ENTREGADO ? (
+        <div className="mt-3 border-t border-dashed border-borde-app pt-3">
+          <p className="text-xs text-texto-muted/55">
+            La comida sigue disponible: reintentar la devuelve a la fila para
+            salir otra vez con el mismo domiciliario.
+          </p>
+          <form action={reintAccion} className="mt-2">
+            <input type="hidden" name="domicilioId" value={domicilio.id} />
+            <button
+              type="submit"
+              disabled={reintPendiente}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-brand px-3.5 py-2 text-xs font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
+            >
+              <Navigation className="h-3.5 w-3.5" />
+              {reintPendiente ? "Reintentando…" : "Reintentar entrega"}
+            </button>
+          </form>
+          <Aviso estado={reintEstado} />
+        </div>
       ) : null}
 
       {abierto ? (
