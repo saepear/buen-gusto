@@ -124,6 +124,7 @@ model CierreCaja {
   totalTarjeta    Int
   totalTransfer   Int
   totalPropinas   Int
+  totalDomicilios Int // recaudo de domicilios entregados hoy (cobrado contra entrega)
   numeroPagos     Int
   numeroComandas  Int // comandas servidas o cobradas del día
   efectivoContado Int? // plata contada a mano (opcional); null = no se contó
@@ -148,6 +149,9 @@ model Domicilio {
   barrio         String?
   referencia     String?
   horaEntrega    String? // hora futura que dijo el cliente, ej: "las 12", "la 1 y media"
+  // La misma hora en minutos desde medianoche (ej. 12:30 → 750) para poder
+  // ordenar el tablero por hora de entrega; null = el cliente no la dijo.
+  horaEntregaMinutos Int?
   estado         String   @default("PENDIENTE") // PENDIENTE | ASIGNADO | EN_CAMINO | ENTREGADO | NO_ENTREGADO | CANCELADO
   domiciliarioId Int?
   domiciliario   Usuario? @relation("Domiciliario", fields: [domiciliarioId], references: [id])
@@ -164,9 +168,10 @@ model Domicilio {
 // teléfono o pegado a mano) y su borrador parseado, antes de ser domicilio.
 model EntradaWhatsapp {
   id          Int       @id @default(autoincrement())
-  remitente   String    @default("") // título de la notificación: nombre del contacto o número
+  remitente   String    @default("") // título de la notificación: nombre del contacto
+  telefono    String    @default("") // número del cliente (para responderle)
   texto       String
-  // Guardia antiduplicados: hash de remitente+texto; solo se usa contra la
+  // Guardia antiduplicados: hash de teléfono+texto; solo se usa contra la
   // ventana de los últimos minutos (una misma notificación reenviada no se
   // registra dos veces, pero el mismo texto de otro día entra normal)
   claveDedupe String
