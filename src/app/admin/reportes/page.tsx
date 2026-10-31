@@ -435,6 +435,10 @@ export default async function PaginaReportes() {
                 <span className="font-bold">{formatCOP(cierreHoy.totalTransfer)}</span>
               </p>
               <p className="flex justify-between">
+                <span>…de los cuales, domicilios</span>
+                <span className="font-bold">{formatCOP(cierreHoy.totalDomicilios)}</span>
+              </p>
+              <p className="flex justify-between">
                 <span>Pagos / comandas servidas</span>
                 <span className="font-bold">
                   {cierreHoy.numeroPagos} / {cierreHoy.numeroComandas}

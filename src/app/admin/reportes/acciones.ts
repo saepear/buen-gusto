@@ -65,6 +65,17 @@ export async function registrarCierre(
         where: { estado: { in: ["SERVIDO", "COBRADO"] }, createdAt: { gte: inicioDeHoy() } },
       });
 
+      // El recaudo de domicilios: los pagos del día sobre la mesa virtual de
+      // domicilios (el domiciliario cobra contra entrega)
+      const pagosDomicilios = await tx.pago.findMany({
+        where: {
+          createdAt: { gte: inicioDeHoy() },
+          pedido: { mesa: { esDomicilio: true } },
+        },
+        select: { total: true },
+      });
+      const totalDomicilios = pagosDomicilios.reduce((s, p) => s + p.total, 0);
+
       await tx.cierreCaja.create({
         data: {
           fecha,
@@ -76,6 +87,7 @@ export async function registrarCierre(
           totalPropinas,
           numeroPagos: pagos.length,
           numeroComandas,
+          totalDomicilios,
           efectivoContado,
         },
       });
