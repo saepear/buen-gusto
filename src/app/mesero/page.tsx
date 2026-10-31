@@ -49,7 +49,7 @@ export default async function PaginaMesero() {
         <section className="rounded-[2rem] bg-glass-app p-5 ring-1 ring-borde-app shadow-2xl">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-brand/20 text-amber-brand ring-1 ring-amber-brand/30">
-              <UtensilsCrossed className="h-5 w-5" />
+              <UtensilsCrossed aria-hidden className="h-5 w-5" />
             </span>
             <div>
               <h1 className="font-display text-xl text-cream-50">
@@ -66,8 +66,9 @@ export default async function PaginaMesero() {
                 key={txt}
                 className="rounded-2xl bg-panel-app p-2.5 text-center ring-1 ring-borde-app"
               >
-                <p className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-                  <Icono className="h-3 w-3" /> {txt}
+                <p className="flex min-w-0 items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-[0.15em] text-texto-muted/40 sm:text-[10px] sm:tracking-[0.2em]">
+                  <Icono aria-hidden className="h-3 w-3 shrink-0" />{" "}
+                  <span className="truncate">{txt}</span>
                 </p>
                 <p className="mt-0.5 font-display text-lg text-amber-brand">{valor}</p>
               </div>
@@ -76,7 +77,8 @@ export default async function PaginaMesero() {
         </section>
 
         {/* Tarjetas por mesa */}
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        {/* Tarjetas por mesa: 2 columnas en teléfono (tocables sin desborde) */}
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3">
           {mesas.map((mesa) => {
             const estado = mesa.estado as EstadoMesa;
             const libre = estado === ESTADO_MESA.LIBRE;
@@ -87,7 +89,7 @@ export default async function PaginaMesero() {
                 key={mesa.id}
                 href={`/mesero/mesa/${mesa.id}`}
                 className={
-                  "group flex flex-col items-center rounded-3xl p-3.5 pt-4 text-center transition active:scale-95 " +
+                  "group flex flex-col items-center rounded-3xl p-3 pt-3.5 text-center transition active:scale-95 sm:p-3.5 sm:pt-4 " +
                   (libre
                     ? "bg-panel-app ring-1 ring-borde-app hover:ring-amber-brand/50"
                     : porPagarMesa
@@ -123,11 +125,11 @@ export default async function PaginaMesero() {
 
                 {libre ? (
                   <span className="mt-3 flex items-center gap-1 rounded-full bg-orange-brand/10 px-2.5 py-1 text-[11px] font-bold text-orange-brand group-hover:bg-orange-brand group-hover:text-texto-app">
-                    <Plus className="h-3 w-3" /> Tomar pedido
+                    <Plus aria-hidden className="h-3 w-3" /> Tomar pedido
                   </span>
                 ) : (
                   <span className="mt-3 flex items-center gap-1 rounded-full bg-panel-app px-2.5 py-1 text-[11px] font-bold text-texto-muted/70 ring-1 ring-borde-app">
-                    <ClipboardList className="h-3 w-3" />
+                    <ClipboardList aria-hidden className="h-3 w-3" />
                     {vivas} {vivas === 1 ? "comanda" : "comandas"}
                   </span>
                 )}
@@ -137,7 +139,7 @@ export default async function PaginaMesero() {
         </div>
 
         <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-texto-muted/45">
-          <UtensilsCrossed className="h-3.5 w-3.5" />
+          <UtensilsCrossed aria-hidden className="h-3.5 w-3.5" />
           Las porciones disponibles se descuentan en cuanto envías la comanda.
         </p>
       </main>

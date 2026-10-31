@@ -111,13 +111,13 @@ export default async function PaginaMesa(
       <main className="mx-auto max-w-lg sm:max-w-2xl space-y-3.5 p-4 sm:p-6 pb-24">
         {nuevo ? (
           <div className="flex items-center gap-2.5 rounded-2xl bg-success/10 px-4 py-3 text-sm font-bold text-success-text ring-1 ring-success/40">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
             Comanda #{nuevo} enviada a la cocina. Mira su avance aquí mismo.
           </div>
         ) : null}
 
         {/* Resumen de la mesa */}
-        <section className="flex items-center justify-between gap-3 rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl">
+        <section className="flex items-center justify-between gap-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:rounded-[2rem] sm:p-4">
           <div className="flex min-w-0 items-center gap-3">
             <span
               className={
@@ -129,7 +129,7 @@ export default async function PaginaMesa(
                     : "bg-orange-brand/10 text-orange-brand ring-orange-brand/30")
               }
             >
-              <UtensilsCrossed className="h-5 w-5" />
+              <UtensilsCrossed aria-hidden className="h-5 w-5" />
             </span>
             <div className="min-w-0">
               <p className="font-display text-xl leading-none text-texto-app">
@@ -163,7 +163,7 @@ export default async function PaginaMesa(
                 (granTotal > 0 ? "order-first text-md" : "")
               }
             >
-              <Plus className="h-4.5 w-4.5" /> Nuevo
+              <Plus aria-hidden className="h-4.5 w-4.5" /> Nuevo
             </Link>
             {granTotal > 0 ? (
               <p className="text-right font-display text-lg text-texto-app">
@@ -175,7 +175,7 @@ export default async function PaginaMesa(
 
         {porPagar ? (
           <p className="flex items-center gap-2.5 rounded-2xl bg-warning/10 px-4 py-3 text-xs font-bold text-warning-text ring-1 ring-warning/40">
-            <Banknote className="h-5 w-5 shrink-0" />
+            <Banknote aria-hidden className="h-5 w-5 shrink-0" />
             Esta mesa está por pagar: quien despacha cobra en la caja del
             administrador.
           </p>
@@ -183,7 +183,7 @@ export default async function PaginaMesa(
 
         {comandas.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-[2rem] border-2 border-dashed border-borde-app p-8 text-center text-texto-muted/45">
-            <UtensilsCrossed className="h-7 w-7 text-texto-muted/35" />
+            <UtensilsCrossed aria-hidden className="h-7 w-7 text-texto-muted/35" />
             <p className="text-sm font-bold text-texto-muted/70">
               Aún no hay comandas en esta mesa hoy.
             </p>
@@ -198,7 +198,7 @@ export default async function PaginaMesa(
             return (
               <article
                 key={pedido.id}
-                className="rounded-[2rem] bg-panel-app p-4 ring-1 ring-borde-app shadow-2xl"
+                className="rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:rounded-[2rem] sm:p-4"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -215,12 +215,12 @@ export default async function PaginaMesa(
                     </span>
                     {pedido.paraLlevar ? (
                       <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2.5 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
-                        <ShoppingBag className="h-3 w-3" /> Para llevar
+                        <ShoppingBag aria-hidden className="h-3 w-3" /> Para llevar
                       </span>
                     ) : null}
                   </div>
                   <span className="flex shrink-0 items-center gap-1 text-[11px] text-texto-muted/45">
-                    <Clock className="h-3 w-3" /> {formatHora(pedido.createdAt)}
+                    <Clock aria-hidden className="h-3 w-3" /> {formatHora(pedido.createdAt)}
                   </span>
                 </div>
 
@@ -238,7 +238,7 @@ export default async function PaginaMesa(
                             (CLASE_TIPO[item.tipo] ?? "bg-panel-app text-texto-muted/60")
                           }
                         >
-                          <Icono className="h-3.5 w-3.5" />
+                          <Icono aria-hidden className="h-3.5 w-3.5" />
                         </span>
                         <span className="min-w-0 flex-1 truncate font-bold text-texto-app">
                           {item.producto.nombre}
@@ -261,19 +261,19 @@ export default async function PaginaMesa(
 
                 {pedido.observaciones ? (
                   <p className="mt-3 flex items-start gap-2 rounded-xl bg-panel-app px-3 py-2 text-xs text-texto-muted/70">
-                    <MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-texto-muted/35" />
+                    <MessageSquareText aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-texto-muted/35" />
                     {pedido.observaciones}
                   </p>
                 ) : null}
 
                 <div className="mt-3 flex items-center justify-between border-t border-dashed border-borde-app pt-2.5">
                   <p className="flex items-center gap-1.5 text-[11px] text-texto-muted/45">
-                    <User className="h-3 w-3" />
+                    <User aria-hidden className="h-3 w-3" />
                     {pedido.mesero?.nombre ?? "—"}
                   </p>
                   {totalComanda > 0 ? (
                     <p className="flex items-center gap-1.5 text-sm font-bold text-texto-app">
-                      <Wallet className="h-3.5 w-3.5 text-texto-muted/35" />
+                      <Wallet aria-hidden className="h-3.5 w-3.5 text-texto-muted/35" />
                       {formatCOP(totalComanda)}
                     </p>
                   ) : null}

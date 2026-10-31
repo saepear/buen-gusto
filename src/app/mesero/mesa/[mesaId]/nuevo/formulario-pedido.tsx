@@ -2,6 +2,7 @@
 
 import {
   ClipboardList,
+  Clock,
   CupSoda,
   Drumstick,
   MapPin,
@@ -43,6 +44,8 @@ export type Extra = { id: number; nombre: string; tipo: string; precio: number }
 type DatosCliente = {
   cliente: string;
   telefono: string;
+  /** Hora futura que pidió el cliente ("para las 12", "la 1 y media") */
+  horaEntrega: string;
   direccion: string;
   barrio: string;
   referencia: string;
@@ -210,6 +213,7 @@ export function FormularioPedido({
   const [datosCliente, setDatosCliente] = useState<DatosCliente>({
     cliente: "",
     telefono: "",
+    horaEntrega: "",
     direccion: "",
     barrio: "",
     referencia: "",
@@ -512,8 +516,10 @@ export function FormularioPedido({
     );
   };
 
-  /** El panel de la comanda: escritorio (fijo a la derecha) y móvil (modal) */
-  const PanelComanda = () => (
+  /** El panel de la comanda: escritorio (fijo a la derecha) y móvil (modal).
+      alCerrar: el modal móvil pasa su botón de cierre para que viva DENTRO
+      del encabezado (antes flotaba encima del botón Vaciar). */
+  const PanelComanda = ({ alCerrar }: { alCerrar?: () => void } = {}) => (
     <div>
       <div className="flex items-center gap-2.5">
         <span
@@ -540,6 +546,17 @@ export function FormularioPedido({
         >
           <Trash2 aria-hidden className="h-4 w-4" />
         </button>
+        {alCerrar ? (
+          <button
+            type="button"
+            onClick={alCerrar}
+            aria-label="Cerrar la comanda"
+            title="Cerrar la comanda"
+            className="rounded-xl bg-campo-app p-2 text-texto-muted/60 ring-1 ring-borde-app transition hover:text-danger-text"
+          >
+            <X aria-hidden className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
       <ul className="mt-3 space-y-2">
@@ -664,7 +681,7 @@ export function FormularioPedido({
             Icono={MapPin}
             clase="bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20"
             titulo="Cliente"
-            sub="A dónde llevamos el pedido"
+            sub="Nombre sí o sí · teléfono y dirección opcionales"
           />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="col-span-2">
@@ -682,13 +699,20 @@ export function FormularioPedido({
               icono={<Phone className="h-4 w-4" />}
               name="telefono"
               ariaLabel="Teléfono del cliente"
-              placeholder="Teléfono…"
+              placeholder="Teléfono (opcional)…"
               tipo="tel"
               inputMode="tel"
               autoCompletar="tel"
               valor={datosCliente.telefono}
               onChange={(valor) => actualizarCliente("telefono", valor)}
-              requerido
+            />
+            <Campo
+              icono={<Clock className="h-4 w-4" />}
+              name="horaEntrega"
+              ariaLabel="Hora de entrega"
+              placeholder="Para las 12, la 1 y media…"
+              valor={datosCliente.horaEntrega}
+              onChange={(valor) => actualizarCliente("horaEntrega", valor)}
             />
             <Campo
               icono={<MapPin className="h-4 w-4" />}
@@ -699,26 +723,23 @@ export function FormularioPedido({
               valor={datosCliente.barrio}
               onChange={(valor) => actualizarCliente("barrio", valor)}
             />
+            <Campo
+              icono={<StickyNote className="h-4 w-4" />}
+              name="referencia"
+              ariaLabel="Referencia de la casa"
+              placeholder="Referencia: portón azul…"
+              valor={datosCliente.referencia}
+              onChange={(valor) => actualizarCliente("referencia", valor)}
+            />
             <div className="col-span-2">
               <Campo
                 icono={<MapPin className="h-4 w-4" />}
                 name="direccion"
                 ariaLabel="Dirección de entrega"
-                placeholder="Dirección de entrega…"
+                placeholder="Dirección de entrega (opcional)…"
                 autoCompletar="street-address"
                 valor={datosCliente.direccion}
                 onChange={(valor) => actualizarCliente("direccion", valor)}
-                requerido
-              />
-            </div>
-            <div className="col-span-2">
-              <Campo
-                icono={<StickyNote className="h-4 w-4" />}
-                name="referencia"
-                ariaLabel="Referencia de la casa"
-                placeholder="Referencia: portón azul…"
-                valor={datosCliente.referencia}
-                onChange={(valor) => actualizarCliente("referencia", valor)}
               />
             </div>
           </div>
@@ -730,39 +751,21 @@ export function FormularioPedido({
           Domicilio · para llevar · se cobra en la entrega
         </p>
       ) : (
-        <div className="mt-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-            Pedido
-          </p>
-          <div className="mt-1.5 grid grid-cols-2 gap-2 rounded-2xl bg-campo-app p-1.5 ring-1 ring-borde-app">
-            {(
-              [
-                { ok: false, txt: "En mesa", Icono: UtensilsCrossed },
-                { ok: true, txt: "Para llevar", Icono: ShoppingBag },
-              ] as const
-            ).map(({ ok, txt, Icono }) => (
-              <button
-                key={txt}
-                type="button"
-                onClick={() => setLlevar(ok)}
-                aria-pressed={llevar === ok}
-                className={
-                  "rounded-xl py-2 font-display text-md transition active:scale-95 sm:py-2.5 " +
-                  (llevar === ok
-                    ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-                    : "text-texto-muted/70 hover:bg-panel-hover")
-                }
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Icono aria-hidden className="h-4 w-4" /> {txt}
-                </span>
-                <span className="text-[10px] font-bold normal-case">
-                  {ok ? `+ icopor ${formatCOP(PRECIO_ICOPOR)}` : "se sirve en la mesa"}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+        /* El canal se elige arriba (sección «¿Cómo va el pedido?»); aquí solo
+           recordamos cuál está activo mientras armamos la comanda. */
+        <p className="mt-3.5 flex items-center gap-2 rounded-2xl bg-campo-app px-3.5 py-2.5 text-[11px] font-bold text-texto-muted/60">
+          {llevar ? (
+            <>
+              <ShoppingBag aria-hidden className="h-3.5 w-3.5 shrink-0 text-orange-brand" />
+              Para llevar · + {formatCOP(PRECIO_ICOPOR)} de icopor por almuerzo
+            </>
+          ) : (
+            <>
+              <UtensilsCrossed aria-hidden className="h-3.5 w-3.5 shrink-0 text-success-text" />
+              En la mesa · sin recargo, se sirve en la mesa
+            </>
+          )}
+        </p>
       )}
 
       <label className="campo-redondo mt-3 flex items-center gap-2.5 rounded-2xl bg-campo-app px-3.5 py-3.5 ring-1 ring-borde-app focus-within:ring-2 focus-within:ring-amber-brand/60">
@@ -834,7 +837,47 @@ export function FormularioPedido({
                 sub={`Se cobra en la entrega · incluye icopor de ${formatCOP(PRECIO_ICOPOR)}`}
               />
             </section>
-          ) : null}
+          ) : (
+            /* Canal del salón: el mesero decide si el pedido va para la mesa
+               o para llevar. Al elegir llevar, el icopor entra en el precio
+               de CADA almuerzo (la píldora de sopa/bandeja lo muestra). */
+            <section className="rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:rounded-[2rem] sm:p-4">
+              <TituloSeccion
+                Icono={UtensilsCrossed}
+                clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
+                titulo="¿Cómo va el pedido?"
+                sub="Se aplica a todos los platos de la comanda"
+              />
+              <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-campo-app p-1.5 ring-1 ring-borde-app">
+                {(
+                  [
+                    { ok: false, txt: "En la mesa", Icono: UtensilsCrossed },
+                    { ok: true, txt: "Para llevar", Icono: ShoppingBag },
+                  ] as const
+                ).map(({ ok, txt, Icono }) => (
+                  <button
+                    key={txt}
+                    type="button"
+                    onClick={() => setLlevar(ok)}
+                    aria-pressed={llevar === ok}
+                    className={
+                      "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 font-display text-md transition active:scale-95 sm:py-2.5 " +
+                      (llevar === ok
+                        ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
+                        : "text-texto-muted/70 hover:bg-panel-hover")
+                    }
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icono aria-hidden className="h-4 w-4" /> {txt}
+                    </span>
+                    <span className="text-[10px] font-bold normal-case">
+                      {ok ? `+ ${formatCOP(PRECIO_ICOPOR)} de icopor` : "se sirve en la mesa"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* 1. ¿El plato lleva sopa? (por cada plato) */}
           <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
@@ -1017,10 +1060,13 @@ export function FormularioPedido({
         </aside>
       </div>
 
-      {/* Barra fija: añadir el plato armado · en móvil abre la comanda */}
-      <div className="fixed inset-x-0 bottom-0 z-40">
+      {/* Barra fija: añadir el plato armado · en móvil abre la comanda.
+          En escritorio se alinea a la columna de contenido (pl-64 del shell):
+          centrarla sobre el viewport la descolocaba y pisaba «Cerrar sesión».
+          Además solo la pastilla oscura captura clics */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 lg:pl-64">
         <div className="mx-auto w-full max-w-xl px-3 barra-seguro sm:max-w-2xl lg:max-w-6xl">
-          <div className="flex items-center gap-2 rounded-[1.75rem] bg-brown-950/95 px-3 py-3 shadow-flotante ring-1 ring-borde-app backdrop-blur sm:gap-2.5 sm:px-4">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-[1.75rem] bg-brown-950/95 px-3 py-3 shadow-flotante ring-1 ring-borde-app backdrop-blur sm:gap-2.5 sm:px-4">
             <p
               aria-live="polite"
               className="hidden min-w-0 flex-1 truncate text-sm font-bold text-texto-app sm:block"
@@ -1037,7 +1083,7 @@ export function FormularioPedido({
               >
                 <Minus aria-hidden className="h-4 w-4" />
               </button>
-              <span className="w-8 text-center text-sm font-bold tabular-nums text-texto-app">
+              <span className="w-7 text-center text-sm font-bold tabular-nums text-texto-app sm:w-8">
                 {cantidadPlato}
               </span>
               <button
@@ -1055,7 +1101,7 @@ export function FormularioPedido({
               disabled={proteina === null || pendiente}
               title={proteina === null ? "Falta la proteína" : undefined}
               className={
-                "flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2.5 font-display text-md transition active:scale-95 sm:px-4 " +
+                "flex min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl px-3 py-2.5 font-display text-md transition active:scale-95 sm:flex-none sm:shrink-0 sm:gap-1.5 sm:px-4 " +
                 (proteina === null || pendiente
                   ? "cursor-not-allowed bg-brown-800/60 text-texto-muted/50"
                   : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
@@ -1068,7 +1114,7 @@ export function FormularioPedido({
               type="button"
               onClick={() => setComandaAbierta(true)}
               aria-label={`Abrir la comanda: ${totalPlatos} platos, total ${formatCOP(totalComanda)}`}
-              className="flex shrink-0 flex-col items-center rounded-2xl bg-panel-app px-3 py-2 ring-1 ring-borde-app transition hover:bg-panel-hover lg:hidden"
+              className="flex shrink-0 flex-col items-center rounded-2xl bg-panel-app px-2.5 py-2 ring-1 ring-borde-app transition hover:bg-panel-hover lg:hidden"
             >
               <span className="flex items-center gap-1.5">
                 <ClipboardList aria-hidden className="h-4.5 w-4.5 text-amber-brand" />
@@ -1105,16 +1151,8 @@ export function FormularioPedido({
             if (e.key === "Escape") setComandaAbierta(false);
           }}
         >
-          <div className="animar-subir max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-brown-900 p-5 shadow-pop ring-1 ring-borde-app">
-            <button
-              type="button"
-              onClick={() => setComandaAbierta(false)}
-              aria-label="Cerrar la comanda"
-              className="float-right -m-1 rounded-xl bg-campo-app p-2 ring-1 ring-borde-app transition hover:text-danger-text"
-            >
-              <X aria-hidden className="h-4 w-4" />
-            </button>
-            {PanelComanda()}
+          <div className="animar-subir max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-brown-900 p-4 shadow-pop ring-1 ring-borde-app sm:p-5">
+            {PanelComanda({ alCerrar: () => setComandaAbierta(false) })}
           </div>
         </div>
       ) : null}

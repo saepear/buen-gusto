@@ -29,9 +29,9 @@ export function EncabezadoMesero({
         {volver ? (
           <Link
             href={volver.href}
-            className="flex items-center gap-1.5 rounded-full bg-panel-app ring-1 ring-borde-app px-3.5 py-2.5 text-xs font-bold text-texto-app transition hover:bg-panel-hover"
+            className="flex items-center gap-1.5 rounded-full bg-panel-app ring-1 ring-borde-app px-3 py-2 text-xs font-bold text-texto-app transition hover:bg-panel-hover sm:px-3.5 sm:py-2.5"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft aria-hidden className="h-3.5 w-3.5" />
             {volver.texto}
           </Link>
         ) : (
@@ -65,7 +65,7 @@ export function EncabezadoMesero({
             aria-label="Cerrar sesión"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-app ring-1 ring-borde-app text-texto-app transition hover:bg-danger"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut aria-hidden className="h-4 w-4" />
           </button>
         </form>
       </div>
