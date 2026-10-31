@@ -5,6 +5,9 @@ import type { NextConfig } from "next";
 // build de producción y ambos pueden correr juntos (dev :3000, prod :3001).
 const nextConfig: NextConfig = {
   distDir: process.env.PROD_BUILD === "1" ? ".next-prod" : ".next",
+  // Sin el boton flotante de Next devtools: tapaba "Cerrar" cuando la
+  // pantalla se probaba en modo desarrollo. En produccion no existe.
+  devIndicators: false,
   /* POS 100% dinámico (tiempo real): sin Cache Components */
   /* cacheComponents: true, */
   /* partialPrefetching: true, */
