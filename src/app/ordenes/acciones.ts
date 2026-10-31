@@ -73,8 +73,9 @@ export async function cancelarComanda(datos: FormData): Promise<void> {
       data: { estado: ESTADO_PEDIDO.CANCELADO },
     });
 
-    // Devolver porciones al menú de HOY (nunca a otro día)
-    const fecha = claveDia(new Date());
+    // Devolver porciones al menú del DÍA DEL PEDIDO (no al de hoy): la
+    // comanda creada anoche y cancelada hoy no debe agravar el menú actual
+    const fecha = claveDia(pedido.createdAt);
     for (const item of pedido.items) {
       if (!["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(item.tipo)) continue;
       await tx.$executeRaw`
