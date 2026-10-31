@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "pos-marketing": {
+      "source": "sushpadhye6789/retail-marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pos-marketing/SKILL.md",
+      "computedHash": "f9d9cc3153f7156e5667818965076e3c8dd11162904b64f3c38cf19bdc475c0f"
+    }
+  }
+}

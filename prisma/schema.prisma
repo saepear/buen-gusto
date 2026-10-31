@@ -147,6 +147,7 @@ model Domicilio {
   direccion      String
   barrio         String?
   referencia     String?
+  horaEntrega    String? // hora futura que dijo el cliente, ej: "las 12", "la 1 y media"
   estado         String   @default("PENDIENTE") // PENDIENTE | ASIGNADO | EN_CAMINO | ENTREGADO | NO_ENTREGADO | CANCELADO
   domiciliarioId Int?
   domiciliario   Usuario? @relation("Domiciliario", fields: [domiciliarioId], references: [id])
@@ -157,4 +158,27 @@ model Domicilio {
   entregadoAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// Entrada de WhatsApp: el mensaje crudo que llega (vía app forwarder del
+// teléfono o pegado a mano) y su borrador parseado, antes de ser domicilio.
+model EntradaWhatsapp {
+  id          Int       @id @default(autoincrement())
+  remitente   String    @default("") // título de la notificación: nombre del contacto o número
+  texto       String
+  // Guardia antiduplicados: hash de remitente+texto; solo se usa contra la
+  // ventana de los últimos minutos (una misma notificación reenviada no se
+  // registra dos veces, pero el mismo texto de otro día entra normal)
+  claveDedupe String
+  estado      String    @default("NUEVO") // NUEVO | CONVERTIDO | DESCARTADO
+  borrador    String? // JSON del borrador parseado la última vez
+  armable     Boolean   @default(false)
+  pedidoId    Int? // la comanda de domicilio que se creó de esta entrada
+  recibidoAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([recibidoAt])
+  @@index([estado])
+  @@index([claveDedupe])
 }

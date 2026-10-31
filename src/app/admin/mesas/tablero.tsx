@@ -1,11 +1,14 @@
 "use client";
 
 import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import {
+  Banknote,
   Clock,
   CupSoda,
   Drumstick,
   Salad,
+  Search,
   ShoppingBag,
   Soup,
   Star,
@@ -17,10 +20,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatCOP } from "@/lib/format";
 import type { EstadoMesa } from "@/lib/roles";
+
+gsap.registerPlugin(useGSAP);
 
 export type ItemDetalle = {
   nombre: string;
@@ -96,20 +101,45 @@ const CLASE_TIPO: Record<string, string> = {
   ADICIONAL: "bg-orange-brand/10 text-orange-brand",
 };
 
-/** Minutos transcurridos desde el pedido; null mientras el cliente no ha montado */
-function minutosDe(desde: number | null, ahora: number | null): number | null {
-  if (desde === null || ahora === null) return null;
+type Filtro = "TODAS" | EstadoMesa;
+
+const FILTROS: Array<{ valor: Filtro; etiqueta: string }> = [
+  { valor: "TODAS", etiqueta: "Todas" },
+  { valor: "LIBRE", etiqueta: "Libres" },
+  { valor: "OCUPADA", etiqueta: "Ocupadas" },
+  { valor: "POR_PAGAR", etiqueta: "Por pagar" },
+];
+
+/** Quita acentos para que «Mesa Á» encuentre también «a» */
+function normaliza(t: string): string {
+  return t
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+/** Minutos transcurridos desde el pedido; null si la mesa está libre */
+function minutosDe(desde: number | null, ahora: number): number | null {
+  if (desde === null) return null;
   return Math.max(0, Math.floor((ahora - desde) / 60_000));
+}
+
+/** FLIP manual: rectángulo de origen vs. final */
+function centroDe(r: DOMRect) {
+  return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
 }
 
 function TarjetaMesa({
   mesa,
   ahora,
+  registrar,
   onAbrir,
 }: {
   mesa: MesaDetalle;
-  ahora: number | null;
-  onAbrir: () => void;
+  ahora: number;
+  registrar: (el: HTMLButtonElement | null) => void;
+  onAbrir: (rect: DOMRect) => void;
 }) {
   const estado = mesa.estado as EstadoMesa;
   const minutos = minutosDe(mesa.desde, ahora);
@@ -117,9 +147,10 @@ function TarjetaMesa({
 
   return (
     <button
+      ref={registrar}
       type="button"
-      onClick={onAbrir}
-      className="group flex flex-col rounded-2xl bg-panel-app p-5 text-left ring-1 ring-borde-app transition duration-200 hover:-translate-y-0.5 hover:ring-amber-brand/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand active:translate-y-0 active:scale-[0.99]"
+      onClick={(e) => onAbrir(e.currentTarget.getBoundingClientRect())}
+      className="tarjeta-mesa group flex flex-col rounded-2xl bg-panel-app p-5 text-left ring-1 ring-borde-app transition duration-200 hover:-translate-y-0.5 hover:ring-amber-brand/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand active:translate-y-0 active:scale-[0.99]"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="truncate font-display text-2xl text-texto-app">
@@ -158,28 +189,29 @@ function TarjetaMesa({
         </p>
       )}
 
-      <span className="mt-4 text-[11px] font-bold uppercase tracking-[0.18em] text-texto-muted/40 transition group-hover:text-amber-brand">
-        Ver detalle
-      </span>
+      <span className="mt-4 h-1 w-8 rounded-full bg-amber-brand/30 transition-all duration-200 group-hover:w-14 group-hover:bg-amber-brand" />
     </button>
   );
 }
 
 function Dato({
-  Icono,
   etiqueta,
   valor,
+  acento,
 }: {
-  Icono: LucideIcon;
   etiqueta: string;
   valor: string;
+  acento?: boolean;
 }) {
   return (
     <div className="rounded-2xl bg-panel-app px-3 py-3 ring-1 ring-borde-app">
-      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-texto-muted/40">
-        <Icono className="h-3.5 w-3.5" /> {etiqueta}
-      </span>
-      <p className="mt-1.5 font-display text-xl leading-none text-texto-app">
+      <p className="text-xs font-bold text-texto-muted/60">{etiqueta}</p>
+      <p
+        className={
+          "mt-1.5 font-display text-xl leading-none " +
+          (acento ? "text-amber-brand" : "text-texto-app")
+        }
+      >
         {valor}
       </p>
     </div>
@@ -188,86 +220,116 @@ function Dato({
 
 function ModalMesa({
   mesa,
+  origen,
   ahora,
   onClose,
 }: {
   mesa: MesaDetalle;
-  ahora: number | null;
+  /** rect de la ficha que abrió el modal: el panel nace ahí y allí se pliega */
+  origen: { x: number; y: number; w: number; h: number };
+  ahora: number;
   onClose: () => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const cerrandoRef = useRef(false);
 
+  const { contextSafe } = useGSAP(
+    () => {
+      const panel = panelRef.current;
+      const overlay = overlayRef.current;
+      if (!panel || !overlay) return;
+
+      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
+      const reducido = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      if (reducido || !origen) {
+        gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
+        return;
+      }
+
+      // El panel mide su posición final ANTES de pintarse (useGSAP corre en
+      // layout effect): sin parpadeo del panel en el centro.
+      const final = panel.getBoundingClientRect();
+      const fc = centroDe(final);
+      gsap.set(panel, {
+        transformOrigin: "50% 50%",
+        x: origen.x + origen.w / 2 - fc.cx,
+        y: origen.y + origen.h / 2 - fc.cy,
+        scaleX: origen.w / final.width,
+        scaleY: origen.h / final.height,
+        autoAlpha: 1, // la superficie nace donde está la mesa y crece de ahí
+      });
+      gsap.set([overlay, ...filas], { autoAlpha: 0 });
+
+      // Apertura: mesa → superficie expansión y luego el contenido en cascada
+      gsap
+        .timeline()
+        .to(overlay, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
+        .to(
+          panel,
+          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.55, ease: "power4.inOut" },
+          0.06,
+        )
+        .fromTo(
+          filas,
+          { autoAlpha: 0, y: 14 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.38,
+            ease: "power3.out",
+            stagger: 0.05,
+          },
+          0.32,
+        );
+    },
+    { scope: panelRef },
+  );
+
+  // Cierre asimétrico: el contenido se recoge primero y el panel se pliega
+  // de regreso hacia la ficha que abrió el modal.
   const cerrar = useCallback(() => {
     if (cerrandoRef.current) return;
     cerrandoRef.current = true;
 
-    const overlay = overlayRef.current;
     const panel = panelRef.current;
+    const overlay = overlayRef.current;
     const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!overlay || !panel || reducido) {
+    if (!panel || !overlay || !origen || reducido) {
       onClose();
       return;
     }
 
-    const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
-    gsap
-      .timeline({ onComplete: onClose, defaults: { ease: "power2.inOut" } })
-      .to(filas, { autoAlpha: 0, y: 8, duration: 0.16, stagger: 0.015 }, 0)
-      .to(
-        panel,
-        { autoAlpha: 0, y: 16, scale: 0.965, duration: 0.34, ease: "power3.in" },
-        0.03,
-      )
-      .to(overlay, { autoAlpha: 0, duration: 0.3, ease: "power2.in" }, 0.05);
-  }, [onClose]);
-
-  // useLayoutEffect (no useEffect): aplica el estado inicial ANTES del primer
-  // render del navegador, así el modal nunca se ve "aparecer" y luego
-  // esconderse (ese parpadeo daba la sensación de recarga).
-  useLayoutEffect(() => {
-    const overlay = overlayRef.current;
-    const panel = panelRef.current;
-    if (!overlay || !panel) return;
-
-    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
-
-    // Estado inicial aplicado sincrónicamente: nada parpadea al montar
-    if (reducido) {
-      gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
-      return;
-    }
-    gsap.set([overlay, panel, ...filas], { autoAlpha: 0 });
-
-    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-    // Apertura suave: sin rebotes (power4.out) y el contenido entra después,
-    // en cascada corta, para que el panel no "salte".
-    tl.fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
-      .fromTo(
-        panel,
-        { autoAlpha: 0, y: 36, scale: 0.96 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          scale: 1,
-          duration: 0.52,
-          ease: "power4.out",
-        },
-        0.04,
-      )
-      .fromTo(
-        filas,
-        { autoAlpha: 0, y: 16 },
-        { autoAlpha: 1, y: 0, duration: 0.42, stagger: 0.045, ease: "power3.out" },
-        0.15,
-      );
-
-    return () => {
-      tl.kill();
-    };
-  }, []);
+    contextSafe(() => {
+      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
+      const r = panel.getBoundingClientRect();
+      const c = centroDe(r);
+      gsap
+        .timeline({ onComplete: onClose })
+        .to(
+          filas,
+          {autoAlpha: 0, y: -8, duration: 0.13, stagger: 0.012, ease: "power2.in"},
+          0,
+        )
+        .to(
+          panel,
+          {
+            x: origen.x + origen.w / 2 - c.cx,
+            y: origen.y + origen.h / 2 - c.cy,
+            scaleX: origen.w / r.width,
+            scaleY: origen.h / r.height,
+            duration: 0.42,
+            ease: "power3.inOut",
+            overwrite: "auto",
+          },
+          0.08,
+        )
+        .to(overlay, { autoAlpha: 0, duration: 0.26, ease: "power2.in" }, 0.16);
+    })();
+  }, [contextSafe, onClose, origen]);
 
   // Escape para cerrar y bloqueo del scroll de fondo mientras está abierto
   useEffect(() => {
@@ -330,7 +392,7 @@ function ModalMesa({
             type="button"
             onClick={cerrar}
             aria-label="Cerrar"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-danger/15 hover:text-danger-text"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-danger/15 hover:text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
           >
             <X className="h-5 w-5" />
           </button>
@@ -342,21 +404,16 @@ function ModalMesa({
               data-anim
               className="grid grid-cols-3 gap-2 border-b border-borde-app/50 px-5 py-4"
             >
-              <Dato Icono={Utensils} etiqueta="Platos" valor={String(mesa.platos)} />
+              <Dato etiqueta="Platos" valor={String(mesa.platos)} />
               <Dato
-                Icono={UtensilsCrossed}
                 etiqueta="Comandas"
                 valor={String(mesa.comandas.length)}
               />
-              <Dato Icono={Wallet} etiqueta="Total" valor={formatCOP(mesa.total)} />
+              <Dato etiqueta="Total" valor={formatCOP(mesa.total)} acento />
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-                Qué pidió
-              </p>
-              <div className="space-y-3">
-                {mesa.comandas.map((comanda) => (
+              {mesa.comandas.map((comanda) => (
                   <div
                     key={comanda.id}
                     data-anim
@@ -368,7 +425,7 @@ function ModalMesa({
                       </span>
                       <span
                         className={
-                          "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
+                          "rounded-full px-2 py-0.5 text-[10px] font-bold " +
                           (CHIP_COMANDA[comanda.estado] ??
                             "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
                         }
@@ -423,21 +480,17 @@ function ModalMesa({
 
                     {comanda.observaciones ? (
                       <p className="mt-2 text-xs text-texto-muted/45">
-                        📝 {comanda.observaciones}
+                        {comanda.observaciones}
                       </p>
                     ) : null}
                   </div>
                 ))}
-              </div>
             </div>
 
-            <div
-              data-anim
-              className="border-t border-borde-app/50 p-5"
-            >
+            <div data-anim className="border-t border-borde-app/50 p-5">
               <Link
                 href="/admin/caja"
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-brand py-3.5 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-texto-app"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-brand py-3.5 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-texto-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-950"
               >
                 <Wallet className="h-5 w-5" /> Cobrar {formatCOP(mesa.total)}
               </Link>
@@ -461,41 +514,217 @@ function ModalMesa({
   );
 }
 
-export function TableroMesas({ mesas }: { mesas: MesaDetalle[] }) {
-  const [seleccionada, setSeleccionada] = useState<MesaDetalle | null>(null);
-  // Se llena al montar para evitar diferencias de hidratación con el servidor
-  const [ahora, setAhora] = useState<number | null>(null);
+export function TableroMesas({
+  mesas,
+  ahoraServidor,
+}: {
+  mesas: MesaDetalle[];
+  /** Hora de la solicitud fijada en el servidor: el primer pintado (SSR) y la
+      hidratación muestran exactamente los mismos minutos, sin pasos a «null» */
+  ahoraServidor: number;
+}) {
+  const [filtro, setFiltro] = useState<Filtro>("TODAS");
+  const [texto, setTexto] = useState("");
+  const [seleccion, setSeleccion] = useState<{
+    mesa: MesaDetalle;
+    origen: { x: number; y: number; w: number; h: number };
+  } | null>(null);
+  // Nace con la hora del servidor: primera pintura = hidratación, cero
+  // cambios de contenido entre lo que revela el HTML y lo que toma JS
+  const [ahora, setAhora] = useState(ahoraServidor);
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  /** Fichas por mesa.id: al abrir el modal recordamos dónde nace el panel */
+  const fichas = useRef(new Map<number, HTMLButtonElement>());
 
   useEffect(() => {
-    // El primer tick va async (frame) para no llamar setState sincrónico
-    // mientras corre el efecto; luego continúa cada 30 s.
-    const primera = requestAnimationFrame(() => setAhora(Date.now()));
-    const t = setInterval(() => setAhora(Date.now()), 30_000);
-    return () => {
-      cancelAnimationFrame(primera);
-      clearInterval(t);
-    };
+    // El tablero ya nace con la hora correcta; el reloj solo sigue en vivo
+    const reloj = setInterval(() => setAhora(Date.now()), 30_000);
+    return () => clearInterval(reloj);
   }, []);
+
+  const textoBusqueda = normaliza(texto);
+  const visibles = mesas.filter((m) => {
+    const porEstado = filtro === "TODAS" || m.estado === filtro;
+    const porNombre = !textoBusqueda || normaliza(m.nombre).includes(textoBusqueda);
+    return porEstado && porNombre;
+  });
+
+  // Entrada única del tablero: carga inicial, cambio de filtro o de búsqueda
+  // se resuelven todos aquí. El HTML de SSR deja las fichas ocultas solo por
+  // CSS (globals.css, .escenario-cascada); soltar esa clase y animar sucede
+  // en el mismo frame antes del próximo pintado, así nunca existió el paso
+  // intermedio «aparecen → se ocultan → cascada» que se notaba como carga doble.
+  useGSAP(
+    () => {
+      const grid = gridRef.current;
+      if (!grid) return;
+      const nodos = grid.querySelectorAll<HTMLElement>(".tarjeta-mesa");
+      if (nodos.length === 0) return;
+      const reducido = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      grid.classList.remove("escenario-cascada");
+      if (reducido) return;
+      gsap.fromTo(
+        nodos,
+        { autoAlpha: 0, y: 14 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.45,
+          ease: "power3.out",
+          stagger: 0.03,
+          overwrite: "auto",
+          clearProps: "all",
+        },
+      );
+    },
+    // visibles.length cubre el regreso desde el estado vacío: al re-crear el
+    // grid, ese nodo vuelve con la clase de entrada y aquí se libera otra vez
+    { dependencies: [filtro, textoBusqueda, visibles.length], scope: gridRef },
+  );
+
+  // Resumen del salón, calculado siempre sobre TODAS las mesas
+  const libres = mesas.filter((m) => m.estado === "LIBRE").length;
+  const ocupadas = mesas.filter((m) => m.estado === "OCUPADA").length;
+  const porPagar = mesas.filter((m) => m.estado === "POR_PAGAR").length;
+  const platosVivos = mesas.reduce((suma, m) => suma + m.platos, 0);
+  const totalVivo = mesas.reduce((suma, m) => suma + m.total, 0);
+  const porEstado: Record<Filtro, number> = {
+    TODAS: mesas.length,
+    LIBRE: libres,
+    OCUPADA: ocupadas,
+    POR_PAGAR: porPagar,
+  };
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-        {mesas.map((mesa) => (
-          <TarjetaMesa
-            key={mesa.id}
-            mesa={mesa}
-            ahora={ahora}
-            onAbrir={() => setSeleccionada(mesa)}
-          />
+      {/* sin JS el CSS de entrada dejaría las fichas ocultas: neutralizarlo */}
+      <noscript
+        dangerouslySetInnerHTML={{
+          __html:
+            "<style>.escenario-cascada .tarjeta-mesa{opacity:1!important}</style>",
+        }}
+      />
+
+      {/* Resumen del salón: cuatro cifras, un solo acento */}
+      <div className="mb-5 flex flex-wrap items-stretch gap-x-7 gap-y-4">
+        {[
+          { etiqueta: "Ocupadas", valor: `${ocupadas} de ${mesas.length}` },
+          { etiqueta: "Por pagar", valor: String(porPagar) },
+          { etiqueta: "Platos en mesas", valor: String(platosVivos) },
+        ].map(({ etiqueta, valor }) => (
+          <div key={etiqueta} className="min-w-[7.5rem] border-l border-borde-app pl-4 first:border-l-0 first:pl-0">
+            <p className="font-display text-2xl leading-none text-texto-app">
+              {valor}
+            </p>
+            <p className="mt-1.5 text-xs text-texto-muted/70">{etiqueta}</p>
+          </div>
         ))}
+        <div className="min-w-[9.5rem] border-l border-borde-app pl-4">
+          <p className="font-display text-2xl leading-none text-amber-brand">
+            {formatCOP(totalVivo)}
+          </p>
+          <p className="mt-1.5 text-xs text-texto-muted/70">Total en mesas</p>
+        </div>
       </div>
 
-      {seleccionada
+      {/* Filtrado y búsqueda */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div
+          role="group"
+          aria-label="Filtrar mesas por estado"
+          className="inline-flex flex-wrap gap-1 rounded-xl bg-campo-app p-1 ring-1 ring-borde-app"
+        >
+          {FILTROS.map(({ valor, etiqueta }) => {
+            const activo = filtro === valor;
+            return (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setFiltro(valor)}
+                aria-pressed={activo}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 " +
+                  (activo
+                    ? "bg-amber-brand text-brown-950"
+                    : "text-texto-muted hover:text-texto-app")
+                }
+              >
+                {etiqueta}
+                <span
+                  className={
+                    "tabular-nums " + (activo ? "text-brown-950/70" : "text-texto-muted/50")
+                  }
+                >
+                  {porEstado[valor]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative min-w-0 flex-1 sm:max-w-56">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-texto-muted/50"
+            aria-hidden
+          />
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            type="search"
+            placeholder="Buscar mesa…"
+            aria-label="Buscar mesa por nombre"
+            className="h-9 w-full rounded-xl border-0 bg-panel-app pl-9 pr-3 text-sm font-bold text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/30 focus:ring-2 focus:ring-amber-brand/60"
+          />
+        </div>
+      </div>
+
+      {visibles.length > 0 ? (
+        <div
+          ref={gridRef}
+          className="escenario-cascada grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+        >
+          {visibles.map((mesa) => (
+            <TarjetaMesa
+              key={mesa.id}
+              mesa={mesa}
+              ahora={ahora}
+              registrar={(el) => {
+                if (el) fichas.current.set(mesa.id, el);
+                else fichas.current.delete(mesa.id);
+              }}
+              onAbrir={(rect) =>
+                setSeleccion({
+                  mesa,
+                  origen: { x: rect.left, y: rect.top, w: rect.width, h: rect.height },
+                })
+              }
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[2rem] bg-panel-app p-10 text-center ring-1 ring-borde-app">
+          <p className="font-display text-xl text-texto-app">
+            {mesas.length > 0 ? "Ninguna mesa coincide" : "Sin mesas visibles"}
+          </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-texto-muted/60">
+            {mesas.length > 0
+              ? "Cambiar el filtro o el término de búsqueda vuelve a traer todas las mesas."
+              : "Crea el salón desde Configuración en la sección Mesas del salón."}
+          </p>
+        </div>
+      )}
+
+      {seleccion
         ? createPortal(
             <ModalMesa
-              mesa={seleccionada}
+              key={seleccion.mesa.id}
+              mesa={seleccion.mesa}
+              origen={seleccion.origen}
               ahora={ahora}
-              onClose={() => setSeleccionada(null)}
+              onClose={() => setSeleccion(null)}
             />,
             document.body,
           )

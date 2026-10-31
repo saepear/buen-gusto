@@ -63,14 +63,18 @@ export default async function PaginaMesas() {
     };
   });
 
+  // Hora de la solicitud: el reloj del tablero nace sincronizado desde el
+  // primer pintado, sin estado «null» ni contenido que arranca después
+  const ahoraServidor = Date.now();
+
   return (
     <>
       <EncabezadoPagina
         titulo="Mesas"
-        subtitulo="Toca una mesa para ver su cuenta en vivo"
+        subtitulo="Filtra por estado, busca por nombre y abre una mesa para ver su cuenta en vivo"
       />
 
-      <TableroMesas mesas={tablero} />
+      <TableroMesas mesas={tablero} ahoraServidor={ahoraServidor} />
 
       <p className="mt-6 flex items-center gap-2 text-sm text-texto-muted/45">
         <LayoutGrid className="h-4 w-4" />

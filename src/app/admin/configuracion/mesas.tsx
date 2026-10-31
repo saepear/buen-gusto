@@ -1,9 +1,9 @@
 "use client";
 
+import { Eye, EyeOff, LayoutGrid, Trash2 } from "lucide-react";
 import { useActionState, useRef, useState } from "react";
-import { Eye, EyeOff, Plus } from "lucide-react";
 import { type EstadoMesa } from "@/lib/roles";
-import { alternarMesa, crearMesa, type EstadoAccionConfig } from "./acciones";
+import { alternarMesa, borrarMesa, crearMesa, type EstadoAccionConfig } from "./acciones";
 import { Aviso } from "./usuarios";
 
 const INICIAL: EstadoAccionConfig = { error: null, ok: null };
@@ -25,6 +25,8 @@ export type MesaDetalle = {
   nombre: string;
   estado: string;
   activa: boolean;
+  /** Comandas históricas de la mesa: > 0 => solo se puede ocultar */
+  pedidos: number;
 };
 
 function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
@@ -32,29 +34,29 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
     alternarMesa,
     INICIAL,
   );
+  const [estadoBorrar, accionBorrar, pendienteBorrar] = useActionState<
+    EstadoAccionConfig,
+    FormData
+  >(borrarMesa, INICIAL);
   const oculta = !mesa.activa;
   const e = mesa.estado as EstadoMesa;
+  // Sin historial => se puede borrar del todo; con historial solo ocultar
+  const sePuedeBorrar = mesa.pedidos === 0;
 
   return (
-    <div
-      className={
-        oculta
-          ? "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app opacity-75"
-          : "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
-      }
-    >
+    <div className={oculta ? "rounded-2xl bg-campo-app p-3.5 opacity-70" : "rounded-2xl bg-campo-app p-3.5"}>
       <div className="flex items-center justify-between gap-2">
         <span className="truncate font-display text-lg text-texto-app">
           {mesa.nombre}
         </span>
         {oculta ? (
-          <span className="rounded-full bg-panel-app px-2.5 py-0.5 text-[10px] font-bold text-texto-muted/45">
+          <span className="rounded-full bg-panel-app px-2.5 py-0.5 text-[11px] font-bold text-texto-muted/45">
             Oculta
           </span>
         ) : (
           <span
             className={
-              "rounded-full px-2.5 py-0.5 text-[10px] font-bold " +
+              "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
               ESTILO_ESTADO[e]
             }
           >
@@ -63,32 +65,63 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
         )}
       </div>
 
-      <form action={accion} className="mt-3">
-        <input type="hidden" name="mesaId" value={mesa.id} />
-        <button
-          type="submit"
-          disabled={pendiente}
-          className={
-            "flex w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-bold transition disabled:opacity-50 " +
-            (oculta
-              ? "bg-success/10 text-success-text ring-1 ring-success/20 hover:bg-success/25"
-              : "border border-danger/40 bg-panel-app text-danger-text hover:bg-danger/10")
-          }
-        >
-          {pendiente ? (
-            "…"
-          ) : oculta ? (
-            <>
-              <Eye className="h-3.5 w-3.5" /> Mostrar
-            </>
-          ) : (
-            <>
-              <EyeOff className="h-3.5 w-3.5" /> Ocultar
-            </>
-          )}
-        </button>
-      </form>
-      <Aviso estado={estado} />
+      <div className="mt-3 flex gap-1.5">
+        <form action={accion} className="min-w-0 flex-1">
+          <input type="hidden" name="mesaId" value={mesa.id} />
+          <button
+            type="submit"
+            disabled={pendiente}
+            className={
+              "flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 disabled:opacity-50 " +
+              (oculta
+                ? "bg-success/10 text-success-text ring-1 ring-success/20 hover:bg-success/25"
+                : "border border-danger/40 bg-panel-app text-danger-text hover:bg-danger/10")
+            }
+          >
+            {pendiente ? (
+              "…"
+            ) : oculta ? (
+              <>
+                <Eye className="h-3.5 w-3.5" /> Mostrar
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3.5 w-3.5" /> Ocultar
+              </>
+            )}
+          </button>
+        </form>
+        {sePuedeBorrar ? (
+          <form
+            action={accionBorrar}
+            onSubmit={(e) => {
+              if (
+                !window.confirm(
+                  `¿Borrar la mesa «${mesa.nombre}» del salón? Esta acción no se deshace.`,
+                )
+              ) {
+                e.preventDefault();
+              }
+            }}
+          >
+            <input type="hidden" name="mesaId" value={mesa.id} />
+            <button
+              type="submit"
+              disabled={pendienteBorrar}
+              title="Borrar la mesa del salón (solo mesas sin historial)"
+              aria-label={`Borrar la mesa ${mesa.nombre}`}
+              className="flex w-9 items-center justify-center rounded-lg border border-danger/40 bg-panel-app text-danger-text transition hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </form>
+        ) : null}
+      </div>
+      {estadoBorrar.error || estadoBorrar.ok ? (
+        <Aviso estado={estadoBorrar} />
+      ) : (
+        <Aviso estado={estado} />
+      )}
     </div>
   );
 }
@@ -137,86 +170,100 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
   };
 
   return (
-    <section className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
-      <h2 className="font-display text-xl text-texto-app">Mesas del salón</h2>
-      <p className="mt-1 text-sm text-texto-muted/70">
-        Los meseros y la caja solo ven las {activas.length} mesas visibles.
-        Ocultar una mesa no borra su historial: solo se puede si está libre.
-      </p>
-
-      {/* Crear mesa */}
-      <form
-        action={accion}
-        className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-panel-app p-3.5 ring-1 ring-borde-app"
-      >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-app">
-          <Plus className="h-4.5 w-4.5" />
-        </span>
-        <input
-          ref={inputRef}
-          name="nombre"
-          type="text"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Nombre de la mesa (1, 2… o A, B…)"
-          aria-label="Nombre de la mesa nueva"
-          className="min-w-0 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            siguienteNumero();
-            inputRef.current?.focus();
-          }}
-          title="Sugerir el siguiente número"
-          className="rounded-xl bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
-        >
-          Núm…
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            siguienteLetra();
-            inputRef.current?.focus();
-          }}
-          title="Sugerir la siguiente letra disponible"
-          className="rounded-xl bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
-        >
-          A…
-        </button>
-        <button
-          type="submit"
-          disabled={pendiente}
-          className="rounded-xl bg-amber-brand px-4 py-2 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
-        >
-          {pendiente ? "Creando…" : "Agregar mesa"}
-        </button>
-        <div className="w-full">
-          <Aviso estado={estado} />
-        </div>
-      </form>
-
-      {/* Mesas visibles */}
-      <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {activas.map((m) => (
-          <ChipMesa key={m.id} mesa={m} />
-        ))}
-      </div>
-
-      {/* Mesas ocultas */}
-      {ocultas.length > 0 ? (
-        <div className="mt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-            Ocultas ({ocultas.length})
-          </p>
-          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-            {ocultas.map((m) => (
-              <ChipMesa key={m.id} mesa={m} />
-            ))}
+    <section className="overflow-hidden rounded-[2rem] bg-panel-app ring-1 ring-borde-app">
+      {/* Cabecera del módulo */}
+      <div className="flex items-start justify-between gap-3 border-b border-borde-app px-5 py-4 sm:px-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-campo-app ring-1 ring-borde-app">
+            <LayoutGrid className="h-5 w-5 text-texto-muted" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-display text-xl text-texto-app">
+              Mesas del salón
+            </h2>
+            <p className="mt-0.5 text-sm text-texto-muted/75">
+              Los meseros y la caja solo ven las mesas visibles. Las mesas sin
+              historial se pueden borrar (ícono de basura); si ya tienen
+              comandas, escóndelas para conservar el registro de ventas.
+            </p>
           </div>
         </div>
-      ) : null}
+        <p className="shrink-0 pt-1.5 text-xs font-bold text-texto-muted/70">
+          {activas.length} {activas.length === 1 ? "visible" : "visibles"}
+        </p>
+      </div>
+
+      <div className="px-5 py-4 sm:px-6">
+        {/* Alta: nombre a lo ancho con sugerencias y envío alineados */}
+        <form
+          action={accion}
+          className="grid gap-2 rounded-2xl bg-campo-app p-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
+        >
+          <input
+            ref={inputRef}
+            name="nombre"
+            type="text"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nombre de la mesa (1, 2… o A, B…)"
+            aria-label="Nombre de la mesa nueva"
+            className="rounded-xl border-0 bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/25 focus:ring-2 focus:ring-amber-brand/60"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              siguienteNumero();
+              inputRef.current?.focus();
+            }}
+            title="Sugerir el siguiente número"
+            className="rounded-lg bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
+          >
+            Núm…
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              siguienteLetra();
+              inputRef.current?.focus();
+            }}
+            title="Sugerir la siguiente letra disponible"
+            className="rounded-lg bg-panel-app px-3 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
+          >
+            A…
+          </button>
+          <button
+            type="submit"
+            disabled={pendiente}
+            className="rounded-lg bg-amber-brand px-4 py-2 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 disabled:opacity-50"
+          >
+            {pendiente ? "Creando…" : "Agregar mesa"}
+          </button>
+          <div className="sm:col-span-full">
+            <Aviso estado={estado} />
+          </div>
+        </form>
+
+        {/* Mesas visibles */}
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {activas.map((m) => (
+            <ChipMesa key={m.id} mesa={m} />
+          ))}
+        </div>
+
+        {/* Mesas ocultas: sección aparte al fondo del módulo */}
+        {ocultas.length > 0 ? (
+          <div className="mt-4 border-t border-borde-app pt-4">
+            <p className="text-sm font-bold text-texto-muted/75">
+              Ocultas ({ocultas.length})
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {ocultas.map((m) => (
+                <ChipMesa key={m.id} mesa={m} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
-

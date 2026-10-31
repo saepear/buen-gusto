@@ -1,0 +1,25 @@
+{
+  "node": {
+    "00f76ece730771673d64d447ea47e335e9aa84ff69": {
+      "workers": {
+        "app/admin/caja/page": {
+          "moduleId": 99922,
+          "async": false
+        }
+      },
+      "exportedName": "cerrarSesion",
+      "filename": "src/app/login/actions.ts"
+    },
+    "604ee8067945e7342ac1dcc058a411b6e9323ae2b7": {
+      "workers": {
+        "app/admin/caja/page": {
+          "moduleId": 99922,
+          "async": false
+        }
+      },
+      "exportedName": "cobrarMesa",
+      "filename": "src/app/admin/caja/acciones.ts"
+    }
+  },
+  "edge": {}
+}

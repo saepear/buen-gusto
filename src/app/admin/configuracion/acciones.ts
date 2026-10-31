@@ -212,3 +212,51 @@ export async function alternarMesa(
       : `La mesa «${mesa.nombre}» volvió al salón.`,
   };
 }
+
+/**
+ * Borra definitivamente una mesa del salón. Solo se permite si está libre y
+ * nunca recibió comandas: una mesa con historial conserva el registro de
+ * ventas, así que para esas el camino correcto es ocultarlas.
+ */
+export async function borrarMesa(
+  _previa: EstadoAccionConfig,
+  datos: FormData,
+): Promise<EstadoAccionConfig> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador puede borrar mesas.", ok: null };
+  }
+
+  const id = Number.parseInt(String(datos.get("mesaId") ?? ""), 10);
+  if (!Number.isInteger(id)) return { error: "Mesa inválida.", ok: null };
+
+  const mesa = await db.mesa.findUnique({ where: { id } });
+  if (!mesa) return { error: "Esa mesa ya no existe.", ok: null };
+  if (mesa.esDomicilio) {
+    return {
+      error: "La mesa de domicilios sostiene esa función: no se puede borrar.",
+      ok: null,
+    };
+  }
+  if (mesa.estado !== "LIBRE") {
+    return {
+      error: `La mesa «${mesa.nombre}» está ocupada: cobra o cancela sus comandas antes de borrarla.`,
+      ok: null,
+    };
+  }
+
+  const comandas = await db.pedido.count({ where: { mesaId: id } });
+  if (comandas > 0) {
+    return {
+      error: `La mesa «${mesa.nombre}» tiene ${comandas} ${
+        comandas === 1 ? "comanda" : "comandas"
+      } en su historial: mejor ocúltala para conservar el registro de ventas.`,
+      ok: null,
+    };
+  }
+
+  await db.mesa.delete({ where: { id } });
+  revalidarTodo();
+  return { error: null, ok: `Mesa «${mesa.nombre}» borrada del salón.` };
+}

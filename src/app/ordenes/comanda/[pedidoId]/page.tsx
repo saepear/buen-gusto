@@ -16,7 +16,7 @@ export default async function PaginaComanda(
   // una comanda (autoPrint). El tablero /ordenes sigue siendo solo ADMIN.
   const sesion = await requerirRolDe(["ADMIN", "MESERO"]);
   const { pedidoId: crudo } = await props.params;
-  const { reprint } = await props.searchParams;
+  const { reprint, volver } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
   if (!Number.isInteger(id)) notFound();
 
@@ -142,7 +142,13 @@ export default async function PaginaComanda(
       </div>
 
       <BotonImprimir
-        volverHref={sesion.rol === "ADMIN" ? "/ordenes" : "/mesero"}
+        volverHref={
+          typeof volver === "string" && volver.startsWith("/") && !volver.startsWith("//")
+            ? volver
+            : sesion.rol === "ADMIN"
+              ? "/ordenes"
+              : "/mesero"
+        }
       />
     </div>
   );

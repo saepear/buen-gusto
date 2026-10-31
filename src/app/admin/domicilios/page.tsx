@@ -1,4 +1,4 @@
-import { Bike, Plus } from "lucide-react";
+import { Bike, MessageCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
@@ -93,21 +93,29 @@ export default async function PaginaDomicilios() {
           titulo="Domicilios"
           subtitulo="Almuerzos para llevar a la casa del cliente · se cobran contra entrega"
         />
-        <Link
-          href="/admin/domicilios/nuevo"
-          className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
-        >
-          <Plus className="h-5 w-5" /> Nuevo domicilio
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/domicilios/whatsapp"
+            className="flex items-center gap-2 rounded-2xl bg-panel-app px-5 py-3 font-display text-md text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover active:scale-95"
+          >
+            <MessageCircle className="h-5 w-5" /> Pegar y armar
+          </Link>
+          <Link
+            href="/admin/domicilios/nuevo"
+            className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
+          >
+            <Plus className="h-5 w-5" /> Nuevo domicilio
+          </Link>
+        </div>
       </div>
 
       <div className="mb-8 flex flex-wrap gap-3">
-        <span className="flex items-center gap-2 rounded-2xl bg-panel-app px-4 py-2.5 text-sm ring-1 ring-borde-app">
+        <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
           <Bike className="h-4 w-4 text-orange-brand" />
           <span className="text-texto-muted/60">En curso</span>
           <strong className="font-display text-lg text-texto-app">{activos}</strong>
         </span>
-        <span className="flex items-center gap-2 rounded-2xl bg-panel-app px-4 py-2.5 text-sm ring-1 ring-borde-app">
+        <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
           <span className="text-texto-muted/60">Cerrados hoy</span>
           <strong className="font-display text-lg text-texto-app">
             {cerrados.length}

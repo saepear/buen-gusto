@@ -1,0 +1,85 @@
+{
+  "node": {
+    "00f76ece730771673d64d447ea47e335e9aa84ff69": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "cerrarSesion",
+      "filename": "src/app/login/actions.ts"
+    },
+    "60159d4a22460a8e145f080c1fe1ad6f49ce7e38ce": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "alternarMesa",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "609bc9577fb758b7dd4144b9fdd7a1c998be5fcded": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "borrarMesa",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "60a974173ffe120a06c60d47e80be6175e4fb95059": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "crearMesa",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "6039f1556606176685aab57fb8968d5a6cb2cacc4c": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "alternarUsuario",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "60b6b30c1fb725e3c80f32c0ca307e85f03bf9b284": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "crearUsuario",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "6042b8233bb394a6258cb5d8b1f3f2c650b81fac17": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "guardarPin",
+      "filename": "src/app/admin/configuracion/acciones.ts"
+    },
+    "606835e697714b7e38fbf9502fb217f522f3446d3f": {
+      "workers": {
+        "app/admin/configuracion/page": {
+          "moduleId": 68691,
+          "async": false
+        }
+      },
+      "exportedName": "cambiarTema",
+      "filename": "src/app/admin/configuracion/acciones-tema.ts"
+    }
+  },
+  "edge": {}
+}

@@ -40,6 +40,7 @@
   --color-borde-app: var(--borde-app);
   --color-glass-app: var(--glass-bg);
   --color-panel-hover: var(--panel-hover);
+  --color-campo-app: var(--campo-app);
 
   /* Texto de contraste semántico */
   --color-success-text: var(--success-text);
@@ -53,6 +54,8 @@
   --panel-app: rgba(255, 255, 255, 0.05);
   --panel-hover: rgba(255, 255, 255, 0.08);
   --borde-app: rgba(255, 255, 255, 0.1);
+  /* Pozo hundido para formularios y fichas dentro de un panel */
+  --campo-app: rgb(0 0 0 / 0.32);
   --boton-texto: var(--color-brown-950);
   --glass-bg: rgba(36, 16, 6, 0.6);
   --success-text: #b1ff7d;
@@ -91,6 +94,8 @@ body {
   --panel-app: var(--color-cream-100);
   --panel-hover: rgba(36, 16, 6, 0.06);
   --borde-app: rgba(36, 16, 6, 0.12);
+  /* Pozo hundido: en claro, un campo casi blanco sobre el panel crema */
+  --campo-app: #fffdf9;
   --boton-texto: var(--color-cream-50);
   --glass-bg: rgba(252, 246, 234, 0.92);
   --success-text: #166534;
@@ -118,6 +123,7 @@ body {
   --panel-app: rgba(255, 255, 255, 0.05);
   --panel-hover: rgba(255, 255, 255, 0.08);
   --borde-app: rgba(255, 255, 255, 0.1);
+  --campo-app: rgb(0 0 0 / 0.32);
   --boton-texto: var(--color-brown-950);
   --glass-bg: rgba(36, 16, 6, 0.6);
   --success-text: #b1ff7d;
@@ -150,6 +156,23 @@ html {
 ::selection {
   background: var(--color-amber-brand);
   color: var(--color-brown-950);
+}
+
+/* ============ Accesibilidad base ============ */
+/* Foco siempre visible en el ámbar de la marca: al moverse con Tab
+   nunca hay que adivinar dónde está el foco (guias Vercel) */
+:is(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-amber-brand);
+  outline-offset: 2px;
+}
+/* En los campos píldora el foco ya lo marca el anillo ámbar del contenedor
+   (focus-within): el contorno del input interno sería doble señal */
+.campo-redondo :is(input, textarea):focus-visible {
+  outline: none;
+}
+/* Los controles responden al primer toque en móvil, sin esperar el doble-tap */
+:where(button, a, [role="button"]) {
+  touch-action: manipulation;
 }
 
 /* ============ Acceso (/login) ============ */
@@ -185,10 +208,61 @@ html {
   }
 }
 
+/* Lista de pasos con numeral de la casa (se usan solo cuando el contenido
+   ES una secuencia, como la guía de la impresora) */
+.lista-pasos {
+  list-style: none;
+  counter-reset: paso;
+  padding-left: 0;
+}
+.lista-pasos > li {
+  counter-increment: paso;
+  position: relative;
+  padding-left: 2.25rem;
+}
+.lista-pasos > li::before {
+  content: counter(paso);
+  position: absolute;
+  left: 0;
+  top: 0.05em;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: rgb(242 166 61 / 0.14);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #f2a63d;
+}
+.tema-claro .lista-pasos > li::before {
+  background: rgb(242 166 61 / 0.16);
+  color: #ed7d1f;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animar-zoom-lento,
   .animar-entrar,
-  .animar-sacudir {
+  .animar-sacudir,
+  .animar-aparecer,
+  .animar-subir {
     animation: none;
   }
+}
+
+/* Entrada del tablero de mesas: el HTML de servidor oculta las fichas solo
+   por CSS para que GSAP las revele en cascada una sola vez. Esto elimina el
+   doble pintado «las fichas aparecen, JS las oculta y las vuelve a animar»
+   que se percibía como una carga a medias al entrar al módulo. */
+@media (prefers-reduced-motion: no-preference) {
+  .escenario-cascada .tarjeta-mesa {
+    opacity: 0;
+  }
+}
+
+/* Subcarpeta del_nav (Domicilios · Pegar y armar) en estado cerrado: solo
+   da el estado inicial sin GSAP (parseo/SSR); la animación la maneja GSAP. */
+.contraido-subcarpeta {
+  height: 0;
+  opacity: 0;
 }
