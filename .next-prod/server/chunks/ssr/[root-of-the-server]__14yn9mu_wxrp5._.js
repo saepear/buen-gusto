@@ -1,3 +1,0 @@
-module.exports=[70406,(a,b,c)=>{b.exports=a.x("next/dist/compiled/@opentelemetry/api",()=>require("next/dist/compiled/@opentelemetry/api"))},81111,(a,b,c)=>{b.exports=a.x("node:stream",()=>require("node:stream"))},88990,a=>{"use strict";let b=globalThis.realtimeManager??new class{subscribers=new Set;subscribe(a){return this.subscribers.add(a),()=>this.subscribers.delete(a)}broadcast(a,b={}){let c=JSON.stringify({event:a,data:b,timestamp:Date.now()});this.subscribers.forEach(a=>a(c))}};a.s(["f",0,b])}];
-
-//# sourceMappingURL=%5Broot-of-the-server%5D__14yn9mu_wxrp5._.js.map
