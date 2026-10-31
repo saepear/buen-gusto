@@ -228,8 +228,8 @@ export function parsearMensaje(
       sopaMejor !== null;
 
   // Hora de entrega a domicilio: "a las 12 la desean sus casas", "para la
-  // 1 y media", "a las 12:30", "mediodía". Va a la comanda como nota
-  // "Entrega: …"; no es campo del modelo.
+  // 1 y media", "a las 12:30", "mediodía". Va al campo horaEntrega de
+  // Domicilio (y a la nota de la comanda como "Entrega: …")
   const msjBajo = mensaje.toLowerCase();
   const AVISO_HORA =
     /(desean?|deseo|quieres?|quiero|quieren|sus cas|mi casa|su casa|llegar|entrega[nsr]?|\b(?:am|pm)\b|mediod[íi]a|:\d{2}|\by\s+(?:media|cuarto)\b)/i;
