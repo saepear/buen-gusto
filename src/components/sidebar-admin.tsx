@@ -69,21 +69,33 @@ export function SidebarAdmin({
   // hidratación: el submenú ya nace desplegado o cerrado según la ruta.
   const subcarpetaRef = useRef<HTMLDivElement>(null);
   const primerMontaje = useRef(true);
+  // Mientras GSAP no haya tomado control, el estado cerrado se dice con la
+  // clase (SSR/parseo). Después, la clase debe AUSENTARSE del JSX: si
+  // reapareciera al contraer, el CSS la cerraría de golpe sin animación.
+  const [delegadoAGsap, setDelegadoAGsap] = useState(false);
   useEffect(() => {
     const sub = subcarpetaRef.current;
     if (!sub) return;
     const primera = primerMontaje.current;
     primerMontaje.current = false;
+    if (primera) setDelegadoAGsap(true);
     const reducido = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (abierto) {
-      gsap.set(sub, { height: "auto" });
+      // Mata cualquier cierre a media animación y NORMALIZA el estado base:
+      // el opacity:0 inline que dejó el cierre anterior haría que un nuevo
+      // despliegue animara 0 → 0 (altura abre, contenido invisible)
+      gsap.killTweensOf(sub);
+      gsap.set(sub, { height: "auto", opacity: 1 });
       if (primera || reducido) return;
-      gsap.from(
-        sub,
-        { height: 0, opacity: 0, duration: 0.45, ease: "power3.inOut", clearProps: "height" },
-      );
+      gsap.from(sub, {
+        height: 0,
+        opacity: 0,
+        duration: 0.45,
+        ease: "power3.inOut",
+        clearProps: "height",
+      });
     } else if (primera || reducido) {
       gsap.set(sub, { height: 0 });
     } else {
@@ -171,7 +183,8 @@ export function SidebarAdmin({
                   <div
                     ref={subcarpetaRef}
                     className={
-                      "overflow-hidden " + (abierto ? "" : "contraido-subcarpeta")
+                      "overflow-hidden " +
+                      (!abierto && !delegadoAGsap ? "contraido-subcarpeta" : "")
                     }
                   >
                     <div className="mt-1 ml-8 space-y-1 border-l border-borde-app/60 pl-2.5">
