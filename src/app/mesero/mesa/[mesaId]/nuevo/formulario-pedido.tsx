@@ -41,7 +41,7 @@ const SIN_ENVIAR: EstadoFormularioPedido = { error: null, ok: null };
 export type Extra = { id: number; nombre: string; tipo: string; precio: number };
 
 /** Datos de entrega del domicilio (se piden en la comanda / checkout) */
-type DatosCliente = {
+export type DatosCliente = {
   cliente: string;
   telefono: string;
   /** Hora futura que pidió el cliente ("para las 12", "la 1 y media") */
@@ -49,6 +49,16 @@ type DatosCliente = {
   direccion: string;
   barrio: string;
   referencia: string;
+};
+
+/** Cliente del historial cuyos datos ya vienen cargados («Realizar pedido») */
+export type ClientePreseteado = {
+  cliente: string;
+  telefono: string;
+  horaEntrega: string | null;
+  direccion: string;
+  barrio: string | null;
+  referencia: string | null;
 };
 
 /** Un plato de la comanda: lo armado en el constructor × cuántos van */
@@ -179,6 +189,7 @@ export function FormularioPedido({
   extras,
   modo = "mesa",
   accion: accionPedido = tomarPedido,
+  clientePreseteado = null,
 }: {
   mesa: { id: number; nombre: string };
   menu: ItemMenuHoy[];
@@ -187,6 +198,8 @@ export function FormularioPedido({
   modo?: "mesa" | "domicilio";
   /** Acción de servidor que guarda el pedido (por defecto, la del mesero) */
   accion?: AccionPedido;
+  /** Solo Admin→Domicilios: cliente del historial con sus datos precargados */
+  clientePreseteado?: ClientePreseteado | null;
 }) {
   const [estado, accion, pendiente] = useActionState<
     EstadoFormularioPedido,
@@ -209,14 +222,16 @@ export function FormularioPedido({
   const [nota, setNota] = useState("");
   const [llevar, setLlevar] = useState(false);
   const [comandaAbierta, setComandaAbierta] = useState(false);
-  /** Checkout en domicilio: los datos del cliente viven en la comanda */
+  /** Checkout en domicilio: los datos del cliente viven en la comanda. Con
+      «Realizar pedido» del historial, el cliente viene precargado (la página
+      manda `key` para remontar el formulario limpio con esos datos). */
   const [datosCliente, setDatosCliente] = useState<DatosCliente>({
-    cliente: "",
-    telefono: "",
-    horaEntrega: "",
-    direccion: "",
-    barrio: "",
-    referencia: "",
+    cliente: clientePreseteado?.cliente ?? "",
+    telefono: clientePreseteado?.telefono ?? "",
+    horaEntrega: clientePreseteado?.horaEntrega ?? "",
+    direccion: clientePreseteado?.direccion ?? "",
+    barrio: clientePreseteado?.barrio ?? "",
+    referencia: clientePreseteado?.referencia ?? "",
   });
 
   const actualizarCliente = (campo: keyof DatosCliente, valor: string) =>

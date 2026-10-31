@@ -1,6 +1,7 @@
 import { Printer } from "lucide-react";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
+import { ordenMesasPorNombre } from "@/lib/mesas";
 import { PanelMesas } from "./mesas";
 import { PanelUsuarios } from "./usuarios";
 import { SelectorTema } from "./temas";
@@ -11,15 +12,17 @@ export const metadata = { title: "Configuración" };
 const ORDEN_ROL: Record<string, number> = { ADMIN: 0, MESERO: 1, DOMICILIARIO: 2 };
 
 export default async function PaginaConfiguracion() {
-  const [usuarios, mesas, temaActual, historial] = await Promise.all([
+  const [usuarios, mesasBrutas, temaActual, historial] = await Promise.all([
     db.usuario.findMany(),
     // La mesa virtual de domicilios no se administra como mesa del salón
-    db.mesa.findMany({ where: { esDomicilio: false }, orderBy: { nombre: "asc" } }),
+    db.mesa.findMany({ where: { esDomicilio: false } }),
     getTemaActual(),
-    // Comandas históricas por mesa: las mesas con historial solo se ocultan,
-    // las vírgenes se pueden borrar del todo
+    // Comandas históricas por mesa
     db.pedido.groupBy({ by: ["mesaId"], _count: { _all: true } }),
   ]);
+
+  // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
+  const mesas = ordenMesasPorNombre(mesasBrutas);
 
   const comandasPorMesa = new Map(
     historial.map((fila) => [fila.mesaId, fila._count._all]),

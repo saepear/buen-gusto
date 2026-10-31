@@ -61,5 +61,8 @@ export async function tomarPedido(
   revalidatePath("/");
   realtime.broadcast("update");
 
-  redirect(`/ordenes/comanda/${nuevoId}?autoPrint=1`);
+  // La comanda sale directa a imprimir para la cocina (una sola vez, el
+  // componente la limpia de la URL) y el «Volver» regresa a la ficha de la
+  // MISMA mesa: el mesero sigue en su flujo sin recorrer el listado.
+  redirect(`/ordenes/comanda/${nuevoId}?autoPrint=1&volver=/mesero/mesa/${mesaId}`);
 }

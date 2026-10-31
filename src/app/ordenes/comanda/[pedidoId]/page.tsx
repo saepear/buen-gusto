@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { formatCOP, formatFecha, formatHora } from "@/lib/format";
-import { precioUnitarioItem } from "@/lib/precios";
+import { formatHora } from "@/lib/format";
 import { ordenDeItem } from "@/lib/roles";
 import { requerirRolDe } from "@/lib/session";
 import { BotonImprimir } from "./boton-imprimir";
@@ -33,119 +32,106 @@ export default async function PaginaComanda(
   });
   if (!pedido) notFound();
 
-  const tieneSopa = pedido.items.some((i) => i.tipo === "SOPA");
-
-  // La comanda se imprime como arman la bandeja (ver ORDEN_IMPRIMIR):
-  // principio → proteína → adicionales (huevo…) → sopa, luego lo demás.
-  const itemsTicket = [...pedido.items].sort(
-    (a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
+  // La comanda se imprime agrupada por "platos" (grupo 1, 2...) y luego los extras (grupo 0).
+  const itemsPorGrupo = pedido.items.reduce(
+    (acc, item) => {
+      const g = item.grupo;
+      if (!acc[g]) acc[g] = [];
+      acc[g].push(item);
+      return acc;
+    },
+    {} as Record<number, (typeof pedido.items)[0][]>,
   );
 
-  const totalComanda = pedido.items.reduce(
-    (suma, i) => suma + precioUnitarioItem(i) * i.cantidad,
-    0,
-  );
+  // Ordenar los grupos (1, 2, 3... y al final el 0 para extras)
+  const gruposOrdenados = Object.keys(itemsPorGrupo)
+    .map(Number)
+    .sort((a, b) => {
+      if (a === 0) return 1;
+      if (b === 0) return -1;
+      return a - b;
+    });
+
+  const nombreMesa = pedido.domicilio
+    ? "DOMICILIO"
+    : pedido.paraLlevar
+      ? "LLEVAR"
+      : pedido.mesa.nombre;
 
   return (
     <div className="min-h-screen bg-[#150d08] py-8">
-      <div className="mx-auto w-full max-w-[340px] bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
+      <div className="mx-auto w-full max-w-[340px] bg-white px-8 py-10 font-mono text-[14px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
         <div className="text-center">
-          <p className="font-display text-xl font-bold tracking-wide">
-            EL BUEN GUSTO
+          <p className="text-3xl font-black uppercase tracking-tighter">
+            {nombreMesa}
           </p>
-          <p className="mt-0.5 text-[11px] font-bold tracking-widest">
-            COMANDA DE COCINA
-            {esCopia ? " · COPIA" : ""}
-          </p>
+          <div className="mt-2 flex flex-col items-center text-[12px] font-bold">
+            <p>HORA: {formatHora(pedido.createdAt)}</p>
+            <p className="mt-1">PEDIDO: #{pedido.id}</p>
+          </div>
         </div>
 
-        <div className="my-3 border-t-2 border-dashed border-brown-950/40" />
+        <div className="my-4 border-t-2 border-dashed border-brown-950/60" />
 
-        <div className="flex items-baseline justify-between">
-          <span className="text-base font-bold">{pedido.mesa.nombre}</span>
-          <span className="text-base font-bold">#{pedido.id}</span>
-        </div>
-        {pedido.domicilio ? (
-          <>
-            <p className="mt-2 text-center text-[11px] font-bold tracking-widest">
-              *** DOMICILIO ***
-            </p>
-            <p className="mt-1 text-[12px] font-bold">
-              Cliente: {pedido.domicilio.cliente}
-            </p>
-            {pedido.domicilio.horaEntrega ? (
-              <p className="text-[12px] font-bold">
-                Entrega: {pedido.domicilio.horaEntrega}
-              </p>
-            ) : null}
-            {pedido.domicilio.direccion ? (
-              <p className="text-[12px]">
-                Dirección: {pedido.domicilio.direccion}
-                {pedido.domicilio.barrio ? `, ${pedido.domicilio.barrio}` : ""}
-              </p>
-            ) : null}
-            {pedido.domicilio.telefono ? (
-              <p className="text-[12px]">Tel: {pedido.domicilio.telefono}</p>
-            ) : null}
-            {pedido.domicilio.referencia ? (
-              <p className="text-[11px]">Ref: {pedido.domicilio.referencia}</p>
-            ) : null}
-          </>
-        ) : pedido.paraLlevar ? (
-          <p className="mt-1 text-center text-[11px] font-bold tracking-widest">
-            *** PARA LLEVAR · ICOPOR ***
-          </p>
-        ) : null}
-        <p className="mt-1 text-[11px]">
-          {formatFecha(pedido.createdAt)} · {formatHora(pedido.createdAt)}
-        </p>
-        <p className="text-[11px]">Mesero: {pedido.mesero?.nombre ?? "—"}</p>
+        {gruposOrdenados.map((grupoId, idx) => {
+          const items = itemsPorGrupo[grupoId].sort(
+            (a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
+          );
 
-        <div className="my-3 border-t border-dashed border-brown-950/30" />
+          return (
+            <div key={grupoId} className={idx > 0 ? "mt-6" : ""}>
+              {grupoId > 0 && gruposOrdenados.filter((g) => g > 0).length > 1 && (
+                <p className="mb-2 text-center text-[11px] font-black tracking-widest">
+                  --- PEDIDO {grupoId} ---
+                </p>
+              )}
+              {grupoId === 0 && (
+                <p className="mb-2 text-center text-[11px] font-black tracking-widest uppercase">
+                  --- Extras / Bebidas ---
+                </p>
+              )}
+              <ul className="space-y-1">
+                {items.map((item) => (
+                  <li key={item.id} className="flex flex-col">
+                    <span className="font-black uppercase">
+                      {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
+                      {item.producto.nombre}
+                    </span>
+                    {item.nota && (
+                      <span className="text-[11px] font-bold italic text-brown-800/80 ml-4">
+                        ↳ {item.nota}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
 
-        <ul className="space-y-1.5">
-          {itemsTicket.map((item) => (
-            <li key={item.id} className="flex gap-2 text-sm">
-              <span className="font-bold">{item.cantidad}×</span>
-              <span className="flex-1 font-bold uppercase">
-                {item.producto.nombre}
-                {item.tipo === "PROTEINA" && item.conSopa !== null
-                  ? item.conSopa === false
-                    ? " (sin sopa)"
-                    : !tieneSopa
-                      ? " (sopa por servir)"
-                      : ""
-                  : ""}
-              </span>
-              {precioUnitarioItem(item) > 0 ? (
-                <span className="font-bold">
-                  {formatCOP(precioUnitarioItem(item) * item.cantidad)}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-
-        <div className="my-3 border-t border-dashed border-brown-950/30" />
+        <div className="my-4 border-t-2 border-dashed border-brown-950/60" />
 
         {pedido.observaciones ? (
-          <p className="text-sm font-bold">📝 Nota: {pedido.observaciones}</p>
+          <div className="text-right">
+            <p className="text-[12px] font-bold">
+              Nota: <span className="font-normal">{pedido.observaciones}</span>
+            </p>
+          </div>
         ) : null}
 
-        <div className="my-3 border-t border-dashed border-brown-950/30" />
+        {pedido.domicilio && (
+          <div className="mt-4 border-l-4 border-brown-900/20 pl-3 text-[12px]">
+            <p className="font-black uppercase text-[10px] tracking-widest opacity-60">
+              Datos de entrega
+            </p>
+            <p className="font-bold">Cliente: {pedido.domicilio.cliente}</p>
+            <p>Dir: {pedido.domicilio.direccion}</p>
+            {pedido.domicilio.barrio && <p>Barrio: {pedido.domicilio.barrio}</p>}
+            {pedido.domicilio.telefono && <p>Tel: {pedido.domicilio.telefono}</p>}
+          </div>
+        )}
 
-        <div className="flex items-baseline justify-between text-sm">
-          <span className="font-bold">TOTAL COMANDA</span>
-          <span className="font-bold">{formatCOP(totalComanda)}</span>
-        </div>
-        {pedido.paraLlevar ? (
-          <p className="mt-0.5 text-[11px] font-bold">
-            Icopor incluido · para llevar
-          </p>
-        ) : null}
-
-        <div className="my-3 border-t-2 border-dashed border-brown-950/40" />
-        <p className="text-center text-[11px]">
+        <p className="mt-10 text-center text-[10px] font-bold uppercase tracking-widest opacity-40">
           ¡Buen provecho! · El Buen Gusto
         </p>
       </div>

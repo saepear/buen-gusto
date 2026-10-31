@@ -6,6 +6,7 @@ import { precioUnitarioItem } from "@/lib/precios";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_MESA } from "@/lib/roles";
+import { ordenMesasPorNombre } from "@/lib/mesas";
 import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 
 export const metadata = { title: "Caja y recibos" };
@@ -25,7 +26,7 @@ const METODO_TXT: Record<string, string> = {
 export default async function PaginaCaja() {
   const fecha = inicioDeHoy();
 
-  const [mesas, pagosHoy, resumenHoy] = await Promise.all([
+  const [mesasBrutas, pagosHoy, resumenHoy] = await Promise.all([
     db.mesa.findMany({
       where: {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
@@ -33,7 +34,6 @@ export default async function PaginaCaja() {
         // Los domicilios se cobran contra entrega, no en la caja
         esDomicilio: false,
       },
-      orderBy: { nombre: "asc" },
     }),
     db.pago.findMany({
       where: { createdAt: { gte: fecha } },
@@ -47,6 +47,9 @@ export default async function PaginaCaja() {
       _count: true,
     }),
   ]);
+
+  // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
+  const mesas = ordenMesasPorNombre(mesasBrutas);
 
   const idsMesas = mesas.map((m) => m.id);
   const pedidos =

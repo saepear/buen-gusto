@@ -101,6 +101,7 @@ model PedidoItem {
   precio     Int?     // precio por unidad fijado al ordenar (almuerzo, bebidas...); null = usa producto.precio
   conSopa    Boolean? // aplica a la línea principal del almuerzo
   nota       String?  // ej: "Res sin cebolla"
+  grupo      Int      @default(0) // 0 = extra, 1+ = índice del plato en la comanda
 }
 
 model Pago {
@@ -110,6 +111,10 @@ model Pago {
   total     Int // COP enteros, sin decimales
   propina   Int      @default(0)
   metodo    String   // EFECTIVO | TARJETA | TRANSFERENCIA
+  // ¿Con cuánto dinero entregó el cliente y cuánto se le devolvió? Solo
+  // aplican al efectivo; null = pago exacto o con otro método.
+  montoPagado Int?
+  vueltas     Int?
   createdAt DateTime @default(now())
 }
 
@@ -162,28 +167,4 @@ model Domicilio {
   entregadoAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-}
-
-// Entrada de WhatsApp: el mensaje crudo que llega (vía app forwarder del
-// teléfono o pegado a mano) y su borrador parseado, antes de ser domicilio.
-model EntradaWhatsapp {
-  id          Int       @id @default(autoincrement())
-  remitente   String    @default("") // título de la notificación: nombre del contacto
-  telefono    String    @default("") // número del cliente (para responderle)
-  texto       String
-  // Guardia antiduplicados: hash de teléfono+texto; solo se usa contra la
-  // ventana de los últimos minutos (una misma notificación reenviada no se
-  // registra dos veces, pero el mismo texto de otro día entra normal)
-  claveDedupe String
-  estado      String    @default("NUEVO") // NUEVO | CONVERTIDO | DESCARTADO
-  borrador    String? // JSON del borrador parseado la última vez
-  armable     Boolean   @default(false)
-  pedidoId    Int? // la comanda de domicilio que se creó de esta entrada
-  recibidoAt  DateTime  @default(now())
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([recibidoAt])
-  @@index([estado])
-  @@index([claveDedupe])
 }

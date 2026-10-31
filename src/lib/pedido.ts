@@ -69,7 +69,7 @@ export type CargaPedido = {
   extras: number[]; // productoIds de bebidas/adicionales (uno por unidad)
   llevar?: boolean; // para llevar: la misma lógica + empague de icopor
 
-  // Forma vieja (un solo almuerzo), la que sigue enviando el flujo WhatsApp
+  // Forma vieja (un solo almuerzo), la que sigue enviando pedidos por teléfono
   conSopa?: boolean;
   proteinaId?: number | null;
   principios?: number[];
@@ -95,7 +95,7 @@ function enumerar(bruto: unknown, max: number): number[] | null {
 
 /**
  * Uniforma la carga a líneas de almuerzo: acepta la forma nueva (lineas[])
- * y la vieja de un solo plato, que siguen enviando WhatsApp y pantallas
+ * y la vieja de un solo plato, que siguen enviando pedido a mano y pantallas
  * anteriores. Devuelve null cuando el formato no cuadra.
  */
 export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
@@ -141,7 +141,7 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
     return [...fusion.values()];
   }
 
-  // Forma vieja: un solo almuerzo por comanda (WhatsApp / pantallas antiguas)
+  // Forma vieja: un solo almuerzo por comanda (pedidos a mano, pantallas antiguas)
   const { conSopa, proteinaId, principios, ensaladas, sopaId } = carga;
   if (typeof conSopa !== "boolean" || typeof proteinaId !== "number" || !esId(proteinaId)) {
     return null;
@@ -199,7 +199,7 @@ export async function crearPedido(opciones: {
   }
 
   // La mesa puede pedir de 1 a muchos platos: la forma nueva trae lineas[];
-  // la vieja (WhatsApp) un solo almuerzo, que aquí entra como línea única.
+  // la vieja (a mano) un solo almuerzo, que aquí entra como línea única.
   if (!Array.isArray(carga.lineas)) {
     if (typeof carga.conSopa !== "boolean") {
       throw new ErrorDePedido("Aclara si el almuerzo lleva sopa o no.");
@@ -228,36 +228,18 @@ export async function crearPedido(opciones: {
     else consumo.set(item.itemId, { item, cantidad });
   };
 
-  // Consolidar filas de la comanda. El precio queda fijado al ordenar:
-  // aunque el catálogo cambie, la comanda no se mueve. La proteína se
-  // parte por conSopa: «2 churrasco» puede ser uno con sopa y otro
-  // bandeja, y la cocina necesita los dos renglones separados.
-  const filas = new Map<
-    string,
-    {
-      productoId: number;
-      tipo: string;
-      cantidad: number;
-      conSopa: boolean | null;
-      precio: number | null;
-    }
-  >();
-  const empujar = (
-    marca: string,
-    productoId: number,
-    tipo: string,
-    conSopa: boolean | null,
-    cantidad: number,
-    precio: number | null,
-  ) => {
-    const previa = filas.get(marca);
-    if (previa) {
-      previa.cantidad += cantidad;
-      previa.conSopa = previa.conSopa ?? conSopa;
-    } else {
-      filas.set(marca, { productoId, tipo, cantidad, conSopa, precio });
-    }
-  };
+  // Consolidar filas de la comanda. Cada plato físico tiene su propio grupo (1, 2...)
+  // para poder separarlos en la comanda impresa como "PEDIDO 1", "PEDIDO 2".
+  const filas: {
+    productoId: number;
+    tipo: string;
+    cantidad: number;
+    conSopa: boolean | null;
+    precio: number | null;
+    grupo: number;
+  }[] = [];
+
+  let proximoGrupo = 1;
 
   for (const linea of lineasDePlato) {
     const proteina = porItemId.get(linea.proteinaId);
@@ -267,56 +249,81 @@ export async function crearPedido(opciones: {
     if (proteina.disponibles === 0) {
       throw new ErrorDePedido(`«${proteina.nombre}» está agotada. Elige otra proteína.`);
     }
-    // La línea de la proteína cobra el almuerzo entero: $13.000 con sopa /
-    // $12.000 solo bandeja, +$1.500 (icopor) si es para llevar.
-    empujar(
-      `A${linea.proteinaId}-${linea.conSopa ? "c" : "b"}`,
-      proteina.productoId,
-      proteina.tipo,
-      linea.conSopa,
-      linea.cantidad,
-      precioAlmuerzo(linea.conSopa, llevar),
-    );
 
-    // Sopa OPCIONAL: "con sopa" puede ir sin elegir cuál (la cocina decide);
-    // solo se valida cuando el plato sí la escogió.
-    if (linea.conSopa && linea.sopaId !== null) {
-      const s = porItemId.get(linea.sopaId);
-      if (!s || s.tipo !== "SOPA") {
-        throw new ErrorDePedido("Esa sopa no está en el menú de hoy.");
-      }
-      if (s.disponibles === 0) {
-        throw new ErrorDePedido(`«${s.nombre}» está agotada. Elige otra o marca «sin sopa».`);
-      }
-      cobrar(s, linea.cantidad);
-      empujar(`I${s.productoId}`, s.productoId, s.tipo, null, linea.cantidad, 0);
-    }
+    // Si la línea dice "2 churrascos", creamos 2 grupos separados de comanda
+    for (let i = 0; i < linea.cantidad; i++) {
+      const grupoActual = proximoGrupo++;
 
-    for (const itemId of linea.principios) {
-      const p = porItemId.get(itemId);
-      if (!p || p.tipo !== "PRINCIPIO") {
-        throw new ErrorDePedido("Uno de los principios ya no está en el menú de hoy.");
+      // La proteína cobra el almuerzo entero
+      filas.push({
+        productoId: proteina.productoId,
+        tipo: proteina.tipo,
+        conSopa: linea.conSopa,
+        cantidad: 1,
+        precio: precioAlmuerzo(linea.conSopa, llevar),
+        grupo: grupoActual,
+      });
+
+      if (linea.conSopa && linea.sopaId !== null) {
+        const s = porItemId.get(linea.sopaId);
+        if (!s || s.tipo !== "SOPA") {
+          throw new ErrorDePedido("Esa sopa no está en el menú de hoy.");
+        }
+        if (s.disponibles === 0) {
+          throw new ErrorDePedido(`«${s.nombre}» está agotada. Elige otra o marca «sin sopa».`);
+        }
+        cobrar(s, 1);
+        filas.push({
+          productoId: s.productoId,
+          tipo: s.tipo,
+          conSopa: null,
+          cantidad: 1,
+          precio: 0,
+          grupo: grupoActual,
+        });
       }
-      if (p.disponibles === 0) {
-        throw new ErrorDePedido(`«${p.nombre}» se agotó. Quítalo del pedido o elige otro.`);
+
+      for (const itemId of linea.principios) {
+        const p = porItemId.get(itemId);
+        if (!p || p.tipo !== "PRINCIPIO") {
+          throw new ErrorDePedido("Uno de los principios ya no está en el menú de hoy.");
+        }
+        if (p.disponibles === 0) {
+          throw new ErrorDePedido(`«${p.nombre}» se agotó. Quítalo del pedido o elige otro.`);
+        }
+        cobrar(p, 1);
+        filas.push({
+          productoId: p.productoId,
+          tipo: p.tipo,
+          conSopa: null,
+          cantidad: 1,
+          precio: 0,
+          grupo: grupoActual,
+        });
       }
-      cobrar(p, linea.cantidad);
-      empujar(`I${p.productoId}`, p.productoId, p.tipo, null, linea.cantidad, 0);
-    }
-    for (const itemId of linea.ensaladas) {
-      const e = porItemId.get(itemId);
-      if (!e || e.tipo !== "ENSALADA") {
-        throw new ErrorDePedido("Una ensalada ya no está en el menú de hoy.");
+
+      for (const itemId of linea.ensaladas) {
+        const e = porItemId.get(itemId);
+        if (!e || e.tipo !== "ENSALADA") {
+          throw new ErrorDePedido("Una ensalada ya no está en el menú de hoy.");
+        }
+        if (e.disponibles === 0) {
+          throw new ErrorDePedido(`«${e.nombre}» se agotó. Quítala del pedido o elige otra.`);
+        }
+        cobrar(e, 1);
+        filas.push({
+          productoId: e.productoId,
+          tipo: e.tipo,
+          conSopa: null,
+          cantidad: 1,
+          precio: 0,
+          grupo: grupoActual,
+        });
       }
-      if (e.disponibles === 0) {
-        throw new ErrorDePedido(`«${e.nombre}» se agotó. Quítala del pedido o elige otra.`);
-      }
-      cobrar(e, linea.cantidad);
-      empujar(`I${e.productoId}`, e.productoId, e.tipo, null, linea.cantidad, 0);
     }
   }
 
-  // Extras (bebidas y adicionales): deben existir y estar activos en el catálogo
+  // Extras (bebidas y adicionales): grupo 0 (no son platos)
   const extras = enumerar(carga.extras, 40);
   if (!extras) {
     throw new ErrorDePedido("Formato del pedido incorrecto.");
@@ -333,7 +340,14 @@ export async function crearPedido(opciones: {
   }
   for (const productoId of extras) {
     const p = catalogoExtras.find((x) => x.id === productoId)!;
-    empujar(`I${p.id}`, p.id, p.tipo, null, 1, p.precio);
+    filas.push({
+      productoId: p.id,
+      tipo: p.tipo,
+      conSopa: null,
+      cantidad: 1,
+      precio: p.precio,
+      grupo: 0,
+    });
   }
 
   return db.$transaction(async (tx) => {
@@ -361,13 +375,14 @@ export async function crearPedido(opciones: {
     });
 
     await tx.pedidoItem.createMany({
-      data: [...filas.values()].map((l) => ({
+      data: filas.map((l) => ({
         pedidoId: pedido.id,
         productoId: l.productoId,
         tipo: l.tipo,
         cantidad: l.cantidad,
         precio: l.precio,
         conSopa: l.conSopa,
+        grupo: l.grupo,
       })),
     });
 

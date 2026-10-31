@@ -463,11 +463,6 @@ function ModalMesa({
                               {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
                               {item.nombre}
                             </span>
-                            {item.tipo === "PROTEINA" && item.conSopa === false ? (
-                              <span className="shrink-0 rounded-md bg-panel-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
-                                sin sopa
-                              </span>
-                            ) : null}
                             {item.precio > 0 ? (
                               <span className="shrink-0 text-xs font-bold text-texto-muted/70">
                                 {formatCOP(item.precio * item.cantidad)}

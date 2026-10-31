@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_MESA, type EstadoMesa } from "@/lib/roles";
+import { ordenMesasPorNombre } from "@/lib/mesas";
 import { requerirRol } from "@/lib/session";
 import { EncabezadoMesero } from "./encabezado";
 
@@ -10,11 +11,10 @@ export const metadata = { title: "Mesero · El Buen Gusto" };
 
 export default async function PaginaMesero() {
   const sesion = await requerirRol("MESERO");
-  const [mesas, comandas] = await Promise.all([
+  const [mesasBrutas, comandas] = await Promise.all([
     db.mesa.findMany({
       // La mesa virtual de domicilios no es una mesa del salón
       where: { activa: true, esDomicilio: false },
-      orderBy: { nombre: "asc" },
     }),
     db.pedido.findMany({
       where: {
@@ -24,6 +24,9 @@ export default async function PaginaMesero() {
       select: { mesaId: true, estado: true },
     }),
   ]);
+
+  // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
+  const mesas = ordenMesasPorNombre(mesasBrutas);
 
   const vivasPorMesa = new Map<number, number>();
   for (const c of comandas) {

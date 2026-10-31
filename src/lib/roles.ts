@@ -37,16 +37,17 @@ export const ES_TIPO_VALIDO = (v: string): v is TipoProducto =>
 export const TIPOS_MENU_DIA: TipoProducto[] = ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"];
 
 /**
- * Orden de impresión en la comanda y en el recibo: como arman la bandeja
- * (principio abajo → proteinas encima → adicionales como el huevo → sopa
- * aparte). Empates dentro del grupo quedan en el orden en que se pidieron.
+ * Orden de lectura de la comanda: primero el principio, encima la proteína,
+ * luego la ensalada (si la hay) y de última la sopa (si la hay); después
+ * siguen los adicionales y las bebidas. Empates dentro del grupo quedan en
+ * el orden en que se pidieron.
  */
 export const ORDEN_IMPRIMIR: Record<TipoProducto, number> = {
   PRINCIPIO: 1,
-  ENSALADA: 2,
-  PROTEINA: 3,
-  ADICIONAL: 4,
-  SOPA: 5,
+  PROTEINA: 2,
+  ENSALADA: 3,
+  SOPA: 4,
+  ADICIONAL: 5,
   BEBIDA: 6,
 };
 
@@ -129,6 +130,9 @@ export function destinoRol(rol: Rol): string {
     case "MESERO":
       return "/mesero";
     case "DOMICILIARIO":
-      return "/domicilios";
+      // La app del repartidor (/domicilios) se retiró: la entrega y el cobro
+      // se manejan desde el tablero del admin. Si una sesión vieja de domi
+      // queda viva, vuelve al login.
+      return "/login";
   }
 }

@@ -1,4 +1,4 @@
-// Interpreta la hora de entrega que el cliente dijo por WhatsApp ("las 12",
+// Interpreta la hora de entrega que el cliente dijo por teléfono o chat ("las 12",
 // "la 1 y media", "12:30", "mediodía") y la vuelve minutos desde medianoche
 // para poder ORDENAR el tablero. Es una heurística de almuerzo: 1–6 se leen
 // de la tarde (13–18) y 7–11 de la mañana; "tarde"/"noche"/"pm" fuerzan PM.

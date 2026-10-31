@@ -1,7 +1,13 @@
 "use client";
 
-import { Eye, EyeOff, LayoutGrid, Trash2 } from "lucide-react";
-import { useActionState, useRef, useState } from "react";
+import gsap from "gsap";
+import { Eye, EyeOff, LayoutGrid, Trash2, TriangleAlert } from "lucide-react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { type EstadoMesa } from "@/lib/roles";
 import { alternarMesa, borrarMesa, crearMesa, type EstadoAccionConfig } from "./acciones";
 import { Aviso } from "./usuarios";
@@ -25,23 +31,26 @@ export type MesaDetalle = {
   nombre: string;
   estado: string;
   activa: boolean;
-  /** Comandas históricas de la mesa: > 0 => solo se puede ocultar */
+  /** Comandas históricas de la mesa */
   pedidos: number;
 };
 
-function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
+/** La mesa que el administrador pidió borrar y aún no confirmó */
+type ObjetivoBorrar = { id: number; nombre: string; comandas: number };
+
+function ChipMesa({
+  mesa,
+  onBorrar,
+}: {
+  mesa: MesaDetalle;
+  onBorrar: (mesa: MesaDetalle) => void;
+}) {
   const [estado, accion, pendiente] = useActionState<EstadoAccionConfig, FormData>(
     alternarMesa,
     INICIAL,
   );
-  const [estadoBorrar, accionBorrar, pendienteBorrar] = useActionState<
-    EstadoAccionConfig,
-    FormData
-  >(borrarMesa, INICIAL);
   const oculta = !mesa.activa;
   const e = mesa.estado as EstadoMesa;
-  // Sin historial => se puede borrar del todo; con historial solo ocultar
-  const sePuedeBorrar = mesa.pedidos === 0;
 
   return (
     <div className={oculta ? "rounded-2xl bg-campo-app p-3.5 opacity-70" : "rounded-2xl bg-campo-app p-3.5"}>
@@ -64,6 +73,13 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
           </span>
         )}
       </div>
+      {mesa.pedidos > 0 ? (
+        <p className="mt-0.5 text-[11px] font-bold text-texto-muted/45">
+          {mesa.pedidos === 1
+            ? "1 comanda guardada"
+            : `${mesa.pedidos} comandas guardadas`}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex gap-1.5">
         <form action={accion} className="min-w-0 flex-1">
@@ -91,37 +107,206 @@ function ChipMesa({ mesa }: { mesa: MesaDetalle }) {
             )}
           </button>
         </form>
-        {sePuedeBorrar ? (
-          <form
-            action={accionBorrar}
-            onSubmit={(e) => {
-              if (
-                !window.confirm(
-                  `¿Borrar la mesa «${mesa.nombre}» del salón? Esta acción no se deshace.`,
-                )
-              ) {
-                e.preventDefault();
-              }
-            }}
+        <button
+          type="button"
+          onClick={() => onBorrar(mesa)}
+          disabled={pendiente}
+          title="Borrar la mesa del salón"
+          aria-label={`Borrar la mesa ${mesa.nombre}`}
+          className="flex w-9 items-center justify-center rounded-lg border border-danger/40 bg-panel-app text-danger-text transition hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <Aviso estado={estado} />
+    </div>
+  );
+}
+
+/**
+ * Ventana de confirmación de borrado, animada con GSAP: el fondo se
+ * desvanece y la tarjeta entra con rebote suave («back.out»); el cierre
+ * invierte la entrada. Si la mesa tiene comandas, la advertencia muestra
+ * cuántas y aclara que se pierden con ella.
+ */
+function DialogoBorrar({
+  mesa,
+  estado,
+  pendiente,
+  accion,
+  onCerrar,
+}: {
+  mesa: ObjetivoBorrar;
+  estado: EstadoAccionConfig;
+  pendiente: boolean;
+  /** Acción ya envuelta por useActionState */
+  accion: (datos: FormData) => void;
+  onCerrar: () => void;
+}) {
+  const fondoRef = useRef<HTMLDivElement>(null);
+  const tarjetaRef = useRef<HTMLDivElement>(null);
+  const cerrando = useRef(false);
+
+  /** Cierre con animación: invierte la entrada y suelta la ventana al final */
+  const cerrarAnimado = () => {
+    if (cerrando.current) return;
+    cerrando.current = true;
+    const reducido = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (reducido || !fondoRef.current || !tarjetaRef.current) {
+      onCerrar();
+      return;
+    }
+    gsap.killTweensOf([fondoRef.current, tarjetaRef.current]);
+    // Respaldo por tiempo: si el navegador suspende los frames (pestaña en
+    // segundo plano), la ventana se suelta igual y no queda la vida muerta.
+    const respaldo = setTimeout(onCerrar, 600);
+    gsap.to(fondoRef.current, { opacity: 0, duration: 0.2, ease: "power2.in" });
+    gsap.to(tarjetaRef.current, {
+      opacity: 0,
+      scale: 0.94,
+      y: 8,
+      duration: 0.24,
+      ease: "power2.in",
+      onComplete: () => {
+        clearTimeout(respaldo);
+        onCerrar();
+      },
+    });
+  };
+
+  // Apertura: fondo + tarjeta entran con GSAP (una sola vez, al montar)
+  useEffect(() => {
+    const reducido = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (reducido || !fondoRef.current || !tarjetaRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.from(fondoRef.current, {
+        opacity: 0,
+        duration: 0.25,
+        ease: "power2.out",
+      });
+      gsap.from(tarjetaRef.current, {
+        opacity: 0,
+        scale: 0.92,
+        y: 12,
+        duration: 0.4,
+        ease: "back.out(1.5)",
+      });
+    });
+    return () => ctx.revert();
+  }, []);
+
+  // Escape cierra la ventana (salvo que el borrado ya esté en camino)
+  useEffect(() => {
+    const teclas = (evento: KeyboardEvent) => {
+      if (evento.key === "Escape") cerrarAnimado();
+    };
+    window.addEventListener("keydown", teclas);
+    return () => window.removeEventListener("keydown", teclas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Borrado confirmado: la ventana se va y el panel muestra el aviso. La
+  // primera corrida no cuenta: tras un borrado anterior, estado.ok sigue
+  // guardando su mensaje aunque se abra una ventana nueva.
+  const primerEfectoOk = useRef(true);
+  useEffect(() => {
+    if (primerEfectoOk.current) {
+      primerEfectoOk.current = false;
+      return;
+    }
+    if (estado.ok !== null) cerrarAnimado();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado.ok]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+      <div
+        ref={fondoRef}
+        aria-hidden
+        onClick={cerrarAnimado}
+        className="absolute inset-0 bg-brown-950/65 backdrop-blur-sm"
+      />
+      <div
+        ref={tarjetaRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="borrar-mesa-titulo"
+        aria-describedby="borrar-mesa-desc"
+        className="relative w-full max-w-md rounded-[2rem] bg-panel-app p-6 shadow-2xl ring-1 ring-borde-app"
+      >
+        <div className="flex items-start gap-3.5">
+          <span
+            aria-hidden
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-danger/10 text-danger-text ring-1 ring-danger/25"
           >
-            <input type="hidden" name="mesaId" value={mesa.id} />
-            <button
-              type="submit"
-              disabled={pendienteBorrar}
-              title="Borrar la mesa del salón (solo mesas sin historial)"
-              aria-label={`Borrar la mesa ${mesa.nombre}`}
-              className="flex w-9 items-center justify-center rounded-lg border border-danger/40 bg-panel-app text-danger-text transition hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70 disabled:opacity-50"
+            <TriangleAlert className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3
+              id="borrar-mesa-titulo"
+              className="font-display text-xl leading-tight text-texto-app"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </form>
+              ¿Estás seguro de que quieres eliminar esta mesa?
+            </h3>
+            <p
+              id="borrar-mesa-desc"
+              className="mt-1.5 text-sm leading-relaxed text-texto-muted/80"
+            >
+              La mesa «{mesa.nombre}» desaparece del salón para siempre.
+            </p>
+            {mesa.comandas > 0 ? (
+              <p className="mt-2.5 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm leading-relaxed text-danger-text ring-1 ring-danger/20">
+                Lleva {mesa.comandas}{" "}
+                {mesa.comandas === 1 ? "comanda guardada" : "comandas guardadas"}:{" "}
+                se borran con la mesa y no habrá forma de recuperarlas.
+              </p>
+            ) : (
+              <p className="mt-2.5 text-sm text-texto-muted/50">
+                No tiene comandas guardadas: no se pierde nada del historial.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <form
+          action={accion}
+          className="mt-5 flex flex-col gap-2.5 sm:flex-row"
+        >
+          <input type="hidden" name="mesaId" value={mesa.id} />
+          <button
+            type="button"
+            onClick={cerrarAnimado}
+            disabled={pendiente}
+            autoFocus
+            className="flex-1 rounded-xl bg-campo-app px-4 py-3 font-display text-md text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover active:scale-95 disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={pendiente}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-danger px-4 py-3 font-display text-md text-danger-text ring-1 ring-danger/30 transition hover:bg-danger/85 hover:text-texto-app active:scale-95 disabled:opacity-50"
+          >
+            {pendiente ? (
+              "Eliminando…"
+            ) : (
+              <>
+                <Trash2 aria-hidden className="h-4 w-4" /> Sí, eliminar
+              </>
+            )}
+          </button>
+        </form>
+
+        {estado.error ? (
+          <div className="mt-3">
+            <Aviso estado={estado} />
+          </div>
         ) : null}
       </div>
-      {estadoBorrar.error || estadoBorrar.ok ? (
-        <Aviso estado={estadoBorrar} />
-      ) : (
-        <Aviso estado={estado} />
-      )}
     </div>
   );
 }
@@ -131,9 +316,14 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
     crearMesa,
     INICIAL,
   );
+  const [estadoBorrar, accionBorrar, pendienteBorrar] = useActionState<
+    EstadoAccionConfig,
+    FormData
+  >(borrarMesa, INICIAL);
   const [nombre, setNombre] = useState("");
   const [aprobada, setAprobada] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [objetivo, setObjetivo] = useState<ObjetivoBorrar | null>(null);
   const activas = mesas.filter((m) => m.activa);
   const ocultas = mesas.filter((m) => !m.activa);
 
@@ -169,6 +359,14 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
     }
   };
 
+  /** Pide el borrado de una mesa: abre la ventana de confirmación GSAP */
+  const pedirBorrar = (mesa: MesaDetalle) => {
+    setObjetivo({ id: mesa.id, nombre: mesa.nombre, comandas: mesa.pedidos });
+  };
+
+  /** Cierre definitivo de la ventana (el diálogo ya terminó su animación) */
+  const soltarBorrar = () => setObjetivo(null);
+
   return (
     <section className="overflow-hidden rounded-[2rem] bg-panel-app ring-1 ring-borde-app">
       {/* Cabecera del módulo */}
@@ -182,9 +380,9 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
               Mesas del salón
             </h2>
             <p className="mt-0.5 text-sm text-texto-muted/75">
-              Los meseros y la caja solo ven las mesas visibles. Las mesas sin
-              historial se pueden borrar (ícono de basura); si ya tienen
-              comandas, escóndelas para conservar el registro de ventas.
+              Los meseros y la caja solo ven las mesas visibles. Cualquier mesa
+              se puede borrar (ícono de basura): si ya tiene comandas, la
+              ventana de confirmación avisa cuántas se pierden con ella.
             </p>
           </div>
         </div>
@@ -246,7 +444,7 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
         {/* Mesas visibles */}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
           {activas.map((m) => (
-            <ChipMesa key={m.id} mesa={m} />
+            <ChipMesa key={m.id} mesa={m} onBorrar={pedirBorrar} />
           ))}
         </div>
 
@@ -258,12 +456,30 @@ export function PanelMesas({ mesas }: { mesas: MesaDetalle[] }) {
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {ocultas.map((m) => (
-                <ChipMesa key={m.id} mesa={m} />
+                <ChipMesa key={m.id} mesa={m} onBorrar={pedirBorrar} />
               ))}
             </div>
           </div>
         ) : null}
+
+        {/* Resultado del borrado cuando la ventana ya se fue */}
+        {!objetivo && estadoBorrar.ok ? (
+          <div className="mt-4">
+            <Aviso estado={estadoBorrar} />
+          </div>
+        ) : null}
       </div>
+
+      {/* Ventana de confirmación «¿Estás seguro?» animada con GSAP */}
+      {objetivo ? (
+        <DialogoBorrar
+          mesa={objetivo}
+          estado={estadoBorrar}
+          pendiente={pendienteBorrar}
+          accion={accionBorrar}
+          onCerrar={soltarBorrar}
+        />
+      ) : null}
     </section>
   );
 }

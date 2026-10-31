@@ -3,6 +3,7 @@
 import {
   Banknote,
   CreditCard,
+  HandCoins,
   Landmark,
   ShoppingBag,
   Wallet,
@@ -23,6 +24,14 @@ const PRESET_PROPINA = [
   { valor: "", txt: "Sin propina" },
   { valor: "1000", txt: "$1.000" },
   { valor: "2000", txt: "$2.000" },
+];
+
+/** Billetes típicos para el atajo del «¿con cuánto paga?» */
+const BILLETES = [
+  { valor: 10000, txt: "$10.000" },
+  { valor: 20000, txt: "$20.000" },
+  { valor: 50000, txt: "$50.000" },
+  { valor: 100000, txt: "$100.000" },
 ];
 
 const CHIP_COMANDA: Record<string, string> = {
@@ -81,6 +90,15 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   const propinaNum =
     Number.parseInt(propinaTxt.replace(/[^0-9]/g, ""), 10) || 0;
   const total = mesa.total + propinaNum;
+  const enEfectivo = metodo === "EFECTIVO";
+
+  // ¿Con cuánto pagó el cliente y cuánto se le devuelve? Solo se pide en
+  // efectivo; vacío queda como pago exacto.
+  const [montoTxt, setMontoTxt] = useState("");
+  const montoNum = Number.parseInt(montoTxt.replace(/[^0-9]/g, ""), 10) || null;
+  const vueltas = enEfectivo && montoNum !== null ? montoNum - total : null;
+  const noAlcanza = vueltas !== null && vueltas < 0;
+
   const enCocina = mesa.pedidos.filter(
     (p) => p.estado === "ENVIADO" || p.estado === "EN_PREPARACION" || p.estado === "PARCIAL_SERVIDO",
   ).length;
@@ -258,9 +276,73 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
               </div>
             </div>
 
+            {enEfectivo ? (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+                  ¿Con cuánto paga el cliente? (opcional)
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <input
+                    name="montoPagado"
+                    value={montoTxt}
+                    onChange={(e) => setMontoTxt(e.target.value)}
+                    inputMode="numeric"
+                    placeholder="Billete…"
+                    aria-label="Monto entregado por el cliente"
+                    className="w-36 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60 placeholder:text-texto-muted/25"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMontoTxt(String(total))}
+                    className="rounded-full bg-panel-app px-3 py-1.5 text-xs font-bold text-texto-muted/60 ring-1 ring-borde-app transition hover:text-texto-app"
+                  >
+                    Exacto
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {BILLETES.filter((b) => b.valor >= total).map((b) => (
+                    <button
+                      key={b.valor}
+                      type="button"
+                      aria-label={`Cliente paga con ${b.txt}`}
+                      onClick={() => setMontoTxt(String(b.valor))}
+                      className="rounded-full bg-panel-app px-3 py-1.5 text-xs font-bold text-texto-muted/60 ring-1 ring-borde-app transition hover:text-texto-app"
+                    >
+                      {b.txt}
+                    </button>
+                  ))}
+                </div>
+
+                {noAlcanza ? (
+                  <p
+                    aria-live="assertive"
+                    className="mt-2.5 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm font-bold text-danger-text ring-1 ring-danger/25"
+                  >
+                    No alcanza: faltan {formatCOP(Math.abs(vueltas ?? 0))}
+                  </p>
+                ) : vueltas !== null ? (
+                  <p
+                    aria-live="assertive"
+                    className="mt-2.5 flex items-baseline justify-between rounded-xl bg-success/10 px-3.5 py-2.5 text-sm ring-1 ring-success/25"
+                  >
+                    <span className="flex items-center gap-1.5 font-bold text-success-text">
+                      <HandCoins className="h-4 w-4" /> Vueltas
+                    </span>
+                    <span className="font-display text-xl tabular-nums text-success-text">
+                      {formatCOP(vueltas)}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-texto-muted/50">
+                    Si dejas el billete vacío queda registrado como pago exacto.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
             <button
               type="submit"
-              disabled={pendiente}
+              disabled={pendiente || noAlcanza}
               className={
                 "flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-lg transition " +
                 (pendiente

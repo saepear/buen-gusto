@@ -259,10 +259,3 @@ html {
     opacity: 0;
   }
 }
-
-/* Subcarpeta del_nav (Domicilios · Pegar y armar) en estado cerrado: solo
-   da el estado inicial sin GSAP (parseo/SSR); la animación la maneja GSAP. */
-.contraido-subcarpeta {
-  height: 0;
-  opacity: 0;
-}

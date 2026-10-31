@@ -4,14 +4,17 @@ import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem } from "@/lib/precios";
+import { ordenMesasPorNombre } from "@/lib/mesas";
+import { ordenDeItem } from "@/lib/roles";
 import { TableroMesas, type MesaDetalle } from "./tablero";
 
 export default async function PaginaMesas() {
-  const mesas = await db.mesa.findMany({
+  const mesasBrutas = await db.mesa.findMany({
     // La mesa virtual de domicilios se gestiona en su propio tablero
     where: { activa: true, esDomicilio: false },
-    orderBy: { nombre: "asc" },
   });
+  // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
+  const mesas = ordenMesasPorNombre(mesasBrutas);
 
   const ids = mesas.map((mesa) => mesa.id);
   const pedidos =
@@ -52,7 +55,11 @@ export default async function PaginaMesas() {
         estado: pedido.estado,
         paraLlevar: pedido.paraLlevar,
         observaciones: pedido.observaciones,
-        items: pedido.items.map((item) => ({
+        // Orden de lectura de la comanda: principio, proteína, ensalada
+        // (si la hay) y sopa (si la hay); después adicionales y bebidas
+        items: [...pedido.items]
+          .sort((a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id)
+          .map((item) => ({
           nombre: item.producto.nombre,
           cantidad: item.cantidad,
           tipo: item.tipo,

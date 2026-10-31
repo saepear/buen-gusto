@@ -1,8 +1,8 @@
-import { Bike, MessageCircle, Plus } from "lucide-react";
+import { Banknote, Bike, CheckCircle2, Plus } from "lucide-react";
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
-import { formatHora } from "@/lib/format";
+import { formatCOP, formatHora } from "@/lib/format";
 import { inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
@@ -63,6 +63,7 @@ export default async function PaginaDomicilios() {
       domiciliarioId: d.domiciliarioId,
       cobradoMonto: d.cobradoMonto,
       cobradoMetodo: d.cobradoMetodo,
+      entregadoEn: d.entregadoAt ? formatHora(d.entregadoAt) : null,
       creadoEn: formatHora(d.createdAt),
       ordenTs: d.createdAt.getTime(),
       total,
@@ -70,7 +71,7 @@ export default async function PaginaDomicilios() {
     };
   });
 
-  // Cola por llegada: lo más viejo al frente (los pedidos de WhatsApp tempranos
+  // Cola por llegada: lo más viejo al frente (los pedidos tempranos salen
   // salen primero). Los que dijeron "para las X" van primero entre sí por su
   // hora: la cocina atiende la 12:00 antes que la 1 y media.
   const porLlegada = (a: { ordenTs: number }, b: { ordenTs: number }) => a.ordenTs - b.ordenTs;
@@ -96,9 +97,16 @@ export default async function PaginaDomicilios() {
         d.estado === ESTADO_DOMICILIO.EN_CAMINO,
     )
     .sort(porLlegada);
+  // Entregados del día: primero los que aún esperan su cobro
+  const entregados = vistas
+    .filter((d) => d.estado === ESTADO_DOMICILIO.ENTREGADO)
+    .sort((a, b) => {
+      const aCobrado = a.cobradoMonto !== null ? 1 : 0;
+      const bCobrado = b.cobradoMonto !== null ? 1 : 0;
+      return aCobrado - bCobrado || b.ordenTs - a.ordenTs;
+    });
   const cerrados = vistas.filter(
     (d) =>
-      d.estado === ESTADO_DOMICILIO.ENTREGADO ||
       d.estado === ESTADO_DOMICILIO.NO_ENTREGADO ||
       d.estado === ESTADO_DOMICILIO.CANCELADO,
   );
@@ -107,21 +115,20 @@ export default async function PaginaDomicilios() {
   const activos = vistas.filter((d) =>
     estadosActivos.has(d.estado as EstadoDomicilio),
   ).length;
+  const entregadosHoy = entregados.length;
+  const recaudadoHoy = entregados.reduce(
+    (suma, d) => suma + (d.cobradoMonto ?? 0),
+    0,
+  );
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <EncabezadoPagina
           titulo="Domicilios"
-          subtitulo="Almuerzos para llevar a la casa del cliente · se cobran contra entrega"
+          subtitulo="Auditoría del día: crea los pedidos, recibe el dinero del repartidor y cobra cada entrega"
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/domicilios/whatsapp"
-            className="flex items-center gap-2 rounded-2xl bg-panel-app px-5 py-3 font-display text-md text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover active:scale-95"
-          >
-            <MessageCircle className="h-5 w-5" /> Pegar y armar
-          </Link>
           <Link
             href="/admin/domicilios/nuevo"
             className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
@@ -138,9 +145,17 @@ export default async function PaginaDomicilios() {
           <strong className="font-display text-lg text-texto-app">{activos}</strong>
         </span>
         <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
-          <span className="text-texto-muted/60">Cerrados hoy</span>
+          <CheckCircle2 className="h-4 w-4 text-success-text" />
+          <span className="text-texto-muted/60">Entregados hoy</span>
           <strong className="font-display text-lg text-texto-app">
-            {cerrados.length}
+            {entregadosHoy}
+          </strong>
+        </span>
+        <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
+          <Banknote className="h-4 w-4 text-amber-brand" />
+          <span className="text-texto-muted/60">Recaudado</span>
+          <strong className="font-display text-lg text-texto-app">
+            {formatCOP(recaudadoHoy)}
           </strong>
         </span>
       </div>
@@ -148,6 +163,7 @@ export default async function PaginaDomicilios() {
       <TableroDomicilios
         porAsignar={porAsignar}
         enReparto={enReparto}
+        entregados={entregados}
         cerrados={cerrados}
         repartidores={repartidores}
       />

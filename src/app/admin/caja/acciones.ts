@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { formatCOP } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy, ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import {
@@ -51,6 +52,9 @@ export async function cobrarMesa(
   if (!Number.isInteger(propina) || propina < 0 || propina > MAX_PROPINA) {
     return { error: "La propina ingresada no es válida." };
   }
+
+  // "¿Con cuánto pagó?" — solo se registra en efectivo; vacío = pago exacto
+  const crudoPagado = String(datos.get("montoPagado") ?? "").replace(/[^0-9]/g, "");
 
   let nuevoPagoId: number | null = null;
   try {
@@ -101,6 +105,24 @@ export async function cobrarMesa(
         0,
       );
 
+      // ¿Con cuánto pagó y cuánto se devolvió? Solo en efectivo: vacío queda
+      // registrado como pago exacto (null), como siempre. Si el billete no
+      // cubre la cuenta, el cobro entero se rechaza.
+      let montoPagado: number | null = null;
+      let vueltas: number | null = null;
+      if (metodo === "EFECTIVO" && crudoPagado !== "") {
+        montoPagado = Number.parseInt(crudoPagado, 10);
+        if (!Number.isInteger(montoPagado) || montoPagado <= 0) {
+          throw new ErrorDeCaja("El monto entregado por el cliente no es válido.");
+        }
+        if (montoPagado < total + propina) {
+          throw new ErrorDeCaja(
+            `No alcanza: el cliente entregó ${formatCOP(montoPagado)} y la cuenta es ${formatCOP(total + propina)}.`,
+          );
+        }
+        vueltas = montoPagado - total - propina;
+      }
+
       // Un solo pago por cobro; se ancla a la comanda más reciente del lote
       const ancla = pedidos[pedidos.length - 1];
       if (!ancla) throw new ErrorDeCaja("No se pudo crear el pago.");
@@ -110,6 +132,8 @@ export async function cobrarMesa(
           total,
           propina,
           metodo,
+          montoPagado,
+          vueltas,
         },
       });
 

@@ -12,7 +12,6 @@ import {
   Star,
   User,
   UtensilsCrossed,
-  Wallet,
   Wheat,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +20,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem } from "@/lib/precios";
+import { ordenDeItem } from "@/lib/roles";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADO_MESA } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
@@ -191,9 +191,10 @@ export default async function PaginaMesa(
           </div>
         ) : (
           comandas.map((pedido) => {
-            const totalComanda = pedido.items.reduce(
-              (x, item) => x + precioUnitarioItem(item) * item.cantidad,
-              0,
+            // La comanda se lee en su orden: principio, proteína, ensalada
+            // (si la hay) y sopa (si la hay); después adicionales y bebidas
+            const items = [...pedido.items].sort(
+              (a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
             );
             return (
               <article
@@ -225,7 +226,7 @@ export default async function PaginaMesa(
                 </div>
 
                 <ul className="mt-3 space-y-1.5">
-                  {pedido.items.map((item) => {
+                  {items.map((item) => {
                     const Icono = ICONO_TIPO[item.tipo] ?? UtensilsCrossed;
                     return (
                       <li
@@ -244,16 +245,6 @@ export default async function PaginaMesa(
                           {item.producto.nombre}
                           {item.cantidad > 1 ? ` ×${item.cantidad}` : ""}
                         </span>
-                        {item.tipo === "PROTEINA" && item.conSopa === false ? (
-                          <span className="shrink-0 rounded-md bg-panel-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
-                            sin sopa
-                          </span>
-                        ) : null}
-                        {precioUnitarioItem(item) > 0 ? (
-                          <span className="shrink-0 text-xs font-bold text-texto-muted/70">
-                            {formatCOP(precioUnitarioItem(item) * item.cantidad)}
-                          </span>
-                        ) : null}
                       </li>
                     );
                   })}
@@ -271,12 +262,6 @@ export default async function PaginaMesa(
                     <User aria-hidden className="h-3 w-3" />
                     {pedido.mesero?.nombre ?? "—"}
                   </p>
-                  {totalComanda > 0 ? (
-                    <p className="flex items-center gap-1.5 text-sm font-bold text-texto-app">
-                      <Wallet aria-hidden className="h-3.5 w-3.5 text-texto-muted/35" />
-                      {formatCOP(totalComanda)}
-                    </p>
-                  ) : null}
                 </div>
               </article>
             );

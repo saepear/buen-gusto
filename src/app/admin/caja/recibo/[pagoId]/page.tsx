@@ -154,6 +154,20 @@ export default async function PaginaRecibo(
           </span>
         </p>
 
+        {/* El dinero real: con cuánto pagó y qué se le devolvió (efectivo) */}
+        {pago.montoPagado !== null ? (
+          <div className="mt-1.5 space-y-1 text-sm">
+            <p className="flex justify-between">
+              <span>Recibido</span>
+              <span className="font-bold">{formatCOP(pago.montoPagado)}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Vueltas</span>
+              <span className="font-bold">{formatCOP(pago.vueltas ?? 0)}</span>
+            </p>
+          </div>
+        ) : null}
+
         <div className="my-3 border-t-2 border-dashed border-brown-950/40" />
         <p className="text-center text-[11px]">
           ¡Gracias por su visita!

@@ -214,9 +214,9 @@ export async function alternarMesa(
 }
 
 /**
- * Borra definitivamente una mesa del salón. Solo se permite si está libre y
- * nunca recibió comandas: una mesa con historial conserva el registro de
- * ventas, así que para esas el camino correcto es ocultarlas.
+ * Borra definitivamente una mesa del salón, comandas y todo. Las mesas con
+ * historial se borran también: la ventana de confirmación avisa que sus
+ * comandas (y sus ventas) se eliminan y no hay forma de recuperarlas.
  */
 export async function borrarMesa(
   _previa: EstadoAccionConfig,
@@ -247,16 +247,24 @@ export async function borrarMesa(
   }
 
   const comandas = await db.pedido.count({ where: { mesaId: id } });
-  if (comandas > 0) {
-    return {
-      error: `La mesa «${mesa.nombre}» tiene ${comandas} ${
-        comandas === 1 ? "comanda" : "comandas"
-      } en su historial: mejor ocúltala para conservar el registro de ventas.`,
-      ok: null,
-    };
-  }
 
-  await db.mesa.delete({ where: { id } });
+  // Transacción de borrado profundo: los pagos no tienen cascada en el
+  // esquema, así que salen primero; las comandas arrastran sus ítems y sus
+  // domicilios (onDelete: Cascade); la mesa va de última.
+  await db.$transaction(async (tx) => {
+    await tx.pago.deleteMany({ where: { pedido: { mesaId: id } } });
+    await tx.pedido.deleteMany({ where: { mesaId: id } });
+    await tx.mesa.delete({ where: { id } });
+  });
   revalidarTodo();
-  return { error: null, ok: `Mesa «${mesa.nombre}» borrada del salón.` };
+
+  return {
+    error: null,
+    ok:
+      comandas > 0
+        ? `Mesa «${mesa.nombre}» borrada del salón, junto con ${comandas} ${
+            comandas === 1 ? "comanda" : "comandas"
+          } de su historial.`
+        : `Mesa «${mesa.nombre}» borrada del salón.`,
+  };
 }

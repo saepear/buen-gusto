@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, User, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -74,11 +74,29 @@ function clientesFijosDe(ultimosDomicilios: DomicilioConPedido[]): ClienteFijo[]
         pedidos,
         resumen,
         total,
+        direccion: ultima.direccion,
+        barrio: ultima.barrio,
+        referencia: ultima.referencia,
+        horaEntrega: ultima.horaEntrega,
       };
     });
 }
 
-export default async function PaginaNuevoDomicilio() {
+/** Cliente al que se le hará el pedido (precargado con «Realizar pedido») */
+type ClientePreseteado = {
+  domicilioId: number;
+  cliente: string;
+  telefono: string;
+  direccion: string;
+  barrio: string | null;
+  referencia: string | null;
+  horaEntrega: string | null;
+};
+
+export default async function PaginaNuevoDomicilio(
+  props: PageProps<"/admin/domicilios/nuevo">,
+) {
+  const { para } = await props.searchParams;
   const [menu, extras, ultimosDomicilios] = await Promise.all([
     menuDeHoy(),
     db.producto.findMany({
@@ -96,6 +114,40 @@ export default async function PaginaNuevoDomicilio() {
       take: 120,
     }),
   ]);
+
+  // «Realizar pedido» de un cliente del historial: eso precarga su nombre,
+  // teléfono y dirección (su última entrega) en el formulario de abajo
+  const paraId = Number.parseInt(String(para ?? ""), 10);
+  const clienteOrigen = Number.isInteger(paraId)
+    ? await db.domicilio.findUnique({
+        where: { id: paraId },
+        select: {
+          id: true,
+          cliente: true,
+          telefono: true,
+          direccion: true,
+          barrio: true,
+          referencia: true,
+          horaEntrega: true,
+          estado: true,
+          pedido: { select: { estado: true } },
+        },
+      })
+    : null;
+  const clientePreseteado: ClientePreseteado | null =
+    clienteOrigen &&
+    clienteOrigen.estado !== ESTADO_DOMICILIO.CANCELADO &&
+    clienteOrigen.pedido.estado !== ESTADO_PEDIDO.CANCELADO
+      ? {
+          domicilioId: clienteOrigen.id,
+          cliente: clienteOrigen.cliente,
+          telefono: clienteOrigen.telefono,
+          direccion: clienteOrigen.direccion,
+          barrio: clienteOrigen.barrio,
+          referencia: clienteOrigen.referencia,
+          horaEntrega: clienteOrigen.horaEntrega,
+        }
+      : null;
 
   if (menu.length === 0) {
     return (
@@ -143,22 +195,37 @@ export default async function PaginaNuevoDomicilio() {
       <EncabezadoPagina
         titulo="Nuevo domicilio"
         subtitulo="Arma el almuerzo paso a paso o repítelo con un toque para los clientes de siempre"
-        acciones={
-          <Link
-            href="/admin/domicilios/whatsapp"
-            className="flex items-center gap-2 rounded-xl bg-panel-app px-4 py-2.5 font-display text-md text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover active:scale-95"
-          >
-            <MessageCircle aria-hidden className="h-5 w-5" /> Pegar y armar
-          </Link>
-        }
       />
 
       {/* Clientes fijos alineados con el ancho del formulario */}
       <div className="mx-auto w-full max-w-xl px-4 sm:max-w-2xl">
         <ClientesFijos clientes={clientesFijosDe(ultimosDomicilios)} />
+
+        {/* El «Realizar pedido» del historial llega aquí: los datos del
+            cliente ya están cargados, solo falta armar los platos */}
+        {clientePreseteado ? (
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl bg-success/10 px-4 py-3 text-sm ring-1 ring-success/25">
+            <User aria-hidden className="h-4 w-4 shrink-0 text-success-text" />
+            <span className="font-bold text-success-text">
+              Usando los datos de {clientePreseteado.cliente}
+            </span>
+            <span className="w-full text-xs text-texto-muted/70 sm:w-auto">
+              Ya están en los campos del cliente (en la comanda): revisa la
+              dirección y arma los platos.
+            </span>
+            <Link
+              href="/admin/domicilios/nuevo"
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-panel-app px-3 py-1.5 text-xs font-bold text-texto-muted/70 ring-1 ring-borde-app transition hover:text-texto-app"
+            >
+              Empezar en blanco
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <FormularioPedido
+        key={clientePreseteado ? `domicilio-${clientePreseteado.domicilioId}` : "limpio"}
+        clientePreseteado={clientePreseteado}
         mesa={{ id: 0, nombre: "Domicilio" }}
         menu={menu}
         extras={extras.map((p) => ({

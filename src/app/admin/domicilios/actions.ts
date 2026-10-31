@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { claveDia } from "@/lib/format";
+import { claveDia, formatCOP } from "@/lib/format";
 import { minutosDeHora } from "@/lib/hora";
 import {
   crearPedido,
@@ -12,7 +12,13 @@ import {
   type CargaPedido,
   type LineaAlmuerzo,
 } from "@/lib/pedido";
-import { ESTADO_DOMICILIO, ESTADO_PEDIDO } from "@/lib/roles";
+import { precioUnitarioItem } from "@/lib/precios";
+import {
+  ES_METODO_PAGO,
+  ESTADO_DOMICILIO,
+  ESTADO_PEDIDO,
+  ESTADOS_ACTIVOS_DOMICILIO,
+} from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
@@ -20,8 +26,8 @@ export type EstadoAccionDomicilio = { error: string | null; ok: string | null };
 
 function revalidarDomicilios() {
   revalidatePath("/admin", "layout");
+  revalidatePath("/admin/caja", "layout");
   revalidatePath("/ordenes", "layout");
-  revalidatePath("/domicilios", "layout");
   realtime.broadcast("update");
 }
 
@@ -582,4 +588,186 @@ export async function reintentarDomicilio(
 
   revalidarDomicilios();
   return { error: null, ok: "Reintento listo: queda por salir con el mismo domiciliario." };
+}
+
+class ErrorDeCobroDomicilio extends Error {}
+
+/**
+ * El domiciliario llegó con la plata y el admin la recibe: marca la entrega
+ * por él (domicilio → ENTREGADO + hora) y deja la comanda POR_PAGAR para que
+ * salga en la columna «Entregados» a la espera del cobro. No registra el
+ * pago (eso es el botón «Cobrar»).
+ */
+export async function marcarEntregadoAdmin(
+  _previa: EstadoAccionDomicilio,
+  datos: FormData,
+): Promise<EstadoAccionDomicilio> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador puede marcar entregas.", ok: null };
+  }
+
+  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
+  if (!Number.isInteger(domicilioId)) {
+    return { error: "Domicilio inválido.", ok: null };
+  }
+
+  const domicilio = await db.domicilio.findUnique({
+    where: { id: domicilioId },
+    select: { estado: true, pedidoId: true },
+  });
+  if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
+  if (!(ESTADOS_ACTIVOS_DOMICILIO as string[]).includes(domicilio.estado)) {
+    return { error: "Ese domicilio ya no está en curso.", ok: null };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.domicilio.update({
+      where: { id: domicilioId },
+      data: {
+        estado: ESTADO_DOMICILIO.ENTREGADO,
+        entregadoAt: new Date(),
+      },
+    });
+    // La comanda queda POR_PAGAR (sigue activa): el dinero falta hasta el cobro
+    await tx.pedido.update({
+      where: { id: domicilio.pedidoId },
+      data: { estado: ESTADO_PEDIDO.POR_PAGAR },
+    });
+  });
+
+  revalidarDomicilios();
+  return { error: null, ok: "Entregado: queda pendiente por cobrar." };
+}
+
+/**
+ * Cobro del domicilio desde el tablero: aquí aparece la factura (la página
+ * /admin/domicilios/cobrar/[id]) y al confirmar se registra el pago con el
+ * monto con el que pagó el cliente y sus vueltas (solo efectivo), la comanda
+ * pasa a COBRADO y el sistema manda al recibo imprimible de la caja.
+ */
+export async function cobrarDomicilio(
+  _previa: EstadoAccionDomicilio,
+  datos: FormData,
+): Promise<EstadoAccionDomicilio> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador puede cobrar en la caja.", ok: null };
+  }
+
+  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
+  if (!Number.isInteger(domicilioId)) {
+    return { error: "Domicilio inválido.", ok: null };
+  }
+
+  const metodo = String(datos.get("metodo") ?? "");
+  if (!ES_METODO_PAGO(metodo)) {
+    return { error: "Elige un método de pago válido.", ok: null };
+  }
+
+  const propina = Number.parseInt(
+    String(datos.get("propina") ?? "").replace(/[^0-9]/g, "") || "0",
+    10,
+  );
+  if (!Number.isInteger(propina) || propina < 0 || propina > 1_000_000) {
+    return { error: "La propina ingresada no es válida.", ok: null };
+  }
+
+  // "¿Con cuánto paga?" — solo tiene sentido en efectivo; tarjeta y
+  // transferencia se cobran al centavo (exacto, sin vueltas).
+  const crudoPagado = String(datos.get("montoPagado") ?? "").replace(/[^0-9]/g, "");
+
+  let nuevoPagoId: number;
+  try {
+    nuevoPagoId = await db.$transaction(async (tx) => {
+      const domicilio = await tx.domicilio.findUnique({
+        where: { id: domicilioId },
+        select: {
+          estado: true,
+          cobradoMonto: true,
+          pedidoId: true,
+          pedido: {
+            select: {
+              estado: true,
+              items: {
+                include: { producto: { select: { precio: true } } },
+              },
+            },
+          },
+        },
+      });
+      if (!domicilio) throw new ErrorDeCobroDomicilio("Ese domicilio ya no existe.");
+      if (domicilio.estado !== ESTADO_DOMICILIO.ENTREGADO) {
+        throw new ErrorDeCobroDomicilio(
+          "Solo se cobran los domicilios ya entregados.",
+        );
+      }
+      if (domicilio.cobradoMonto !== null) {
+        throw new ErrorDeCobroDomicilio("Ese domicilio ya está cobrado.");
+      }
+      if (domicilio.pedido.estado === ESTADO_PEDIDO.CANCELADO) {
+        throw new ErrorDeCobroDomicilio("Ese pedido está cancelado.");
+      }
+
+      // El total de la factura usa el precio fijado al ordenar, igual que caja
+      const total = domicilio.pedido.items.reduce(
+        (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
+        0,
+      );
+      const aCobrar = total + propina;
+
+      let montoPagado: number | null = null;
+      let vueltas: number | null = null;
+      if (metodo === "EFECTIVO" && crudoPagado !== "") {
+        montoPagado = Number.parseInt(crudoPagado, 10);
+        if (!Number.isInteger(montoPagado) || montoPagado <= 0) {
+          throw new ErrorDeCobroDomicilio("El monto recibido no es válido.");
+        }
+        if (montoPagado < aCobrar) {
+          throw new ErrorDeCobroDomicilio(
+            `No alcanza: el cliente entregó ${formatCOP(montoPagado)} y la cuenta es ${formatCOP(aCobrar)}.`,
+          );
+        }
+        vueltas = montoPagado - aCobrar;
+      }
+
+      const pago = await tx.pago.create({
+        data: {
+          pedidoId: domicilio.pedidoId,
+          total,
+          propina,
+          metodo,
+          montoPagado,
+          vueltas,
+        },
+      });
+
+      await tx.pedido.update({
+        where: { id: domicilio.pedidoId },
+        data: { estado: ESTADO_PEDIDO.COBRADO },
+      });
+      // Igual que la app del domiciliario: el monto cobrado queda en el
+      // domicilio para el tablero y los reportes
+      await tx.domicilio.update({
+        where: { id: domicilioId },
+        data: { cobradoMonto: total, cobradoMetodo: metodo },
+      });
+
+      return pago.id;
+    });
+  } catch (e) {
+    if (e instanceof ErrorDeCobroDomicilio) {
+      return { error: e.message, ok: null };
+    }
+    return {
+      error: "No se pudo registrar el cobro. Intenta otra vez.",
+      ok: null,
+    };
+  }
+
+  revalidarDomicilios();
+  // La factura queda en el recibo imprimible de la caja
+  redirect(`/admin/caja/recibo/${nuevoPagoId}`);
 }

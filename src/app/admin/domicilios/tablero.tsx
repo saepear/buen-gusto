@@ -2,7 +2,9 @@
 
 import {
   Bike,
+  Banknote,
   Check,
+  CheckCircle2,
   Clock,
   MapPin,
   Navigation,
@@ -19,6 +21,8 @@ import { ESTADO_DOMICILIO, ESTADO_DOMICILIO_LABEL } from "@/lib/roles";
 import {
   asignarDomiciliario,
   cancelarDomicilio,
+  cobrarDomicilio,
+  marcarEntregadoAdmin,
   marcarListaDomicilio,
   reintentarDomicilio,
   type EstadoAccionDomicilio,
@@ -47,6 +51,8 @@ export type DomicilioVista = {
   domiciliarioId: number | null;
   cobradoMonto: number | null;
   cobradoMetodo: string | null;
+  /** Hora de la entrega (cuando el admin marcó «Entregado») */
+  entregadoEn: string | null;
   creadoEn: string;
   /** epoch de creación, para ordenar la cola por llegada (FIFO) */
   ordenTs: number;
@@ -110,10 +116,23 @@ function TarjetaDomicilio({
     EstadoAccionDomicilio,
     FormData
   >(reintentarDomicilio, INICIAL);
+  const [entEstado, entAccion, entPendiente] = useActionState<
+    EstadoAccionDomicilio,
+    FormData
+  >(marcarEntregadoAdmin, INICIAL);
+  const [cobEstado, cobAccion, cobPendiente] = useActionState<
+    EstadoAccionDomicilio,
+    FormData
+  >(cobrarDomicilio, INICIAL);
 
   const estado = domicilio.estado;
   const abierto =
     estado === ESTADO_DOMICILIO.PENDIENTE || estado === ESTADO_DOMICILIO.ASIGNADO;
+  // El toast «Entregado» aplica mientras el domicilio siga en curso
+  const enCurso =
+    estado === ESTADO_DOMICILIO.PENDIENTE ||
+    estado === ESTADO_DOMICILIO.ASIGNADO ||
+    estado === ESTADO_DOMICILIO.EN_CAMINO;
   const repartidor =
     repartidores.find((r) => r.id === domicilio.domiciliarioId)?.nombre ?? null;
   // La comanda todavía no pasó por "lista": hay que marcarla antes de salir
@@ -152,7 +171,7 @@ function TarjetaDomicilio({
         <p className="flex items-start gap-2">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-texto-muted/35" />
           <span>
-            {domicilio.direccion}
+            {domicilio.direccion || "Sin dirección registrada"}
             {domicilio.barrio ? ` · ${domicilio.barrio}` : ""}
             {domicilio.referencia ? (
               <span className="text-texto-muted/45"> ({domicilio.referencia})</span>
@@ -161,12 +180,16 @@ function TarjetaDomicilio({
         </p>
         <p className="flex items-center gap-2">
           <Phone className="h-4 w-4 shrink-0 text-texto-muted/35" />
-          <a
-            href={`tel:${domicilio.telefono}`}
-            className="font-bold text-texto-app transition hover:text-amber-brand"
-          >
-            {domicilio.telefono}
-          </a>
+          {domicilio.telefono ? (
+            <a
+              href={`tel:${domicilio.telefono}`}
+              className="font-bold text-texto-app transition hover:text-amber-brand"
+            >
+              {domicilio.telefono}
+            </a>
+          ) : (
+            <span className="italic text-texto-muted/45">Sin teléfono</span>
+          )}
         </p>
         <p className="flex items-center gap-2">
           <Bike className="h-4 w-4 shrink-0 text-texto-muted/35" />
@@ -200,15 +223,46 @@ function TarjetaDomicilio({
         </>
       ) : null}
 
-      <Link
-        href={`/ordenes/comanda/${domicilio.pedidoId}`}
-        target="_blank"
-        className="mt-2.5 inline-flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
-        title="Comanda para la cocina / el empaque"
-      >
-        <Printer className="h-3.5 w-3.5" />
-        Comanda
-      </Link>
+      {/* El domiciliario llegó con la plata: el admin la recibe y el pedido
+          queda a la espera del cobro en la columna «Entregados» */}
+      {enCurso ? (
+        <>
+          <form action={entAccion} className="mt-2.5">
+            <input type="hidden" name="domicilioId" value={domicilio.id} />
+            <button
+              type="submit"
+              disabled={entPendiente}
+              className={
+                "flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold transition active:scale-[0.98] disabled:opacity-50 " +
+                (estado === ESTADO_DOMICILIO.EN_CAMINO
+                  ? "bg-success/15 text-success-text ring-1 ring-success/30 hover:bg-success/25"
+                  : "bg-panel-app text-success-text ring-1 ring-success/30 hover:bg-success/15")
+              }
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {entPendiente ? "Marcando…" : "Entregado"}
+            </button>
+          </form>
+          <Aviso estado={entEstado} />
+        </>
+      ) : null}
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <Link
+          href={`/ordenes/comanda/${domicilio.pedidoId}`}
+          target="_blank"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
+          title="Comanda para la cocina / el empaque"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Comanda
+        </Link>
+        {estado === ESTADO_DOMICILIO.ENTREGADO && domicilio.entregadoEn ? (
+          <span className="text-xs font-bold text-texto-muted/50">
+            Entregado a las {domicilio.entregadoEn}
+          </span>
+        ) : null}
+      </div>
       {domicilio.observaciones ? (
         <p className="mt-2 flex items-start gap-2 text-xs text-texto-muted/60">
           <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -217,21 +271,47 @@ function TarjetaDomicilio({
       ) : null}
 
       {estado === ESTADO_DOMICILIO.ENTREGADO ? (
-        <p className="mt-3 flex items-center justify-between rounded-xl bg-success/10 px-3 py-2 text-sm ring-1 ring-success/20">
-          <span className="font-bold text-success-text">Cobrado</span>
-          <span className="flex items-center gap-2">
-            {domicilio.cobradoMetodo ? (
-              <span className="text-xs font-bold text-success-text/70">
-                {CHIP_METODO[domicilio.cobradoMetodo] ?? domicilio.cobradoMetodo}
+        domicilio.cobradoMonto === null ? (
+          // El dinero sigue allá afuera: el admin abre aquí la factura
+          <form action={cobAccion} className="mt-3">
+            <input type="hidden" name="domicilioId" value={domicilio.id} />
+            <p className="flex items-center justify-between rounded-xl bg-warning/10 px-3 pt-2.5 text-sm ring-1 ring-warning/20">
+              <span className="font-bold text-warning-text">Pendiente por cobrar</span>
+              <span className="font-display text-lg text-warning-text">
+                {formatCOP(domicilio.total)}
               </span>
-            ) : null}
-            <span className="font-display text-lg text-success-text">
-              {domicilio.cobradoMonto !== null
-                ? formatCOP(domicilio.cobradoMonto)
-                : formatCOP(domicilio.total)}
+            </p>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={cobPendiente}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-brand px-3.5 py-2.5 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
+                title="Abrir la factura, cobrar y mandar al recibo"
+              >
+                <Banknote className="h-4 w-4" />
+                {cobPendiente ? "Cobrando…" : "Cobrar"}
+              </button>
+              <span className="text-[11px] leading-tight text-texto-muted/50">
+                Factura → pago → recibo
+              </span>
+            </div>
+            <Aviso estado={cobEstado} />
+          </form>
+        ) : (
+          <p className="mt-3 flex items-center justify-between rounded-xl bg-success/10 px-3 py-2 text-sm ring-1 ring-success/20">
+            <span className="font-bold text-success-text">Cobrado</span>
+            <span className="flex items-center gap-2">
+              {domicilio.cobradoMetodo ? (
+                <span className="text-xs font-bold text-success-text/70">
+                  {CHIP_METODO[domicilio.cobradoMetodo] ?? domicilio.cobradoMetodo}
+                </span>
+              ) : null}
+              <span className="font-display text-lg text-success-text">
+                {formatCOP(domicilio.cobradoMonto)}
+              </span>
             </span>
-          </span>
-        </p>
+          </p>
+        )
       ) : null}
 
       {estado === ESTADO_DOMICILIO.NO_ENTREGADO && domicilio.notaEntrega ? (
@@ -355,11 +435,15 @@ function Grupo({
 export function TableroDomicilios({
   porAsignar,
   enReparto,
+  entregados,
   cerrados,
   repartidores,
 }: {
   porAsignar: DomicilioVista[];
   enReparto: DomicilioVista[];
+  /** Entregados del día: esperan el cobro o ya quedaron cobrados */
+  entregados: DomicilioVista[];
+  /** No entregados y cancelados: la cola de excepciones del día */
   cerrados: DomicilioVista[];
   repartidores: Repartidor[];
 }) {
@@ -389,11 +473,18 @@ export function TableroDomicilios({
         vacio="Nadie está en la calle ahora mismo."
       />
       <Grupo
-        titulo="Cerrados hoy"
+        titulo="Entregados"
+        Icono={CheckCircle2}
+        domicilios={entregados}
+        repartidores={repartidores}
+        vacio="Ninguna entrega recibida hoy todavía."
+      />
+      <Grupo
+        titulo="Cerrados"
         Icono={Bike}
         domicilios={cerrados}
         repartidores={repartidores}
-        vacio="Aún no se ha cerrado ningún domicilio hoy."
+        vacio="Sin excepciones hoy (no entregados ni cancelados)."
       />
     </div>
   );
