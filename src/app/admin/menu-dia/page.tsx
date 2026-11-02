@@ -10,8 +10,10 @@ import {
 } from "lucide-react";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
+import { getCategoriasPersonalizadas } from "@/lib/config";
+import { iconoDeCategoria } from "@/lib/iconos";
 import { claveDia, formatFecha } from "@/lib/format";
-import { TIPOS_MENU_DIA, type TipoProducto } from "@/lib/roles";
+import { TIPOS_MENU_DIA } from "@/lib/roles";
 import {
   agregarAlMenu,
   crearMenuHoy,
@@ -73,10 +75,32 @@ export default async function PaginaMenuDia() {
   }
 
   const productoIncluidos = new Set(menu.items.map((i) => i.productoId));
+  const categorias = await getCategoriasPersonalizadas();
   const catalogo = await db.producto.findMany({
-    where: { activo: true, tipo: { in: TIPOS_MENU_DIA } },
+    where: {
+      activo: true,
+      // Las secciones de hoy: los 4 tipos fijos + las categorías propias
+      tipo: { in: [...TIPOS_MENU_DIA, ...categorias.map((c) => c.nombre)] },
+    },
     orderBy: { nombre: "asc" },
   });
+
+  // Cada sección del editor: los 4 tipos fijos del almuerzo y después las
+  // categorías propias con su icono
+  const secciones = [
+    ...TIPOS_MENU_DIA.map((t) => ({
+      clave: t,
+      titulo: TITULO[t] ?? t,
+      Icono: ICONO[t] ?? Wheat,
+      propia: false,
+    })),
+    ...categorias.map((c) => ({
+      clave: c.nombre,
+      titulo: c.nombre,
+      Icono: iconoDeCategoria(c.icono),
+      propia: true,
+    })),
+  ];
 
   return (
     <>
@@ -93,13 +117,18 @@ export default async function PaginaMenuDia() {
           Las porciones se agotan solo cuando le pones un límite
           <IconoInfinito className="ml-1 inline h-3.5 w-3.5" />
         </span>
+        <span className="text-sm text-texto-muted/45">
+          Un «precio especial» en la proteína — los asados del domingo — hace
+          que por ese día el plato se cobre con ese precio
+        </span>
       </div>
 
       {/* Dos columnas vivas (2×2): en pantallas 2xl a zoom 100% el salto a
           4 columnas dejaba cada tarjeta de ~250px y el contenido se pegaba. */}
       <div className="grid gap-6 xl:gap-7 md:grid-cols-2">
-        {TIPOS_MENU_DIA.map((tipo: TipoProducto) => {
-          const Icono = ICONO[tipo];
+        {secciones.map((seccion) => {
+          const tipo = seccion.clave;
+          const { Icono } = seccion;
           const delTipo = menu.items
             .filter((i) => i.producto.tipo === tipo)
             .sort((a, b) => a.producto.nombre.localeCompare(b.producto.nombre));
@@ -116,12 +145,12 @@ export default async function PaginaMenuDia() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
                 </span>
-                {TITULO[tipo]}
+                {seccion.titulo}
               </h2>
 
               {delTipo.length === 0 ? (
                 <p className="mb-4 rounded-xl border-2 border-dashed border-borde-app p-3 text-center text-sm text-texto-muted/45">
-                  Todavía no hay {TITULO[tipo].toLowerCase()} en el menú.
+                  Todavía no hay {seccion.titulo.toLowerCase()} en el menú.
                 </p>
               ) : (
                 <ul className="space-y-3.5">

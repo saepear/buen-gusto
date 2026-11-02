@@ -2,12 +2,15 @@ import { ArrowLeft, LogOut } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { cerrarSesion } from "@/app/login/actions";
+import { temaDelDispositivo } from "@/lib/config";
+import { SelectorTemaDispositivo } from "@/components/selector-tema";
 
 /**
  * Encabezado táctil del mesero: barra oscura con esquinas suaves.
  * Con `volver` muestra una píldora de regreso y el título al centro.
+ * Trae el selector de modo claro/oscuro: cada teléfono elige el suyo.
  */
-export function EncabezadoMesero({
+export async function EncabezadoMesero({
   usuario,
   titulo,
   volver,
@@ -23,6 +26,8 @@ export function EncabezadoMesero({
   /** A dónde lleva el logo cuando no hay botón de regreso */
   hrefInicio?: string;
 }) {
+  const tema = await temaDelDispositivo();
+
   return (
     <header className="sticky top-0 z-30 rounded-b-[1.75rem] border-b border-borde-app/50 bg-fondo-app/80 px-4 pb-3.5 cabeza-seguro shadow-flotante backdrop-blur-xl">
       <div className="mx-auto flex max-w-lg sm:max-w-2xl items-center justify-between gap-3">
@@ -58,18 +63,20 @@ export function EncabezadoMesero({
           <span className="flex-1" />
         )}
 
-        <form action={cerrarSesion}>
-          <button
-            type="submit"
-            title="Cerrar sesión"
-            aria-label="Cerrar sesión"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-app ring-1 ring-borde-app text-texto-app transition hover:bg-danger"
-          >
-            <LogOut aria-hidden className="h-4 w-4" />
-          </button>
-        </form>
+        <div className="flex shrink-0 items-center gap-2">
+          <SelectorTemaDispositivo temaActual={tema} />
+          <form action={cerrarSesion}>
+            <button
+              type="submit"
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-app ring-1 ring-borde-app text-texto-app transition hover:bg-danger"
+            >
+              <LogOut aria-hidden className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
       </div>
     </header>
   );
 }
-

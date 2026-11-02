@@ -58,7 +58,12 @@ export function SelectorTema({ temaActual }: { temaActual: Theme }) {
       </div>
       {estado.error ? (
         <p className="text-xs font-bold text-danger-text">{estado.error}</p>
-      ) : null}
+      ) : (
+        <p className="text-[10px] leading-snug text-texto-muted/45">
+          Es el modo por defecto de todo el sistema; cada teléfono o
+          pantalla puede elegir el suyo desde su cabecera.
+        </p>
+      )}
     </div>
   );
 }

@@ -38,21 +38,24 @@ export const TIPOS_MENU_DIA: TipoProducto[] = ["PROTEINA", "PRINCIPIO", "ENSALAD
 
 /**
  * Orden de lectura de la comanda: primero el principio, encima la proteína,
- * luego la ensalada (si la hay) y de última la sopa (si la hay); después
- * siguen los adicionales y las bebidas. Empates dentro del grupo quedan en
- * el orden en que se pidieron.
+ * luego la ensalada (si la hay) y de última la sopa (si la hay); tras la sopa
+ * vienen las categorías propias (5, orden por defecto para tipos no fijos) y
+ * después siguen los adicionales y las bebidas. Empates dentro del grupo
+ * quedan en el orden en que se pidieron.
  */
 export const ORDEN_IMPRIMIR: Record<TipoProducto, number> = {
   PRINCIPIO: 1,
   PROTEINA: 2,
   ENSALADA: 3,
   SOPA: 4,
-  ADICIONAL: 5,
-  BEBIDA: 6,
+  ADICIONAL: 6,
+  BEBIDA: 7,
 };
 
 export function ordenDeItem(tipo: string): number {
-  return (ORDEN_IMPRIMIR as Record<string, number | undefined>)[tipo] ?? 99;
+  // 5: las categorías propias del cliente entran al almuerzo y se leen
+  // justo después de la sopa, antes que bebidas y adicionales
+  return (ORDEN_IMPRIMIR as Record<string, number | undefined>)[tipo] ?? 5;
 }
 
 export const ESTADO_MESA = {

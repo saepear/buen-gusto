@@ -2,6 +2,7 @@ import { ArrowLeft, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { getCategoriasPersonalizadas } from "@/lib/config";
 import { menuDeHoy } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
 import { EncabezadoMesero } from "../../../encabezado";
@@ -22,12 +23,14 @@ export default async function PaginaNuevoPedido(
   });
   if (!mesa) notFound();
 
-  const [menu, extras] = await Promise.all([
+  const [menu, extras, categorias] = await Promise.all([
     menuDeHoy(),
     db.producto.findMany({
       where: { activo: true, tipo: { in: ["BEBIDA", "ADICIONAL"] } },
       orderBy: { nombre: "asc" },
     }),
+    // Las categorías propias del cliente vienen al constructor del plato
+    getCategoriasPersonalizadas(),
   ]);
 
   const volver = `/mesero/mesa/${mesa.id}`;
@@ -79,6 +82,7 @@ export default async function PaginaNuevoPedido(
           tipo: p.tipo,
           precio: p.precio,
         }))}
+        categorias={categorias}
       />
     </div>
   );

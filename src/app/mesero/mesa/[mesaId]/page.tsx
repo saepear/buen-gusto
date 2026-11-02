@@ -6,6 +6,7 @@ import {
   Drumstick,
   MessageSquareText,
   Plus,
+  Printer,
   Salad,
   ShoppingBag,
   Soup,
@@ -30,8 +31,8 @@ export const metadata = { title: "Mesa · El Buen Gusto" };
 
 const CHIP_ESTADO: Record<string, string> = {
   ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
-  PARCIAL_SERVIDO: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
+  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
+  PARCIAL_SERVIDO: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
   SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
   POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
@@ -56,9 +57,9 @@ const ICONO_TIPO: Record<string, LucideIcon> = {
 const CLASE_TIPO: Record<string, string> = {
   PROTEINA: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
   PRINCIPIO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  ENSALADA: "bg-[#4ec27e]/10 text-[#8fdcae] ring-1 ring-[#4ec27e]/20",
-  SOPA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
-  BEBIDA: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  ENSALADA: "bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20",
+  SOPA: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
+  BEBIDA: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
   ADICIONAL: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
 };
 
@@ -262,6 +263,14 @@ export default async function PaginaMesa(
                     <User aria-hidden className="h-3 w-3" />
                     {pedido.mesero?.nombre ?? "—"}
                   </p>
+                  <Link
+                    href={`/ordenes/comanda/${pedido.id}?reprint=1&volver=/mesero/mesa/${mesa.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-panel-app px-2.5 py-1.5 text-[11px] font-bold text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
+                    title="Volver a imprimir la comanda si el papel se perdió o salió por accidente"
+                  >
+                    <Printer aria-hidden className="h-3.5 w-3.5" />
+                    Reimprimir
+                  </Link>
                 </div>
               </article>
             );

@@ -68,6 +68,14 @@ export default async function PaginaDomicilios() {
       ordenTs: d.createdAt.getTime(),
       total,
       resumen,
+      items: d.pedido.items.map((i) => ({
+        id: i.id,
+        cantidad: i.cantidad,
+        grupo: i.grupo,
+        tipo: i.tipo,
+        nota: i.nota,
+        producto: { nombre: i.producto.nombre },
+      })),
     };
   });
 

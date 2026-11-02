@@ -59,7 +59,7 @@ export default async function PaginaComanda(
       : pedido.mesa.nombre;
 
   return (
-    <div className="min-h-screen bg-[#150d08] py-8">
+    <div className="min-h-screen bg-fondo-app py-8">
       <div className="mx-auto w-full max-w-[340px] bg-white px-8 py-10 font-mono text-[14px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
         <div className="text-center">
           <p className="text-3xl font-black uppercase tracking-tighter">

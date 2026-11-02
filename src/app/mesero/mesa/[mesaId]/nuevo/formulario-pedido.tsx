@@ -25,6 +25,8 @@ import {
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { formatCOP } from "@/lib/format";
 import { PRECIO_ICOPOR, precioAlmuerzo } from "@/lib/precios";
+import type { CategoriaPropia } from "@/lib/config";
+import { iconoDeCategoria } from "@/lib/iconos";
 import type { ItemMenuHoy } from "@/lib/pedido";
 import { tomarPedido } from "@/app/mesero/actions";
 
@@ -69,11 +71,29 @@ type LineaPlato = {
   proteinaId: number;
   principios: number[];
   ensaladas: number[];
+  /** Productos de las categorías propias del cliente que van en el plato */
+  propios: number[];
   sopaId: number | null;
   cantidad: number;
 };
 
 const ordenarNumeros = (lista: number[]) => [...lista].sort((x, y) => x - y);
+
+/** Tintes en el orden del solar: cada categoría propia revive un color
+    propio y estático calculado de su nombre */
+const TINTES_CATEGORIA = [
+  "bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20",
+  "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
+  "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
+  "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
+  "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
+];
+const claseDeCategoria = (nombre: string) => {
+  let suma = 0;
+  for (let i = 0; i < nombre.length; i++)
+    suma = (suma * 31 + nombre.charCodeAt(i)) >>> 0;
+  return TINTES_CATEGORIA[suma % TINTES_CATEGORIA.length];
+};
 
 /** ¿Dos selecciones son el mismo plato? (para fusionar en una línea) */
 const mismoSet = (a: number[], b: number[]) => {
@@ -187,6 +207,7 @@ export function FormularioPedido({
   mesa,
   menu,
   extras,
+  categorias = [],
   modo = "mesa",
   accion: accionPedido = tomarPedido,
   clientePreseteado = null,
@@ -194,6 +215,8 @@ export function FormularioPedido({
   mesa: { id: number; nombre: string };
   menu: ItemMenuHoy[];
   extras: Extra[];
+  /** Categorías propias del cliente (además de bebidas y adicionales) */
+  categorias?: CategoriaPropia[];
   /** "domicilio": siempre para llevar y pide los datos del cliente */
   modo?: "mesa" | "domicilio";
   /** Acción de servidor que guarda el pedido (por defecto, la del mesero) */
@@ -213,6 +236,7 @@ export function FormularioPedido({
   const [proteina, setProteina] = useState<number | null>(null);
   const [principios, setPrincipios] = useState<number[]>([]);
   const [ensaladas, setEnsaladas] = useState<number[]>([]);
+  const [propios, setPropios] = useState<number[]>([]);
   const [sopa, setSopa] = useState<number | null>(null);
   const [cantidadPlato, setCantidadPlato] = useState(1);
 
@@ -255,8 +279,35 @@ export function FormularioPedido({
   const principiosMenu = menu.filter((m) => m.tipo === "PRINCIPIO");
   const ensaladasMenu = menu.filter((m) => m.tipo === "ENSALADA");
   const sopasMenu = menu.filter((m) => m.tipo === "SOPA");
-  const bebidas = extras.filter((e) => e.tipo === "BEBIDA");
-  const adicionales = extras.filter((e) => e.tipo === "ADICIONAL");
+
+  /** Secciones de extras fijas de la casa (las categorías propias NO son
+      extras: viajan en el plato, con su sección después de la sopa). */
+  const seccionesExtra = [
+    {
+      tipo: "BEBIDA",
+      titulo: "Bebidas",
+      sub: "Comparten las mesas del pedido · sumadas al total",
+      Icono: CupSoda as LucideIcon,
+      clase: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
+      items: extras.filter((e) => e.tipo === "BEBIDA"),
+    },
+    {
+      tipo: "ADICIONAL",
+      titulo: "Adicionales",
+      sub: "Huevo, carne extra, los que pidan",
+      Icono: Star as LucideIcon,
+      clase: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
+      items: extras.filter((e) => e.tipo === "ADICIONAL"),
+    },
+  ];
+
+  /** Secciones del plato para las categorías propias del cliente */
+  const seccionesPropias = categorias.map((c) => ({
+    tipo: c.nombre,
+    Icono: iconoDeCategoria(c.icono),
+    clase: claseDeCategoria(c.nombre),
+    items: menu.filter((m) => m.tipo === c.nombre),
+  })).filter((s) => s.items.length > 0);
 
   const porItemId = new Map(menu.map((m) => [m.itemId, m]));
   const porProductoId = new Map(extras.map((e) => [e.id, e]));
@@ -267,7 +318,24 @@ export function FormularioPedido({
     (suma, [id, n]) => suma + (porProductoId.get(Number(id))?.precio ?? 0) * n,
     0,
   );
-  const precioLinea = (l: LineaPlato) => precioAlmuerzo(l.conSopa, estaParaLlevar);
+  /** Precio del plato: la proteína con precio especial del día (los
+   *  especiales del domingo: asados, gallinas, pescados) manda sobre el
+   *  almuerzo corriente; llevar solo le suma el icopor. */
+  const precioLinea = (l: LineaPlato) => {
+    const propio = porItemId.get(l.proteinaId)?.precioPropio ?? 0;
+    if (propio > 0) return propio + (estaParaLlevar ? PRECIO_ICOPOR : 0);
+    return precioAlmuerzo(l.conSopa, estaParaLlevar);
+  };
+  // Precio del plato en construcción: si ya se escogió una proteína con
+  // precio especial, ese es el que se muestra en los subtítulos de
+  // sopa/bandeja en lugar del del almuerzo corriente.
+  const precioPlatoEnProceso =
+    proteina !== null && (porItemId.get(proteina)?.precioPropio ?? 0) > 0
+      ? (porItemId.get(proteina)?.precioPropio ?? 0) + (estaParaLlevar ? PRECIO_ICOPOR : 0)
+      : null;
+  // ¿Hoy hay alguna proteína con precio especial? Con ella en el menú no
+  // tiene sentido presumir los $ de la semana corriente en sopa/bandeja.
+  const hayEspecialHoy = proteinasMenu.some((m) => m.precioPropio > 0);
   const totalPlatos = lineas.reduce((suma, l) => suma + l.cantidad, 0);
   const totalComanda =
     lineas.reduce((suma, l) => suma + precioLinea(l) * l.cantidad, 0) + totalExtras;
@@ -282,6 +350,9 @@ export function FormularioPedido({
   const nombresEnsaladas = ensaladas
     .map((id) => porItemId.get(id)?.nombre ?? "")
     .filter(Boolean);
+  const nombresPropios = propios
+    .map((id) => porItemId.get(id)?.nombre ?? "")
+    .filter(Boolean);
 
   /** Resumen del plato en construcción, para la barra de abajo */
   const resumenPlato =
@@ -294,8 +365,8 @@ export function FormularioPedido({
               : " · sopa del día"
             : ""
         }${
-          nombresPrincipios.length || nombresEnsaladas.length
-            ? ` · ${[...nombresPrincipios, ...nombresEnsaladas].join(", ")}`
+          nombresPrincipios.length || nombresEnsaladas.length || nombresPropios.length
+            ? ` · ${[...nombresPrincipios, ...nombresEnsaladas, ...nombresPropios].join(", ")}`
             : ""
         }`;
 
@@ -306,6 +377,7 @@ export function FormularioPedido({
       proteinaId: l.proteinaId,
       principios: l.principios,
       ensaladas: l.ensaladas,
+      propios: l.propios,
       sopaId: l.sopaId,
       cantidad: l.cantidad,
     })),
@@ -316,11 +388,12 @@ export function FormularioPedido({
     llevar: estaParaLlevar,
   });
 
-  /** Lo que acompañó al plato (principios, ensaladas y sopa) */
+  /** Lo que acompañó al plato (principios, ensaladas, propios y sopa) */
   const porcionesDe = (l: LineaPlato) => {
     const nombres = [
       ...l.principios.map((id) => porItemId.get(id)?.nombre ?? "").filter(Boolean),
       ...l.ensaladas.map((id) => porItemId.get(id)?.nombre ?? "").filter(Boolean),
+      ...l.propios.map((id) => porItemId.get(id)?.nombre ?? "").filter(Boolean),
     ];
     if (l.conSopa) {
       nombres.push(
@@ -339,6 +412,7 @@ export function FormularioPedido({
         proteinaId: proteina,
         principios,
         ensaladas,
+        propios,
         sopaId: conSopa ? sopa : null,
         cantidad: cantidadPlato,
       };
@@ -349,7 +423,8 @@ export function FormularioPedido({
           l.proteinaId === nueva.proteinaId &&
           (l.sopaId ?? null) === (nueva.sopaId ?? null) &&
           mismoSet(l.principios, nueva.principios) &&
-          mismoSet(l.ensaladas, nueva.ensaladas),
+          mismoSet(l.ensaladas, nueva.ensaladas) &&
+          mismoSet(l.propios ?? [], nueva.propios),
       );
       if (index >= 0) {
         const copia = [...previas];
@@ -361,6 +436,7 @@ export function FormularioPedido({
     setProteina(null);
     setPrincipios([]);
     setEnsaladas([]);
+    setPropios([]);
     setSopa(null);
     setCantidadPlato(1);
   };
@@ -385,6 +461,7 @@ export function FormularioPedido({
   const vaciarComanda = () => {
     setLineas([]);
     setCantidades({});
+    setPropios([]);
   };
 
   const aceptarPrincipio = (itemId: number) => {
@@ -394,6 +471,11 @@ export function FormularioPedido({
   };
   const aceptarEnsalada = (itemId: number) => {
     setEnsaladas((prev) =>
+      prev.includes(itemId) ? prev.filter((p) => p !== itemId) : [...prev, itemId],
+    );
+  };
+  const aceptarPropio = (itemId: number) => {
+    setPropios((prev) =>
       prev.includes(itemId) ? prev.filter((p) => p !== itemId) : [...prev, itemId],
     );
   };
@@ -411,10 +493,14 @@ export function FormularioPedido({
     item,
     elegido,
     onClick,
+    precioVisible = false,
   }: {
     item: ItemMenuHoy;
     elegido: boolean;
     onClick: () => void;
+    /** true solo en la sección de proteína: cuando el ítem trae precio
+     *  especial de HOY (domingo), la ficha muestra cuánto cobra */
+    precioVisible?: boolean;
   }) => {
     const agotado = item.disponibles === 0;
     const Icono = ICONO_TIPO[item.tipo] ?? UtensilsCrossed;
@@ -466,11 +552,14 @@ export function FormularioPedido({
                       : "text-texto-muted/35")
             }
           >
-            {agotado
-              ? "Agotado"
-              : item.disponibles === null
-                ? "Ilimitado"
-                : `Quedan ${item.disponibles}`}
+            {(precioVisible && item.precioPropio > 0
+              ? `${formatCOP(item.precioPropio)} · `
+              : "") +
+              (agotado
+                ? "Agotado"
+                : item.disponibles === null
+                  ? "Ilimitado"
+                  : `Quedan ${item.disponibles}`)}
           </span>
         </span>
       </button>
@@ -547,7 +636,9 @@ export function FormularioPedido({
           <p className="font-display text-lg leading-none text-texto-app">Comanda</p>
           <p aria-live="polite" className="mt-1 text-[11px] text-texto-muted/45">
             {totalPlatos === 0
-              ? "Vacía · toca la proteína para armar el plato"
+              ? totalExtras > 0
+                ? `Sin almuerzo · ${totalExtras} ${totalExtras === 1 ? "extra" : "extras"} en la comanda`
+                : "Vacía · toca la proteína para armar el plato"
               : `${totalPlatos} ${totalPlatos === 1 ? "plato" : "platos"} en la comanda`}
           </p>
         </div>
@@ -681,8 +772,9 @@ export function FormularioPedido({
 
       {totalPlatos === 0 && totalExtras === 0 ? (
         <p className="mt-3 rounded-2xl bg-campo-app px-3.5 py-3 text-sm text-texto-muted/45">
-          Aún no hay platos: elige con sopa o bandeja, la proteína y añade a la
-          comanda.
+          Vacía: basta una sola cosa para la comanda — toca la proteína (el
+          especial del dominical vale solo, sin principios ni ensalada) o pone
+          una bebida y envía.
         </p>
       ) : null}
 
@@ -694,7 +786,7 @@ export function FormularioPedido({
         <div className="mt-3.5">
           <TituloSeccion
             Icono={MapPin}
-            clase="bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20"
+            clase="bg-info-text/10 text-info-text ring-1 ring-info-text/20"
             titulo="Cliente"
             sub="Nombre sí o sí · teléfono y dirección opcionales"
           />
@@ -806,10 +898,10 @@ export function FormularioPedido({
 
       <button
         type="submit"
-        disabled={pendiente || totalPlatos === 0}
+        disabled={pendiente || (totalPlatos === 0 && totalExtras === 0)}
         className={
           "mt-2.5 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-md transition active:scale-95 " +
-          (pendiente || totalPlatos === 0
+          (pendiente || (totalPlatos === 0 && totalExtras === 0)
             ? "cursor-not-allowed bg-brown-800/50 text-cream-50/60"
             : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
         }
@@ -898,7 +990,7 @@ export function FormularioPedido({
           <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
             <TituloSeccion
               Icono={Soup}
-              clase="bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20"
+              clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
               titulo="¿El almuerzo lleva sopa?"
               sub="La bandeja es el mismo almuerzo sin sopa"
             />
@@ -925,38 +1017,18 @@ export function FormularioPedido({
                     <Soup aria-hidden className="h-4 w-4" /> {o.txt}
                   </span>
                   <span className="text-[10px] font-bold tabular-nums normal-case">
-                    {formatCOP(precioAlmuerzo(o.ok, estaParaLlevar))}
+                    {precioPlatoEnProceso !== null
+                      ? formatCOP(precioPlatoEnProceso)
+                      : hayEspecialHoy
+                        ? "Especial · según la proteína"
+                        : formatCOP(precioAlmuerzo(o.ok, estaParaLlevar))}
                   </span>
                 </button>
               ))}
             </div>
           </section>
 
-          {/* 2. Proteína: el almuerzo se cobra en esta línea */}
-          <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
-            <TituloSeccion
-              Icono={Drumstick}
-              clase="bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20"
-              titulo="Proteína"
-              sub="Elige una · puede ir ×2, ×3 en cantidad"
-            />
-            {proteinasMenu.length === 0 ? (
-              <NotaVacia texto="Hoy no hay proteína en el menú…" />
-            ) : (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {proteinasMenu.map((item) => (
-                  <FichaMenu
-                    key={item.itemId}
-                    item={item}
-                    elegido={proteina === item.itemId}
-                    onClick={() => setProteina(item.itemId)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* 3. Principios */}
+          {/* 2. Principios: se piden antes de la proteína */}
           <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
             <TituloSeccion
               Icono={Wheat}
@@ -980,11 +1052,37 @@ export function FormularioPedido({
             )}
           </section>
 
+          {/* 3. Proteína: el plato se cobra aquí — almuerzo corriente o el
+                 precio especial del ítem (domingos de asados) */}
+          <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
+            <TituloSeccion
+              Icono={Drumstick}
+              clase="bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20"
+              titulo="Proteína"
+              sub="Elige una · el especial del domingo muestra su precio en la ficha"
+            />
+            {proteinasMenu.length === 0 ? (
+              <NotaVacia texto="Hoy no hay proteína en el menú…" />
+            ) : (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {proteinasMenu.map((item) => (
+                  <FichaMenu
+                    key={item.itemId}
+                    item={item}
+                    precioVisible
+                    elegido={proteina === item.itemId}
+                    onClick={() => setProteina(item.itemId)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* 4. Ensaladas (apartado especial) */}
           <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
             <TituloSeccion
               Icono={Salad}
-              clase="bg-[#4ec27e]/10 text-[#8fdcae] ring-1 ring-[#4ec27e]/20"
+              clase="bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20"
               titulo="Ensalada"
               sub="Elige una o varias · incluida en la bandeja"
             />
@@ -1009,7 +1107,7 @@ export function FormularioPedido({
             <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
               <TituloSeccion
                 Icono={Soup}
-                clase="bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20"
+                clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
                 titulo="Sopa del día"
                 sub="Opcional · si no eliges, la cocina pone la del día"
               />
@@ -1030,43 +1128,55 @@ export function FormularioPedido({
             </section>
           ) : null}
 
-          {/* 6. Bebidas */}
-          <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
-            <TituloSeccion
-              Icono={CupSoda}
-              clase="bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20"
-              titulo="Bebidas"
-              sub="Comparten las mesas del pedido · sumadas al total"
-            />
-            {bebidas.length === 0 ? (
-              <NotaVacia texto="Hoy no hay bebidas…" />
-            ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {bebidas.map((e) => (
-                  <ChipExtra key={e.id} e={e} />
+          {/* 6. Las categorías propias del cliente: viajan en el plato,
+              igual que las ensaladas (porción incluida, sin precio) */}
+          {seccionesPropias.map((s) => (
+            <section
+              key={s.tipo}
+              className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4"
+            >
+              <TituloSeccion
+                Icono={s.Icono}
+                clase={s.clase}
+                titulo={s.tipo}
+                sub="Elige una o varias · entran en el almuerzo"
+              />
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {s.items.map((item) => (
+                  <FichaMenu
+                    key={item.itemId}
+                    item={item}
+                    elegido={propios.includes(item.itemId)}
+                    onClick={() => aceptarPropio(item.itemId)}
+                  />
                 ))}
               </div>
-            )}
-          </section>
+            </section>
+          ))}
 
-          {/* 7. Adicionales */}
-          <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
-            <TituloSeccion
-              Icono={Star}
-              clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
-              titulo="Adicionales"
-              sub="Huevo, carne extra, los que pidan"
-            />
-            {adicionales.length === 0 ? (
-              <NotaVacia texto="Hoy no hay adicionales…" />
-            ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {adicionales.map((e) => (
-                  <ChipExtra key={e.id} e={e} />
-                ))}
-              </div>
-            )}
-          </section>
+          {/* 7. Extras fijos de la casa: bebidas y adicionales */}
+          {seccionesExtra.map((s) => (
+            <section
+              key={s.tipo}
+              className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4"
+            >
+              <TituloSeccion
+                Icono={s.Icono}
+                clase={s.clase}
+                titulo={s.titulo}
+                sub={s.sub}
+              />
+              {s.items.length === 0 ? (
+                <NotaVacia texto={`Hoy no hay ${s.titulo.toLowerCase()}…`} />
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {s.items.map((e) => (
+                    <ChipExtra key={e.id} e={e} />
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
         </div>
 
         {/* Comanda: fija en escritorio, modal en móvil */}
@@ -1077,11 +1187,12 @@ export function FormularioPedido({
 
       {/* Barra fija: añadir el plato armado · en móvil abre la comanda.
           En escritorio se alinea a la columna de contenido (pl-64 del shell):
-          centrarla sobre el viewport la descolocaba y pisaba «Cerrar sesión».
-          Además solo la pastilla oscura captura clics */}
+          centrarla sobre el viewport la descolocaba y pisaba «Cerrar sesión»,
+          así que en lg la pastilla se compacta (w-fit) y se centra sobre esa
+          columna en vez de estirarse. Solo la pastilla oscura captura clics */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 lg:pl-64">
         <div className="mx-auto w-full max-w-xl px-3 barra-seguro sm:max-w-2xl lg:max-w-6xl">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-[1.75rem] bg-brown-950/95 px-3 py-3 shadow-flotante ring-1 ring-borde-app backdrop-blur sm:gap-2.5 sm:px-4">
+          <div className="pointer-events-auto mx-auto flex w-full items-center gap-2 rounded-[1.75rem] bg-glass-app px-3 py-3 shadow-flotante ring-1 ring-borde-app backdrop-blur sm:gap-2.5 sm:px-4 lg:w-fit lg:max-w-3xl">
             <p
               aria-live="polite"
               className="hidden min-w-0 flex-1 truncate text-sm font-bold text-texto-app sm:block"
@@ -1118,7 +1229,7 @@ export function FormularioPedido({
               className={
                 "flex min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl px-3 py-2.5 font-display text-md transition active:scale-95 sm:flex-none sm:shrink-0 sm:gap-1.5 sm:px-4 " +
                 (proteina === null || pendiente
-                  ? "cursor-not-allowed bg-brown-800/60 text-texto-muted/50"
+                  ? "cursor-not-allowed bg-campo-app text-texto-muted/60"
                   : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
               }
             >
@@ -1166,7 +1277,7 @@ export function FormularioPedido({
             if (e.key === "Escape") setComandaAbierta(false);
           }}
         >
-          <div className="animar-subir max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-brown-900 p-4 shadow-pop ring-1 ring-borde-app sm:p-5">
+          <div className="animar-subir max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-glass-app p-4 shadow-pop ring-1 ring-borde-app sm:p-5">
             {PanelComanda({ alCerrar: () => setComandaAbierta(false) })}
           </div>
         </div>

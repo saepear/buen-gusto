@@ -13,12 +13,12 @@ const INICIAL: EstadoAccionConfig = { error: null, ok: null };
 
 const ACENTO_ROL: Record<string, string> = {
   ADMIN: "bg-amber-brand/12 text-amber-brand",
-  MESERO: "bg-[#4aa3ff]/12 text-[#8fc6ff]",
+  MESERO: "bg-info-text/12 text-info-text",
   DOMICILIARIO: "bg-orange-brand/12 text-orange-brand",
 };
 const CHIP_ROL: Record<string, string> = {
   ADMIN: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  MESERO: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  MESERO: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
   DOMICILIARIO: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
 };
 

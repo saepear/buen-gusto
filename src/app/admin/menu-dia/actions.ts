@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { getCategoriasPersonalizadas } from "@/lib/config";
 import { claveDia } from "@/lib/format";
-import { TIPOS_MENU_DIA, type TipoProducto } from "@/lib/roles";
+import { TIPOS_MENU_DIA } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
@@ -60,6 +61,40 @@ export async function alternarVisible(datos: FormData): Promise<void> {
   revalidatePath("/mesero", "layout");
 }
 
+/**
+ * Fija (o quita) el precio ESPECIAL de HOY de un ítem del menú: es como se
+ * cobran los especiales del domingo (asados $24.000, gallina $17.000,
+ * pescados $25.000) aunque el producto corra toda la semana al precio del
+ * almuerzo corriente. Vacío = vuelve al precio normal de ese día.
+ */
+export async function guardarPrecioEspecial(datos: FormData): Promise<void> {
+  await exigirAdmin();
+  const id = Number.parseInt(String(datos.get("itemId") ?? ""), 10);
+  if (!Number.isInteger(id)) return;
+  const item = await db.menuDiaItem.findUnique({ where: { id } });
+  if (!item) return;
+
+  const crudo = String(datos.get(`precio_${id}`) ?? "").trim();
+  // Sin precio especial: null = rige el precio normal del almuerzo
+  if (crudo === "") {
+    await db.menuDiaItem.update({
+      where: { id },
+      data: { precioEspecial: null },
+    });
+    revalidar();
+    return;
+  }
+  const precio = Number.parseInt(crudo, 10);
+  if (!Number.isInteger(precio) || precio < 0) return;
+
+  await db.menuDiaItem.update({
+    where: { id },
+    data: { precioEspecial: Math.min(precio, 999999) },
+  });
+  revalidar();
+  revalidatePath("/mesero", "layout");
+}
+
 /** Guarda porciones o marca un ítem como ilimitado (fila completa del editor) */
 export async function guardarPorcion(datos: FormData): Promise<void> {
   await exigirAdmin();
@@ -90,7 +125,11 @@ export async function agregarAlMenu(datos: FormData): Promise<void> {
 
   const producto = await db.producto.findUnique({ where: { id: productoId } });
   if (!producto || !producto.activo) return;
-  const esDeMenu = (TIPOS_MENU_DIA as string[]).includes(producto.tipo);
+  // Los 4 tipos fijos del almuerzo o una categoría propia del cliente
+  const categorias = await getCategoriasPersonalizadas();
+  const esDeMenu =
+    (TIPOS_MENU_DIA as string[]).includes(producto.tipo) ||
+    categorias.some((c) => c.nombre === producto.tipo);
   if (!esDeMenu) return;
 
   await db.menuDiaItem.upsert({
@@ -111,8 +150,12 @@ export async function quitarDelMenu(datos: FormData): Promise<void> {
     select: { producto: { select: { tipo: true } } },
   });
   if (!tipoProducto) return;
-  const menuProd = tipoProducto.producto.tipo as TipoProducto;
-  if (!(TIPOS_MENU_DIA as string[]).includes(menuProd)) return;
+  const menuProd: string = tipoProducto.producto.tipo;
+  const categorias = await getCategoriasPersonalizadas();
+  const esDeMenu =
+    (TIPOS_MENU_DIA as string[]).includes(menuProd) ||
+    categorias.some((c) => c.nombre === menuProd);
+  if (!esDeMenu) return;
 
   await db.menuDiaItem.delete({ where: { id } });
   revalidar();

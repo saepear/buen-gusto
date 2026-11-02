@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { EncabezadoPagina } from "@/components/encabezado";
+import { getCategoriasPersonalizadas } from "@/lib/config";
 import { menuDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem } from "@/lib/precios";
 import { ESTADO_DOMICILIO, ESTADO_PEDIDO } from "@/lib/roles";
@@ -97,12 +98,15 @@ export default async function PaginaNuevoDomicilio(
   props: PageProps<"/admin/domicilios/nuevo">,
 ) {
   const { para } = await props.searchParams;
-  const [menu, extras, ultimosDomicilios] = await Promise.all([
+  const [menu, extras, categorias, ultimosDomicilios] = await Promise.all([
     menuDeHoy(),
     db.producto.findMany({
+      // Solo bebidas y adicionales (las categorías propias van en el plato)
       where: { activo: true, tipo: { in: ["BEBIDA", "ADICIONAL"] } },
       orderBy: { nombre: "asc" },
     }),
+    // Las categorías propias del cliente vienen al constructor del plato
+    getCategoriasPersonalizadas(),
     // Clientes fijos: historial reciente, ignorando lo cancelado
     db.domicilio.findMany({
       where: {
@@ -234,6 +238,7 @@ export default async function PaginaNuevoDomicilio(
           tipo: p.tipo,
           precio: p.precio,
         }))}
+        categorias={categorias}
         modo="domicilio"
         accion={crearDomicilio}
       />

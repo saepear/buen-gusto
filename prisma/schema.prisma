@@ -59,6 +59,13 @@ model MenuDiaItem {
   vendidos       Int     @default(0)
   visible        Boolean @default(true) // false: el mesero no lo ve (se acabó antes de tiempo)
 
+  // Precio especial de ESTE día (COP): es como se cobran los especiales del
+  // domingo (asados $24.000, gallina $17.000, pescados $25.000) aunque el
+  // producto corra toda la semana al precio del almuerzo corriente.
+  // null = hoy rige el precio normal (con sopa $13.000 · bandeja $12.000,
+  // o el precio propio del producto si lo tiene).
+  precioEspecial Int?
+
   @@unique([menuDiaId, productoId])
 }
 

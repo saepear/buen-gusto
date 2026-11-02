@@ -12,6 +12,7 @@ import {
   type CargaPedido,
   type LineaAlmuerzo,
 } from "@/lib/pedido";
+import { getCategoriasPersonalizadas } from "@/lib/config";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
@@ -246,6 +247,7 @@ export async function repetirUltimoDomicilio(
       proteinaId,
       principios: [],
       ensaladas: [],
+      propios: [],
       sopaId: null,
       cantidad: grupo.cantidad,
     });
@@ -257,7 +259,7 @@ export async function repetirUltimoDomicilio(
   // original. Una unidad que cambió de menú simplemente no entra.
   const repartir = (
     tipo: string,
-    asignaEn: "principios" | "ensaladas" | "sopa",
+    asignaEn: "principios" | "ensaladas" | "propios" | "sopa",
     filas: { productoId: number; cantidad: number }[],
   ) => {
     for (const fila of filas) {
@@ -272,7 +274,12 @@ export async function repetirUltimoDomicilio(
           linea.sopaId = itemId;
           pendiente -= linea.cantidad;
         } else {
-          const lista = asignaEn === "principios" ? linea.principios : linea.ensaladas;
+          const lista =
+            asignaEn === "principios"
+              ? linea.principios
+              : asignaEn === "propios"
+                ? (linea.propios ?? (linea.propios = []))
+                : linea.ensaladas;
           if (lista.includes(itemId)) {
             pendiente -= linea.cantidad;
             continue;
@@ -293,8 +300,14 @@ export async function repetirUltimoDomicilio(
   if (origen.pedido.items.some((it) => it.tipo === "SOPA")) {
     repartir("SOPA", "sopa", filasDe("SOPA"));
   }
+  // Las categorías propias del cliente se reparten en el plato igual que
+  // principios y ensaladas; si la categoría ya no existe, no entran
+  const categorias = await getCategoriasPersonalizadas();
+  for (const categoria of categorias) {
+    repartir(categoria.nombre, "propios", filasDe(categoria.nombre));
+  }
 
-  // Extras (bebidas / adicionales): ids de producto, respetando la cantidad
+  // Extras (bebidas y adicionales): ids de producto, respetando la cantidad
   // real (3 gaseosas = 3 unidades en la carga, no 1 deduplicada)
   const idsExtras = [
     ...new Set(
@@ -320,7 +333,8 @@ export async function repetirUltimoDomicilio(
   const extras = origen.pedido.items
     .filter(
       (it) =>
-        (it.tipo === "BEBIDA" || it.tipo === "ADICIONAL") && vigentes.has(it.productoId),
+        (it.tipo === "BEBIDA" || it.tipo === "ADICIONAL") &&
+        vigentes.has(it.productoId),
     )
     .flatMap((it) => Array.from({ length: it.cantidad }, () => it.productoId));
 

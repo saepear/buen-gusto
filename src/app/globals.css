@@ -42,6 +42,12 @@
   --color-panel-hover: var(--panel-hover);
   --color-campo-app: var(--campo-app);
 
+  /* Acentos de chips (estados, tipos de plato, métodos) que cambian de
+     tono según el modo: azul/violeta/menta claros de noche, oscuros de día */
+  --color-info-text: var(--info-text);
+  --color-violeta-text: var(--violeta-text);
+  --color-menta-text: var(--menta-text);
+
   /* Texto de contraste semántico */
   --color-success-text: var(--success-text);
   --color-danger-text: var(--danger-text);
@@ -56,11 +62,16 @@
   --borde-app: rgba(255, 255, 255, 0.1);
   /* Pozo hundido para formularios y fichas dentro de un panel */
   --campo-app: rgb(0 0 0 / 0.32);
+  /* Lista de <option> nativas: opaca (si no, Windows la pinta blanca y el texto crema no se ve) */
+  --opcion-app: var(--color-brown-900);
   --boton-texto: var(--color-brown-950);
   --glass-bg: rgba(36, 16, 6, 0.6);
   --success-text: #b1ff7d;
   --danger-text: #ff7d7d;
   --warning-text: #ffdb6e;
+  --info-text: #8fc6ff;
+  --violeta-text: #d3a7e8;
+  --menta-text: #8fdcae;
 
   /* Sombras suaves (tarjetas del mesero y modales) */
   --shadow-suave: 0 8px 24px -10px rgb(59 29 15 / 0.16);
@@ -90,29 +101,51 @@ body {
 .tema-claro {
   --fondo-app: var(--color-cream-50);
   --texto-app: var(--color-brown-950);
-  --texto-muted: var(--color-brown-700);
+  --texto-muted: var(--color-brown-800);
   --panel-app: var(--color-cream-100);
   --panel-hover: rgba(36, 16, 6, 0.06);
   --borde-app: rgba(36, 16, 6, 0.12);
   /* Pozo hundido: en claro, un campo casi blanco sobre el panel crema */
   --campo-app: #fffdf9;
+  /* Lista de <option> en claro: crema para leer el texto marrón */
+  --opcion-app: var(--color-cream-100);
   --boton-texto: var(--color-cream-50);
   --glass-bg: rgba(252, 246, 234, 0.92);
   --success-text: #166534;
   --danger-text: #991b1b;
   --warning-text: #854d0e;
+  --info-text: #1668c4;
+  --violeta-text: #7c3aad;
+  --menta-text: #187a46;
   color-scheme: light;
 }
 
-/* Sobrescribir acentos para que resalten más sobre el crema del logo */
+/* Sobrescribir acentos para que se LEAN sobre el crema del logo: el ámbar
+   vivo (#f2a63d) y el naranja (#ed7d1f) sobre fondo claro quedan lavados
+   (menos de 3:1), así que el modo claro usa versiones oscurecidas con
+   contraste real (~4.7:1). Los botones SÍ mantienen el ámbar vivo porque su
+   letra es marrón oscuro. */
 .tema-claro .text-amber-brand {
-  color: #ed7d1f; /* Un naranja un poco más intenso para legibilidad */
+  color: #b45309; /* caramelo oscuro: legible sobre crema */
 }
 .tema-claro .bg-amber-brand {
   background-color: #f2a63d;
 }
 .tema-claro .ring-amber-brand {
   --tw-ring-color: #f2a63d;
+}
+.tema-claro .text-orange-brand {
+  color: #c2410c;
+}
+
+/* Los contenedores que FUERZAN modo oscuro (p. ej. el login) recobran los
+   acentos vivos aunque el html esté en claro: esta regla va después y con
+   igual especificidad gana por orden de aparición. */
+.tema-oscuro .text-amber-brand {
+  color: #f2a63d;
+}
+.tema-oscuro .text-orange-brand {
+  color: #ed7d1f;
 }
 
 /* ============ Forzar Modo Oscuro (para Login) ============ */
@@ -129,6 +162,9 @@ body {
   --success-text: #b1ff7d;
   --danger-text: #ff7d7d;
   --warning-text: #ffdb6e;
+  --info-text: #8fc6ff;
+  --violeta-text: #d3a7e8;
+  --menta-text: #8fdcae;
   color-scheme: dark;
 }
 
@@ -140,6 +176,19 @@ html {
   -webkit-tap-highlight-color: transparent;
   /* Comportamiento de app: sin rebote ni «tirar para recargar» accidental */
   overscroll-behavior-y: none;
+}
+
+/* ============ Desplegables nativos (<select>) ============ */
+/* En Windows, Chromium pinta la lista de opciones con el fondo translúcido
+   del select (bg-panel-app es blanco al 5%): sale blanca y el texto heredado
+   no se lee salvo al pasar el cursor. Fondo opaco y letra del tema. */
+select option,
+select optgroup {
+  background-color: var(--opcion-app);
+  color: var(--texto-app);
+}
+select option:checked {
+  color: var(--texto-app);
 }
 
 /* Áreas seguras: la muesca del iPhone / tablet y su barra inferior */

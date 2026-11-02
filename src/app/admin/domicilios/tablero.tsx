@@ -14,14 +14,17 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { formatCOP } from "@/lib/format";
-import { ESTADO_DOMICILIO, ESTADO_DOMICILIO_LABEL } from "@/lib/roles";
+import {
+  ESTADO_DOMICILIO,
+  ESTADO_DOMICILIO_LABEL,
+  ordenDeItem,
+} from "@/lib/roles";
 import {
   asignarDomiciliario,
   cancelarDomicilio,
-  cobrarDomicilio,
   marcarEntregadoAdmin,
   marcarListaDomicilio,
   reintentarDomicilio,
@@ -29,6 +32,30 @@ import {
 } from "./actions";
 
 const INICIAL: EstadoAccionDomicilio = { error: null, ok: null };
+
+/** Agrupa los ítems de la comanda por grupo (1, 2, 3… y el 0 al final como extras/bebidas) */
+function agruparItems(
+  items: DomicilioVista["items"],
+): { grupo: number; items: typeof items }[] {
+  const porGrupo: Record<number, typeof items> = {};
+  for (const item of items) {
+    if (!porGrupo[item.grupo]) porGrupo[item.grupo] = [];
+    porGrupo[item.grupo].push(item);
+  }
+  return Object.keys(porGrupo)
+    .map(Number)
+    .sort((a, b) => {
+      if (a === 0) return 1;
+      if (b === 0) return -1;
+      return a - b;
+    })
+    .map((grupo) => ({
+      grupo,
+      items: porGrupo[grupo].sort(
+        (a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id,
+      ),
+    }));
+}
 
 export type Repartidor = { id: number; nombre: string };
 
@@ -58,11 +85,20 @@ export type DomicilioVista = {
   ordenTs: number;
   total: number;
   resumen: string;
+  /** Líneas de la comanda, para mostrar el detalle sin salir de la página */
+  items: Array<{
+    id: number;
+    cantidad: number;
+    grupo: number;
+    tipo: string;
+    nota: string | null;
+    producto: { nombre: string };
+  }>;
 };
 
 const CHIP_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
-  ASIGNADO: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
+  ASIGNADO: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
   EN_CAMINO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
   ENTREGADO: "bg-success/10 text-success-text ring-1 ring-success/20",
   NO_ENTREGADO: "bg-danger/10 text-danger-text ring-1 ring-danger/20",
@@ -120,10 +156,7 @@ function TarjetaDomicilio({
     EstadoAccionDomicilio,
     FormData
   >(marcarEntregadoAdmin, INICIAL);
-  const [cobEstado, cobAccion, cobPendiente] = useActionState<
-    EstadoAccionDomicilio,
-    FormData
-  >(cobrarDomicilio, INICIAL);
+  const [comandaAbierta, setComandaAbierta] = useState(false);
 
   const estado = domicilio.estado;
   const abierto =
@@ -248,21 +281,127 @@ function TarjetaDomicilio({
       ) : null}
 
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <Link
-          href={`/ordenes/comanda/${domicilio.pedidoId}`}
-          target="_blank"
+        <button
+          type="button"
+          onClick={() => setComandaAbierta(true)}
           className="inline-flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand hover:text-brown-950"
-          title="Comanda para la cocina / el empaque"
+          title="Ver comanda en la misma página"
         >
           <Printer className="h-3.5 w-3.5" />
           Comanda
-        </Link>
+        </button>
         {estado === ESTADO_DOMICILIO.ENTREGADO && domicilio.entregadoEn ? (
           <span className="text-xs font-bold text-texto-muted/50">
             Entregado a las {domicilio.entregadoEn}
           </span>
         ) : null}
       </div>
+
+      {comandaAbierta && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setComandaAbierta(false);
+          }}
+        >
+          <div
+            className="rounded-2xl bg-white p-6 w-full max-w-[360px] shadow-2xl border border-borde-app"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-2xl font-black uppercase tracking-tighter text-brown-950">
+                DOMICILIO
+              </h2>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/ordenes/comanda/${domicilio.pedidoId}?autoPrint=1&volver=${encodeURIComponent("/admin/domicilios")}`}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-brand px-2.5 py-2 text-xs font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app"
+                  title="Imprime la comanda en el e-ticket y regresa al tablero"
+                >
+                  <Printer className="h-3.5 w-3.5" /> Imprimir
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setComandaAbierta(false)}
+                  className="rounded-lg bg-panel-app p-1.5 text-texto-muted hover:bg-amber-brand/10"
+                  aria-label="Cerrar comanda"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="mb-4 flex flex-col items-center text-[12px] font-bold text-brown-950">
+              <p>HORA: {domicilio.creadoEn}</p>
+              <p className="mt-1">PEDIDO: #{domicilio.pedidoId}</p>
+            </div>
+
+            <div className="my-3 border-t-2 border-dashed border-brown-950/60" />
+
+            {domicilio.items.length > 0 ? (
+              <>
+                {agruparItems(domicilio.items).map(({ grupo, items }) => (
+                  <div key={grupo} className={grupo > 0 ? "mt-4" : ""}>
+                    {grupo > 0 && (
+                      <p className="mb-2 text-center text-[11px] font-black tracking-widest uppercase">
+                        --- PEDIDO {grupo} ---
+                      </p>
+                    )}
+                    {grupo === 0 && (
+                      <p className="mb-2 text-center text-[11px] font-black tracking-widest uppercase">
+                        --- Extras / Bebidas ---
+                      </p>
+                    )}
+                    <ul className="space-y-1">
+                      {items.map((item) => (
+                        <li key={item.id} className="flex flex-col">
+                          <span className="font-black uppercase text-[12px]">
+                            {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
+                            {item.producto.nombre}
+                          </span>
+                          {item.nota && (
+                            <span className="text-[11px] font-bold italic text-brown-800/80 ml-4">
+                              ↳ {item.nota}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <p className="text-center text-[12px] text-brown-950/60">Sin ítems</p>
+            )}
+
+            <div className="my-3 border-t-2 border-dashed border-brown-950/60" />
+
+            {domicilio.observaciones ? (
+              <div className="text-right mb-3">
+                <p className="text-[12px] font-bold text-brown-950">
+                  Nota: <span className="font-normal">{domicilio.observaciones}</span>
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 border-l-4 border-brown-900/20 pl-3">
+              <p className="font-black uppercase text-[10px] tracking-widest opacity-60">
+                Datos de entrega
+              </p>
+              <p className="font-bold text-brown-950">Cliente: {domicilio.cliente}</p>
+              <p className="text-brown-950">Dir: {domicilio.direccion}</p>
+              {domicilio.barrio && <p className="text-brown-950">Barrio: {domicilio.barrio}</p>}
+              {domicilio.telefono && <p className="text-brown-950">Tel: {domicilio.telefono}</p>}
+            </div>
+
+            <p className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest opacity-40 text-brown-950">
+              ¡Buen provecho! · El Buen Gusto
+            </p>
+          </div>
+        </div>
+      )}
+
       {domicilio.observaciones ? (
         <p className="mt-2 flex items-start gap-2 text-xs text-texto-muted/60">
           <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -272,9 +411,9 @@ function TarjetaDomicilio({
 
       {estado === ESTADO_DOMICILIO.ENTREGADO ? (
         domicilio.cobradoMonto === null ? (
-          // El dinero sigue allá afuera: el admin abre aquí la factura
-          <form action={cobAccion} className="mt-3">
-            <input type="hidden" name="domicilioId" value={domicilio.id} />
+          // El dinero sigue allá afuera: el botón lleva a la CAJA con la
+          // comanda del cliente lista para cobrar y generar su recibo
+          <div className="mt-3">
             <p className="flex items-center justify-between rounded-xl bg-warning/10 px-3 pt-2.5 text-sm ring-1 ring-warning/20">
               <span className="font-bold text-warning-text">Pendiente por cobrar</span>
               <span className="font-display text-lg text-warning-text">
@@ -282,21 +421,19 @@ function TarjetaDomicilio({
               </span>
             </p>
             <div className="mt-2 flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={cobPendiente}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-brand px-3.5 py-2.5 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
-                title="Abrir la factura, cobrar y mandar al recibo"
+              <Link
+                href={`/admin/caja?domicilio=${domicilio.id}`}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-brand px-3.5 py-2.5 text-sm font-bold text-brown-950 transition hover:bg-orange-brand hover:text-texto-app"
+                title="Abre la caja con la comanda del domicilio lista para cobrar"
               >
                 <Banknote className="h-4 w-4" />
-                {cobPendiente ? "Cobrando…" : "Cobrar"}
-              </button>
+                Cobrar en caja
+              </Link>
               <span className="text-[11px] leading-tight text-texto-muted/50">
-                Factura → pago → recibo
+                Caja → cuenta → recibo
               </span>
             </div>
-            <Aviso estado={cobEstado} />
-          </form>
+          </div>
         ) : (
           <p className="mt-3 flex items-center justify-between rounded-xl bg-success/10 px-3 py-2 text-sm ring-1 ring-success/20">
             <span className="font-bold text-success-text">Cobrado</span>

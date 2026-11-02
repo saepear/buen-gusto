@@ -1,8 +1,9 @@
 // Soporte de pedidos y comandas: helpers compartidos entre mesero y admin
 import { db } from "@/lib/db";
+import { getCategoriasPersonalizadas } from "@/lib/config";
 import { claveDia } from "@/lib/format";
-import { precioAlmuerzo } from "@/lib/precios";
-import { ESTADO_PEDIDO, type EstadoPedido, type TipoProducto } from "@/lib/roles";
+import { precioAlmuerzo, PRECIO_ICOPOR } from "@/lib/precios";
+import { ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
 
 /** Pedidos que dejan la mesa ocupada (los demás son históricos) */
 export const ESTADOS_ACTIVOS_PEDIDO: EstadoPedido[] = [
@@ -18,7 +19,13 @@ export type ItemMenuHoy = {
   itemId: number;
   productoId: number;
   nombre: string;
-  tipo: TipoProducto;
+  /** Un tipo fijo (PROTEINA, PRINCIPIO…) o el nombre de una categoría propia */
+  tipo: string;
+  /** Precio ESPECIAL de HOY para el plato (COP), fijado en el Menú del día
+   *  (asados del domingo: $24.000, gallina $17.000, pescados $25.000). Si
+   *  el día no fijó precio, cae al precio propio del catálogo; 0 = rige el
+   *  almuerzo corriente ($13.000 con sopa · $12.000 bandeja). */
+  precioPropio: number;
   /** Porciones disponibles ahora mismo; null = ilimitado */
   disponibles: number | null;
   vendidos: number;
@@ -38,7 +45,12 @@ export async function menuDeHoy(): Promise<ItemMenuHoy[]> {
       itemId: item.id,
       productoId: item.productoId,
       nombre: item.producto.nombre,
-      tipo: item.producto.tipo as TipoProducto,
+      // Los 4 tipos fijos del almuerzo + las categorías propias del cliente
+      tipo: item.producto.tipo,
+      // Precio especial de HOY (fijado en el Menú del día); si no lo hay,
+      // cae al precio propio del catálogo; 0 = precio del almuerzo corriente
+      precioPropio:
+        item.precioEspecial ?? (item.producto.precio > 0 ? item.producto.precio : 0),
       vendidos: item.vendidos,
       disponibles:
         item.stockPorciones === null
@@ -54,6 +66,8 @@ export type LineaAlmuerzo = {
   proteinaId: number;
   principios: number[]; // apartado especial: ensaladas del catálogo (tipo ENSALADA)
   ensaladas: number[];
+  /** Productos de las categorías propias del cliente que van en el plato */
+  propios?: number[];
   sopaId: number | null;
   /** Cuántos almuerzos idénticos van en esta línea (1 a 50) */
   cantidad: number;
@@ -100,7 +114,10 @@ function enumerar(bruto: unknown, max: number): number[] | null {
  */
 export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
   if (Array.isArray(carga.lineas)) {
-    if (carga.lineas.length === 0 || carga.lineas.length > 20) return null;
+    if (carga.lineas.length > 20) return null;
+    // 0 platos es válido (comanda de solo extras, p. ej. los especiales del
+    // domingo): `crearPedido` exige que lleve ALGO (plato o extra).
+    if (carga.lineas.length === 0) return [];
     const unidas: LineaAlmuerzo[] = [];
     for (const l of carga.lineas) {
       if (
@@ -115,12 +132,16 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
       const principios = enumerar(l.principios, 10);
       const ensaladas = enumerar(l.ensaladas, 10);
       if (!principios || !ensaladas) return null;
+      const propios =
+        l.propios === undefined ? [] : enumerar(l.propios, 10);
+      if (!propios) return null;
       if (l.sopaId !== null && l.sopaId !== undefined && !esId(l.sopaId)) return null;
       unidas.push({
         conSopa: l.conSopa,
         proteinaId: l.proteinaId,
         principios,
         ensaladas,
+        propios,
         sopaId: l.sopaId ?? null,
         cantidad: l.cantidad,
       });
@@ -167,6 +188,10 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
  * las porciones de forma atómica y devuelve el id del pedido creado.
  * Lo comparten el mesero (mesas del salón) y el admin (domicilios).
  * Lanza ErrorDePedido con un mensaje claro cuando algo no cuadra.
+ *
+ * Domingos especiales: basta UN solo ítem para la comanda — un plato con
+ * solo la proteína (el especial del día, sin principios ni ensalada), o incluso
+ * un pedido de solo bebidas/adicionales (sin ningún almuerzo).
  */
 export async function crearPedido(opciones: {
   mesaId: number;
@@ -241,6 +266,12 @@ export async function crearPedido(opciones: {
 
   let proximoGrupo = 1;
 
+  // Nombres de las categorías propias vigentes: un ítem del menú solo viaja
+  // «en el plato por categoría propia» si su tipo está en esta lista
+  const categoriasPropias = new Set(
+    (await getCategoriasPersonalizadas()).map((c) => c.nombre),
+  );
+
   for (const linea of lineasDePlato) {
     const proteina = porItemId.get(linea.proteinaId);
     if (!proteina || proteina.tipo !== "PROTEINA") {
@@ -254,13 +285,23 @@ export async function crearPedido(opciones: {
     for (let i = 0; i < linea.cantidad; i++) {
       const grupoActual = proximoGrupo++;
 
-      // La proteína cobra el almuerzo entero
+      // La proteína cobra el plato; además su porción se descuenta del menú
+      // del día, igual que sopa, principios y ensaladas.
+      // PRECIO ESPECIAL del día (se fija en el Menú del día): los asados del
+      // domingo $24.000, gallina $17.000, pescados $25.000 — el plato vale lo
+      // mismo con o sin sopa y para llevar solo se añade el icopor. Sin
+      // precio especial rige el almuerzo corriente ($13.000 con sopa ·
+      // $12.000 bandeja, + empaque de llevar).
+      cobrar(proteina, 1);
       filas.push({
         productoId: proteina.productoId,
         tipo: proteina.tipo,
         conSopa: linea.conSopa,
         cantidad: 1,
-        precio: precioAlmuerzo(linea.conSopa, llevar),
+        precio:
+          proteina.precioPropio > 0
+            ? proteina.precioPropio + (llevar ? PRECIO_ICOPOR : 0)
+            : precioAlmuerzo(linea.conSopa, llevar),
         grupo: grupoActual,
       });
 
@@ -320,6 +361,29 @@ export async function crearPedido(opciones: {
           grupo: grupoActual,
         });
       }
+
+      // Las categorías propias del cliente entran al plato igual que las
+      // ensaladas: porción propia con su descuento de stock, sin precio
+      for (const itemId of linea.propios ?? []) {
+        const x = porItemId.get(itemId);
+        if (!x || !categoriasPropias.has(x.tipo)) {
+          throw new ErrorDePedido(
+            "Un producto de categoría propia ya no está en el menú de hoy.",
+          );
+        }
+        if (x.disponibles === 0) {
+          throw new ErrorDePedido(`«${x.nombre}» se agotó. Quítalo del pedido o elige otro.`);
+        }
+        cobrar(x, 1);
+        filas.push({
+          productoId: x.productoId,
+          tipo: x.tipo,
+          conSopa: null,
+          cantidad: 1,
+          precio: 0,
+          grupo: grupoActual,
+        });
+      }
     }
   }
 
@@ -348,6 +412,15 @@ export async function crearPedido(opciones: {
       precio: p.precio,
       grupo: 0,
     });
+  }
+
+  // Debe haber ALGO: el mesero puede mandar solo el plato del especial (sin
+  // principios ni ensalada) o solo bebidas/adicionales, pero no una comanda
+  // totalmente vacía.
+  if (filas.length === 0) {
+    throw new ErrorDePedido(
+      "La comanda está vacía: añade al menos un plato o una bebida.",
+    );
   }
 
   return db.$transaction(async (tx) => {

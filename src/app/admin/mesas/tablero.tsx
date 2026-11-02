@@ -69,8 +69,8 @@ const TEXTO_ESTADO: Record<EstadoMesa, string> = {
 
 const CHIP_COMANDA: Record<string, string> = {
   ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
-  PARCIAL_SERVIDO: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
+  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
+  PARCIAL_SERVIDO: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
   SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
   POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
@@ -95,9 +95,9 @@ const ICONO_TIPO: Record<string, LucideIcon> = {
 const CLASE_TIPO: Record<string, string> = {
   PROTEINA: "bg-amber-brand/10 text-amber-brand",
   PRINCIPIO: "bg-success/10 text-success-text",
-  ENSALADA: "bg-[#4ec27e]/10 text-[#8fdcae]",
-  SOPA: "bg-[#b06fd0]/10 text-[#d3a7e8]",
-  BEBIDA: "bg-[#4aa3ff]/10 text-[#8fc6ff]",
+  ENSALADA: "bg-menta-text/10 text-menta-text",
+  SOPA: "bg-violeta-text/10 text-violeta-text",
+  BEBIDA: "bg-info-text/10 text-info-text",
   ADICIONAL: "bg-orange-brand/10 text-orange-brand",
 };
 

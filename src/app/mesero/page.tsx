@@ -55,7 +55,7 @@ export default async function PaginaMesero() {
               <UtensilsCrossed aria-hidden className="h-5 w-5" />
             </span>
             <div>
-              <h1 className="font-display text-xl text-cream-50">
+              <h1 className="font-display text-xl text-texto-app">
                 ¡Hola, {sesion.nombre}!
               </h1>
               <p className="text-xs text-texto-muted/70">

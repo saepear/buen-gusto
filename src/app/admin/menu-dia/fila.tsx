@@ -2,18 +2,24 @@
 
 import { CheckCircle2, Eye, EyeOff, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { guardarPorcion, alternarVisible, quitarDelMenu } from "./actions";
+import { formatCOP } from "@/lib/format";
+import { guardarPorcion, guardarPrecioEspecial, alternarVisible, quitarDelMenu } from "./actions";
 
 type Item = {
   id: number;
   stockPorciones: number | null;
   vendidos: number;
   visible: boolean;
-  producto: { nombre: string };
+  /** null = hoy rige el precio normal; > 0 = especial (asados del domingo) */
+  precioEspecial: number | null;
+  producto: { nombre: string; tipo: string };
 };
 
 export function FilaPorciones({ item }: { item: Item }) {
   const [ilimitado, setIlimitado] = useState(item.stockPorciones === null);
+  // El precio especial del plato solo vive en la proteína (ella cobra el
+  // almuerzo entero); los demás tipos no lo necesitan.
+  const esProteina = item.producto.tipo === "PROTEINA";
 
   const restante =
     item.stockPorciones === null
@@ -97,6 +103,36 @@ export function FilaPorciones({ item }: { item: Item }) {
             <CheckCircle2 className="h-4 w-4" />
           </button>
         </form>
+        {esProteina ? (
+          <form action={guardarPrecioEspecial} className="flex items-center gap-1.5">
+            <input type="hidden" name="itemId" value={item.id} />
+            <label className="flex shrink-0 items-center gap-1.5 text-xs text-texto-muted/70">
+              Precio
+              <span className="sr-only">
+                especial de {item.producto.nombre} para hoy
+              </span>
+              <input
+                type="number"
+                name={`precio_${item.id}`}
+                min={0}
+                max={999999}
+                step={1}
+                defaultValue={item.precioEspecial ?? ""}
+                placeholder="Especial"
+                inputMode="numeric"
+                className="w-28 rounded-lg border-0 bg-panel-app px-2.5 py-2 text-right text-sm text-texto-app ring-1 ring-borde-app focus:ring-amber-brand/60"
+              />
+            </label>
+            <button
+              type="submit"
+              aria-label={`Guardar el precio especial de ${item.producto.nombre}`}
+              title="Guardar el precio especial de hoy (el plato cobra este precio con o sin sopa)"
+              className="rounded-lg bg-panel-app p-2 text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand/30"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+            </button>
+          </form>
+        ) : null}
         <form action={alternarVisible}>
           <input type="hidden" name="itemId" value={item.id} />
           <button
@@ -137,6 +173,12 @@ export function FilaPorciones({ item }: { item: Item }) {
           Vendidas hoy: {item.vendidos}
         </p>
       )}
+      {esProteina && item.precioEspecial !== null && item.precioEspecial > 0 ? (
+        <p className="mt-2 rounded-lg bg-amber-brand/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-brand">
+          Especial de hoy: {formatCOP(item.precioEspecial)} · el plato cobra
+          este precio con o sin sopa (+ icopor si va para llevar)
+        </p>
+      ) : null}
     </li>
   );
 }

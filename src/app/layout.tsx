@@ -2,7 +2,7 @@
 import { Fredoka, Nunito } from "next/font/google";
 import "./globals.css";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
-import { getTemaActual } from "@/lib/config";
+import { temaDelDispositivo } from "@/lib/config";
 
 const fredoka = Fredoka({
   subsets: ["latin"],
@@ -45,7 +45,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const tema = await getTemaActual();
+  const tema = await temaDelDispositivo();
   const claseTema = tema === "light" ? "tema-claro" : "";
 
   return (

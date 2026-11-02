@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { formatCOP } from "@/lib/format";
-import { cobrarDomicilio, type EstadoAccionDomicilio } from "../../actions";
+import { cobrarDomicilio, type EstadoAccionDomicilio } from "./actions";
 
 const INICIAL: EstadoAccionDomicilio = { error: null, ok: null };
 
@@ -37,6 +37,7 @@ const BILLETES = [
  * El pago del domicilio: método de pago, propina y — solo en efectivo —
  * el billete con el que paga el cliente con sus vueltas en vivo. Al
  * confirmar, la acción del servidor lo manda directo al recibo.
+ * Vive a nivel del módulo de domicilios para que también la use la caja.
  */
 export function PanelCobroDomicilio({
   domicilioId,
