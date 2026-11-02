@@ -50,7 +50,11 @@ export default async function PaginaConfiguracion() {
           id: u.id,
           nombre: u.nombre,
           rol: u.rol,
-          pin: u.pin,
+          // Los PIN viven hasheados: al cliente solo viaja el aviso de
+          // que está cifrado (y el dígito plano únicamente mientras el
+          // usuario no haya entrado una sola vez y se haya migrado).
+          pinCifrado: !/^\d{4}$/.test(u.pin),
+          pin: /^\d{4}$/.test(u.pin) ? u.pin : "",
           activo: u.activo,
         }))}
       />

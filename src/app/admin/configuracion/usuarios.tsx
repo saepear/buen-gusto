@@ -50,6 +50,9 @@ export type UsuarioDetalle = {
   id: number;
   nombre: string;
   rol: string;
+  /** false = legado en texto plano que aún no migra; true = hash scrypt */
+  pinCifrado: boolean;
+  /** Digits del legado (vacío cuando el PIN ya va hasheado) */
   pin: string;
   activo: boolean;
 };
@@ -109,8 +112,15 @@ function FilaUsuario({ usuario }: { usuario: UsuarioDetalle }) {
             </span>
           </div>
         </div>
-        <span className="shrink-0 rounded-lg bg-panel-app px-2.5 py-1.5 font-mono text-xs font-bold tabular-nums text-texto-muted ring-1 ring-borde-app">
-          PIN {usuario.pin}
+        <span
+          className="shrink-0 rounded-lg bg-panel-app px-2.5 py-1.5 font-mono text-xs font-bold text-texto-muted ring-1 ring-borde-app"
+          title={
+            usuario.pinCifrado
+              ? "PIN guardado con hash scrypt"
+              : "PIN legado en texto plano: migra con hash al entrar una vez"
+          }
+        >
+          {usuario.pinCifrado ? "PIN cifrado · 🔒" : `PIN ${usuario.pin}`}
         </span>
       </div>
 

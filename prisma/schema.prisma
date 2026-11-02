@@ -14,7 +14,7 @@ datasource db {
 model Usuario {
   id        Int      @id @default(autoincrement())
   nombre    String
-  pin       String // 4 dígitos, único por rol (la búsqueda se hace por pin + rol)
+  pin       String // hash scrypt «scrypt:sal:hash» (o PIN de 4 dígitos legado aún sin migrar); la unicidad efectiva se compara con verificarPin (src/lib/pin.ts)
   rol       String // ADMIN | MESERO | DOMICILIARIO
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())

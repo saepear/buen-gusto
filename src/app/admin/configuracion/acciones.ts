@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { ES_ROL_VALIDO } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { hashearPin, verificarPin } from "@/lib/pin";
 
 export type EstadoAccionConfig = { error: string | null; ok: string | null };
 
@@ -43,13 +44,18 @@ export async function crearUsuario(
     return { error: "El PIN debe tener exactamente 4 dígitos.", ok: null };
   }
 
-  const repetido = await db.usuario.findFirst({ where: { pin, rol } });
+  // Los PIN viven hasheados: la unicidad «dentro del rol» se compara
+  // funcionalmente (ingresado contra el guardado de cada integrante).
+  const delRol = await db.usuario.findMany({ where: { rol } });
+  const repetido = delRol.find((u) => verificarPin(pin, u.pin));
   if (repetido) {
     return { error: `El PIN ${pin} ya lo usa alguien del rol ${rol}.`, ok: null };
   }
 
   try {
-    await db.usuario.create({ data: { nombre, pin, rol, activo: true } });
+    await db.usuario.create({
+      data: { nombre, pin: hashearPin(pin), rol, activo: true },
+    });
   } catch {
     return { error: "Ese PIN ya lo usa alguien del rol elegido.", ok: null };
   }
@@ -79,11 +85,17 @@ export async function guardarPin(
 
   const usuario = await db.usuario.findUnique({ where: { id } });
   if (!usuario) return { error: "Ese usuario ya no existe.", ok: null };
-  if (usuario.pin === pin) {
+
+  // Comparación funcional (el PIN guardado va hasheado): igual que su
+  // PIN de ahora solo si el nuevo verifica contra él.
+  if (verificarPin(pin, usuario.pin)) {
     return { error: "Ese ya es su PIN de ahora.", ok: null };
   }
 
-  const repetido = await db.usuario.findFirst({ where: { pin, rol: usuario.rol } });
+  const delRol = await db.usuario.findMany({
+    where: { rol: usuario.rol, id: { not: usuario.id } },
+  });
+  const repetido = delRol.find((u) => verificarPin(pin, u.pin));
   if (repetido) {
     return {
       error: `El PIN ${pin} ya lo usa ${repetido.nombre} en el rol ${usuario.rol}.`,
@@ -92,7 +104,10 @@ export async function guardarPin(
   }
 
   try {
-    await db.usuario.update({ where: { id }, data: { pin } });
+    await db.usuario.update({
+      where: { id },
+      data: { pin: hashearPin(pin) },
+    });
   } catch {
     return { error: "Ese PIN ya lo usa alguien del rol elegido.", ok: null };
   }
