@@ -206,7 +206,7 @@ export async function repetirUltimoDomicilio(
   // filas del pedido viejo con el mismo plato se fusionan en una línea.
   const grupos = new Map<
     string,
-    { productoId: number; nombre: string; conSopa: boolean; cantidad: number }
+    { productoId: number; nombre: string; conSopa: boolean; cantidad: number; origenes: Set<number> }
   >();
   for (const it of origen.pedido.items.filter(
     (fila) => fila.tipo === "PROTEINA" && fila.conSopa !== null,
@@ -215,12 +215,14 @@ export async function repetirUltimoDomicilio(
     const grupo = grupos.get(clave);
     if (grupo) {
       grupo.cantidad += it.cantidad;
+      grupo.origenes.add(it.grupo);
     } else {
       grupos.set(clave, {
         productoId: it.productoId,
         nombre: it.producto.nombre,
         conSopa: it.conSopa === true,
         cantidad: it.cantidad,
+        origenes: new Set([it.grupo]),
       });
     }
   }
@@ -234,6 +236,9 @@ export async function repetirUltimoDomicilio(
   // Las líneas van de la más grande a la más chica: el reparto de los
   // agregados compartidos queda estable entre repetición y repetición.
   const lineas: LineaAlmuerzo[] = [];
+  // El grupo ORIGINAL de cada plato viejo → su línea de hoy (para re-pegar
+  // a cada plato los adicionales que ese mismo plato llevaba)
+  const lineaPorGrupoOrigen = new Map<number, LineaAlmuerzo>();
   for (const grupo of [...grupos.values()].sort((a, b) => b.cantidad - a.cantidad)) {
     const proteinaId = itemIdDe(grupo.productoId, "PROTEINA");
     if (proteinaId === null) {
@@ -242,15 +247,18 @@ export async function repetirUltimoDomicilio(
         ok: null,
       };
     }
-    lineas.push({
+    const linea: LineaAlmuerzo = {
       conSopa: grupo.conSopa,
       proteinaId,
       principios: [],
       ensaladas: [],
       propios: [],
+      adicionales: [],
       sopaId: null,
       cantidad: grupo.cantidad,
-    });
+    };
+    lineas.push(linea);
+    for (const gOrigen of grupo.origenes) lineaPorGrupoOrigen.set(gOrigen, linea);
   }
 
   // Principios, ensaladas y sopa con nombre viven agregados en el pedido
@@ -307,8 +315,11 @@ export async function repetirUltimoDomicilio(
     repartir(categoria.nombre, "propios", filasDe(categoria.nombre));
   }
 
-  // Extras (bebidas y adicionales): ids de producto, respetando la cantidad
-  // real (3 gaseosas = 3 unidades en la carga, no 1 deduplicada)
+  // Extras compartidos (bebidas) + adicionales pegados a su plato.
+  // El pedido NUEVO guarda los adicionales dentro del grupo de su plato;
+  // en los pedidos viejos venían en el grupo 0 (extras) — ambos casos se
+  // respetan. Bebidas siempre al grupo 0. Respetando la cantidad real
+  // (3 gaseosas = 3 unidades en la carga, no 1 deduplicada).
   const idsExtras = [
     ...new Set(
       origen.pedido.items
@@ -331,12 +342,19 @@ export async function repetirUltimoDomicilio(
       )
     : new Set<number>();
   const extras = origen.pedido.items
-    .filter(
-      (it) =>
-        (it.tipo === "BEBIDA" || it.tipo === "ADICIONAL") &&
-        vigentes.has(it.productoId),
-    )
+    .filter((it) => it.tipo === "BEBIDA" && vigentes.has(it.productoId))
     .flatMap((it) => Array.from({ length: it.cantidad }, () => it.productoId));
+
+  // Los adicionales con grupo de plato vuelven al plato que los llevaba;
+  // sin plato de origen (pedido antiguo en grupo 0) caen en extras como siempre
+  for (const it of origen.pedido.items) {
+    if (it.tipo !== "ADICIONAL" || !vigentes.has(it.productoId)) continue;
+    const linea = lineaPorGrupoOrigen.get(it.grupo);
+    for (let i = 0; i < it.cantidad; i++) {
+      if (linea) linea.adicionales = [...(linea.adicionales ?? []), it.productoId];
+      else extras.push(it.productoId);
+    }
+  }
 
   const carga: CargaPedido = {
     lineas,

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { formatCOP } from "@/lib/format";
-import { PRECIO_ICOPOR, precioAlmuerzo } from "@/lib/precios";
+import { PRECIO_ICOPOR, precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import type { CategoriaPropia } from "@/lib/config";
 import { iconoDeCategoria } from "@/lib/iconos";
 import type { ItemMenuHoy } from "@/lib/pedido";
@@ -73,6 +73,9 @@ type LineaPlato = {
   ensaladas: number[];
   /** Productos de las categorías propias del cliente que van en el plato */
   propios: number[];
+  /** Adicionales del catálogo que van EN el plato (aparecen dentro del
+      «PEDIDO n» de la comanda): un id por unidad pedida */
+  adicionales: number[];
   sopaId: number | null;
   cantidad: number;
 };
@@ -239,6 +242,9 @@ export function FormularioPedido({
   const [propios, setPropios] = useState<number[]>([]);
   const [sopa, setSopa] = useState<number | null>(null);
   const [cantidadPlato, setCantidadPlato] = useState(1);
+  /** Adicionales del catálogo que van EN el plato de la vez, por productoId:
+   *  entran al «PEDIDO n» del plato (no al grupo de extras de toda la comanda) */
+  const [adicionales, setAdicionales] = useState<Record<number, number>>({});
 
   // ---- La comanda: 1 a muchos platos + extras de todo el pedido ----
   const [lineas, setLineas] = useState<LineaPlato[]>([]);
@@ -280,8 +286,9 @@ export function FormularioPedido({
   const ensaladasMenu = menu.filter((m) => m.tipo === "ENSALADA");
   const sopasMenu = menu.filter((m) => m.tipo === "SOPA");
 
-  /** Secciones de extras fijas de la casa (las categorías propias NO son
-      extras: viajan en el plato, con su sección después de la sopa). */
+  /** Secciones de extras fijas de la casa. Los adicionales NO van aquí:
+   *  viajan dentro del plato (sección propia, más abajo); los extras
+   *  compartidos del pedido completo son solo las bebidas. */
   const seccionesExtra = [
     {
       tipo: "BEBIDA",
@@ -291,15 +298,9 @@ export function FormularioPedido({
       clase: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
       items: extras.filter((e) => e.tipo === "BEBIDA"),
     },
-    {
-      tipo: "ADICIONAL",
-      titulo: "Adicionales",
-      sub: "Huevo, carne extra, los que pidan",
-      Icono: Star as LucideIcon,
-      clase: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
-      items: extras.filter((e) => e.tipo === "ADICIONAL"),
-    },
   ];
+  /** Adicionales del catálogo que entran en el plato bajo construcción */
+  const adicionalesMenu = extras.filter((e) => e.tipo === "ADICIONAL");
 
   /** Secciones del plato para las categorías propias del cliente */
   const seccionesPropias = categorias.map((c) => ({
@@ -318,24 +319,47 @@ export function FormularioPedido({
     (suma, [id, n]) => suma + (porProductoId.get(Number(id))?.precio ?? 0) * n,
     0,
   );
-  /** Precio del plato: la proteína con precio especial del día (los
-   *  especiales del domingo: asados, gallinas, pescados) manda sobre el
-   *  almuerzo corriente; llevar solo le suma el icopor. */
-  const precioLinea = (l: LineaPlato) => {
-    const propio = porItemId.get(l.proteinaId)?.precioPropio ?? 0;
-    if (propio > 0) return propio + (estaParaLlevar ? PRECIO_ICOPOR : 0);
-    return precioAlmuerzo(l.conSopa, estaParaLlevar);
-  };
-  // Precio del plato en construcción: si ya se escogió una proteína con
-  // precio especial, ese es el que se muestra en los subtítulos de
-  // sopa/bandeja en lugar del del almuerzo corriente.
-  const precioPlatoEnProceso =
-    proteina !== null && (porItemId.get(proteina)?.precioPropio ?? 0) > 0
-      ? (porItemId.get(proteina)?.precioPropio ?? 0) + (estaParaLlevar ? PRECIO_ICOPOR : 0)
-      : null;
+  /** Unidades de bebida compartidas: el grupo 0 de la comanda (los
+   *  adicionales viajan dentro de cada plato) */
+  const totalBebidas = Object.values(cantidades).reduce((suma, n) => suma + n, 0);
+
+  /** Costo de los adicionales que van dentro de un plato (por unidad del
+   *  plato: la lista trae un id por unidad pedida) */
+  const costoAdicionalesDe = (lista: number[]) =>
+    lista.reduce((suma, id) => suma + (porProductoId.get(id)?.precio ?? 0), 0);
+
   // ¿Hoy hay alguna proteína con precio especial? Con ella en el menú no
   // tiene sentido presumir los $ de la semana corriente en sopa/bandeja.
   const hayEspecialHoy = proteinasMenu.some((m) => m.precioPropio > 0);
+
+  /** Precio del plato: la proteína con precio especial del día (los
+   *  especiales del domingo: asados, gallinas, pescados) manda sobre el
+   *  almuerzo corriente; para llevar solo el COMPLETO suma el icopor (la
+   *  bandeja lleva su empaque ya en el precio) — y los adicionales del
+   *  plato se cobran aparte con su precio de catálogo. */
+  const precioLinea = (l: LineaPlato) => {
+    const propio = porItemId.get(l.proteinaId)?.precioPropio ?? 0;
+    const base =
+      propio > 0
+        ? precioEspecialDelDia(propio, l.conSopa, estaParaLlevar)
+        : precioAlmuerzo(l.conSopa, estaParaLlevar);
+    return base + costoAdicionalesDe(l.adicionales ?? []);
+  };
+  /** Precio que muestra cada píldora de sopa/bandeja: con una proteína
+      especial ya elegida es su precio (el icopor de llevar solo suma a la
+      opción CON sopa); con especiales en el menú pero sin elegir, no se
+      presume el corriente; si no, el del almuerzo corriente. */
+  const precioPildora = (conSopaOpcion: boolean): string => {
+    const propio =
+      proteina !== null ? (porItemId.get(proteina)?.precioPropio ?? 0) : 0;
+    if (propio > 0) {
+      return formatCOP(
+        precioEspecialDelDia(propio, conSopaOpcion, estaParaLlevar),
+      );
+    }
+    if (hayEspecialHoy) return "Especial · según la proteína";
+    return formatCOP(precioAlmuerzo(conSopaOpcion, estaParaLlevar));
+  };
   const totalPlatos = lineas.reduce((suma, l) => suma + l.cantidad, 0);
   const totalComanda =
     lineas.reduce((suma, l) => suma + precioLinea(l) * l.cantidad, 0) + totalExtras;
@@ -353,6 +377,14 @@ export function FormularioPedido({
   const nombresPropios = propios
     .map((id) => porItemId.get(id)?.nombre ?? "")
     .filter(Boolean);
+  /** Adicionales del plato de la vez, con su cantidad si piden más de uno */
+  const nombresAdicionales = Object.entries(adicionales)
+    .filter(([, n]) => n > 0)
+    .map(([id, n]) => {
+      const nombre = porProductoId.get(Number(id))?.nombre ?? "";
+      return nombre ? (n > 1 ? `${nombre} ×${n}` : nombre) : "";
+    })
+    .filter(Boolean);
 
   /** Resumen del plato en construcción, para la barra de abajo */
   const resumenPlato =
@@ -365,8 +397,16 @@ export function FormularioPedido({
               : " · sopa del día"
             : ""
         }${
-          nombresPrincipios.length || nombresEnsaladas.length || nombresPropios.length
-            ? ` · ${[...nombresPrincipios, ...nombresEnsaladas, ...nombresPropios].join(", ")}`
+          nombresPrincipios.length ||
+          nombresEnsaladas.length ||
+          nombresPropios.length ||
+          nombresAdicionales.length
+            ? ` · ${[
+                ...nombresPrincipios,
+                ...nombresEnsaladas,
+                ...nombresPropios,
+                ...nombresAdicionales,
+              ].join(", ")}`
             : ""
         }`;
 
@@ -378,10 +418,11 @@ export function FormularioPedido({
       principios: l.principios,
       ensaladas: l.ensaladas,
       propios: l.propios,
+      adicionales: l.adicionales ?? [],
       sopaId: l.sopaId,
       cantidad: l.cantidad,
     })),
-    // Extras compartidos: un id por unidad, igual que siempre
+    // Extras compartidos (bebidas): un id por unidad, igual que siempre
     extras: Object.entries(cantidades).flatMap(([id, n]) =>
       Array.from({ length: n }, () => Number(id)),
     ),
@@ -403,9 +444,31 @@ export function FormularioPedido({
     return nombres.join(" · ");
   };
 
+  /** Los adicionales pegados a un plato de la comanda, con su cantidad */
+  const adicionalesDe = (l: LineaPlato) => {
+    const conteo = new Map<number, number>();
+    for (const id of l.adicionales ?? []) {
+      conteo.set(id, (conteo.get(id) ?? 0) + 1);
+    }
+    return (
+      [...conteo]
+        .map(([id, n]) => {
+          const nombre = porProductoId.get(id)?.nombre ?? "";
+          return nombre ? (n > 1 ? `${nombre} ×${n}` : nombre) : "";
+        })
+        .filter(Boolean)
+        .join(", ") || null
+    );
+  };
+
   const añadirPlato = () => {
     if (proteina === null) return;
     const clave = siguienteClave.current++;
+    // Los adicionales guardados como chip (2 huevos = dos entradas) viajan
+    // dentro del plato: el ticket los imprimirá en su «PEDIDO n»
+    const adicionalesDelPlato = Object.entries(adicionales).flatMap(([id, n]) =>
+      Array.from({ length: n }, () => Number(id)),
+    );
     setLineas((previas) => {
       const nueva = {
         conSopa,
@@ -413,10 +476,12 @@ export function FormularioPedido({
         principios,
         ensaladas,
         propios,
+        adicionales: adicionalesDelPlato,
         sopaId: conSopa ? sopa : null,
         cantidad: cantidadPlato,
       };
-      // El mismo plato dos veces suma peso en el renglón que ya estaba
+      // El mismo plato dos veces (con sus mismos adicionales) suma peso en
+      // el renglón que ya estaba
       const index = previas.findIndex(
         (l) =>
           l.conSopa === nueva.conSopa &&
@@ -424,7 +489,8 @@ export function FormularioPedido({
           (l.sopaId ?? null) === (nueva.sopaId ?? null) &&
           mismoSet(l.principios, nueva.principios) &&
           mismoSet(l.ensaladas, nueva.ensaladas) &&
-          mismoSet(l.propios ?? [], nueva.propios),
+          mismoSet(l.propios ?? [], nueva.propios) &&
+          mismoSet(l.adicionales ?? [], nueva.adicionales),
       );
       if (index >= 0) {
         const copia = [...previas];
@@ -438,6 +504,7 @@ export function FormularioPedido({
     setEnsaladas([]);
     setPropios([]);
     setSopa(null);
+    setAdicionales({});
     setCantidadPlato(1);
   };
 
@@ -462,6 +529,7 @@ export function FormularioPedido({
     setLineas([]);
     setCantidades({});
     setPropios([]);
+    setAdicionales({});
   };
 
   const aceptarPrincipio = (itemId: number) => {
@@ -481,6 +549,17 @@ export function FormularioPedido({
   };
   const pedirExtra = (id: number, delta: number) => {
     setCantidades((prev) => {
+      const n = (prev[id] ?? 0) + delta;
+      const copia = { ...prev };
+      if (n <= 0) delete copia[id];
+      else copia[id] = n;
+      return copia;
+    });
+  };
+
+  /** Adicional para el plato de la vez (más/menos unidades del mismo) */
+  const pedirAdicional = (id: number, delta: number) => {
+    setAdicionales((prev) => {
       const n = (prev[id] ?? 0) + delta;
       const copia = { ...prev };
       if (n <= 0) delete copia[id];
@@ -620,6 +699,63 @@ export function FormularioPedido({
     );
   };
 
+  /** Chip de adicional para el PLATO de la vez: con + / − se acumulan las
+   *  unidades y entran al plato al darle «Añadir». En la comanda se
+   *  imprimen dentro del «PEDIDO n» del plato, no en Extras. */
+  const ChipAdicional = ({ e }: { e: Extra }) => {
+    const n = adicionales[e.id] ?? 0;
+    const activo = n > 0;
+    return (
+      <span
+        className={
+          "flex items-center overflow-hidden rounded-2xl transition " +
+          (activo
+            ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
+            : "bg-campo-app ring-1 ring-borde-app")
+        }
+      >
+        {activo ? (
+          <button
+            type="button"
+            aria-label={`Quitar ${e.nombre} del plato`}
+            onClick={() => pedirAdicional(e.id, -1)}
+            className="flex h-full items-center px-2.5 transition hover:bg-danger/80"
+          >
+            <Minus aria-hidden className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => pedirAdicional(e.id, 1)}
+          className="flex flex-1 items-center gap-2 px-2.5 py-2.5 text-left"
+        >
+          {!activo ? (
+            <span
+              aria-hidden
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-fondo-app/60 text-texto-muted/45"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+          ) : null}
+          <span className="min-w-0">
+            <span className="block text-sm leading-tight font-bold">
+              {e.nombre}
+              {activo && n > 1 ? ` ×${n}` : ""}
+            </span>
+            <span
+              className={
+                "text-[10px] font-bold tabular-nums " +
+                (activo ? "text-brown-950/70" : "text-texto-muted/35")
+              }
+            >
+              {e.precio > 0 ? formatCOP(e.precio) : "Gratis"}
+            </span>
+          </span>
+        </button>
+      </span>
+    );
+  };
+
   /** El panel de la comanda: escritorio (fijo a la derecha) y móvil (modal).
       alCerrar: el modal móvil pasa su botón de cierre para que viva DENTRO
       del encabezado (antes flotaba encima del botón Vaciar). */
@@ -636,8 +772,8 @@ export function FormularioPedido({
           <p className="font-display text-lg leading-none text-texto-app">Comanda</p>
           <p aria-live="polite" className="mt-1 text-[11px] text-texto-muted/45">
             {totalPlatos === 0
-              ? totalExtras > 0
-                ? `Sin almuerzo · ${totalExtras} ${totalExtras === 1 ? "extra" : "extras"} en la comanda`
+              ? totalBebidas > 0
+                ? `Sin almuerzo · ${totalBebidas} ${totalBebidas === 1 ? "bebida" : "bebidas"} en la comanda`
                 : "Vacía · toca la proteína para armar el plato"
               : `${totalPlatos} ${totalPlatos === 1 ? "plato" : "platos"} en la comanda`}
           </p>
@@ -645,7 +781,7 @@ export function FormularioPedido({
         <button
           type="button"
           onClick={vaciarComanda}
-          disabled={pendiente || (totalPlatos === 0 && totalExtras === 0)}
+          disabled={pendiente || (totalPlatos === 0 && totalBebidas === 0)}
           aria-label="Vaciar la comanda"
           title="Vaciar la comanda"
           className="rounded-xl bg-campo-app p-2 text-texto-muted/50 ring-1 ring-borde-app transition hover:text-danger-text disabled:opacity-40"
@@ -680,6 +816,11 @@ export function FormularioPedido({
                     {l.conSopa ? "con sopa" : "bandeja"}
                     {porciones ? ` · ${porciones}` : ""}
                   </p>
+                  {adicionalesDe(l) ? (
+                    <p className="truncate text-[11px] font-bold text-orange-brand/95">
+                      + {adicionalesDe(l)}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -770,7 +911,7 @@ export function FormularioPedido({
           })}
       </ul>
 
-      {totalPlatos === 0 && totalExtras === 0 ? (
+      {totalPlatos === 0 && totalBebidas === 0 ? (
         <p className="mt-3 rounded-2xl bg-campo-app px-3.5 py-3 text-sm text-texto-muted/45">
           Vacía: basta una sola cosa para la comanda — toca la proteína (el
           especial del dominical vale solo, sin principios ni ensalada) o pone
@@ -864,7 +1005,8 @@ export function FormularioPedido({
           {llevar ? (
             <>
               <ShoppingBag aria-hidden className="h-3.5 w-3.5 shrink-0 text-orange-brand" />
-              Para llevar · + {formatCOP(PRECIO_ICOPOR)} de icopor por almuerzo
+              Para llevar · + {formatCOP(PRECIO_ICOPOR)} de icopor con sopa ·
+              bandeja con su empaque incluido
             </>
           ) : (
             <>
@@ -898,10 +1040,10 @@ export function FormularioPedido({
 
       <button
         type="submit"
-        disabled={pendiente || (totalPlatos === 0 && totalExtras === 0)}
+        disabled={pendiente || (totalPlatos === 0 && totalBebidas === 0)}
         className={
           "mt-2.5 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-md transition active:scale-95 " +
-          (pendiente || (totalPlatos === 0 && totalExtras === 0)
+          (pendiente || (totalPlatos === 0 && totalBebidas === 0)
             ? "cursor-not-allowed bg-brown-800/50 text-cream-50/60"
             : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
         }
@@ -941,7 +1083,7 @@ export function FormularioPedido({
                 Icono={ShoppingBag}
                 clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
                 titulo="Domicilio · para llevar"
-                sub={`Se cobra en la entrega · incluye icopor de ${formatCOP(PRECIO_ICOPOR)}`}
+                sub={`Se cobra en la entrega · icopor de ${formatCOP(PRECIO_ICOPOR)} solo con sopa`}
               />
             </section>
           ) : (
@@ -978,7 +1120,9 @@ export function FormularioPedido({
                       <Icono aria-hidden className="h-4 w-4" /> {txt}
                     </span>
                     <span className="text-[10px] font-bold normal-case">
-                      {ok ? `+ ${formatCOP(PRECIO_ICOPOR)} de icopor` : "se sirve en la mesa"}
+                      {ok
+                        ? `icopor ${formatCOP(PRECIO_ICOPOR)} solo con sopa`
+                        : "se sirve en la mesa"}
                     </span>
                   </button>
                 ))}
@@ -1017,11 +1161,7 @@ export function FormularioPedido({
                     <Soup aria-hidden className="h-4 w-4" /> {o.txt}
                   </span>
                   <span className="text-[10px] font-bold tabular-nums normal-case">
-                    {precioPlatoEnProceso !== null
-                      ? formatCOP(precioPlatoEnProceso)
-                      : hayEspecialHoy
-                        ? "Especial · según la proteína"
-                        : formatCOP(precioAlmuerzo(o.ok, estaParaLlevar))}
+                    {precioPildora(o.ok)}
                   </span>
                 </button>
               ))}
@@ -1154,7 +1294,28 @@ export function FormularioPedido({
             </section>
           ))}
 
-          {/* 7. Extras fijos de la casa: bebidas y adicionales */}
+          {/* 7. Adicionales de la casa: entran en el plato de la vez y se
+              cobran con su precio. En la comanda se imprimen dentro del
+              «PEDIDO n» del plato, no en el grupo de extras. */}
+          <section className="mt-3 rounded-[1.5rem] bg-panel-app p-3 ring-1 ring-borde-app shadow-2xl sm:mt-3.5 sm:rounded-[2rem] sm:p-4">
+            <TituloSeccion
+              Icono={Star}
+              clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
+              titulo="Adicionales"
+              sub="Huevo, carne extra… · entran en el plato de la vez"
+            />
+            {adicionalesMenu.length === 0 ? (
+              <NotaVacia texto="Hoy no hay adicionales…" />
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {adicionalesMenu.map((e) => (
+                  <ChipAdicional key={e.id} e={e} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* 8. Extras compartidos del pedido: las bebidas */}
           {seccionesExtra.map((s) => (
             <section
               key={s.tipo}

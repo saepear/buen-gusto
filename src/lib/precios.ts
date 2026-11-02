@@ -23,8 +23,10 @@ export const PRECIO_CARNE_EXTRA = 5_000;
 /**
  * Precio del almuerzo principal:
  *   completa en mesa $13.000 · bandeja en mesa $12.000
- *   completa para llevar $14.500 (+1.500 icopor)
- *   bandeja para llevar $13.000 (+1.000 de empaque)
+ *   completa para llevar $14.500 ($13.000 + $1.500 de icopor)
+ *   bandeja para llevar $13.000 ($12.000 + $1.000 de empaque, SIN
+ *   icopor: ese recipiente es de la sopa; la bandeja paga su empaque
+ *   propio y más ligero).
  */
 export function precioAlmuerzo(
   conSopa: boolean,
@@ -34,6 +36,21 @@ export function precioAlmuerzo(
   return (
     (conSopa ? PRECIO_COMPLETO + PRECIO_ICOPOR : PRECIO_BANDEJA + PRECIO_EMPAQUE_BANDEJA)
   );
+}
+
+/**
+ * El plato con precio especial del día (asados del domingo, gallina,
+ * pescados): vale lo mismo en mesa y para llevar, con o sin sopa — solo el
+ * COMPLETO para llevar suma el icopor ($1.500, el vaso de la sopa). La
+ * bandeja para llevar NO lo suma (no se apilan $1.500 de más: la bandeja
+ * ya paga su propio empaque).
+ */
+export function precioEspecialDelDia(
+  precioEspecial: number,
+  conSopa: boolean,
+  paraLlevar: boolean,
+): number {
+  return precioEspecial + (paraLlevar && conSopa ? PRECIO_ICOPOR : 0);
 }
 
 /**

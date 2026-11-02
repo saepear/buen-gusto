@@ -2,7 +2,7 @@
 import { db } from "@/lib/db";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { claveDia } from "@/lib/format";
-import { precioAlmuerzo, PRECIO_ICOPOR } from "@/lib/precios";
+import { PRECIO_ICOPOR, precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
 
 /** Pedidos que dejan la mesa ocupada (los demás son históricos) */
@@ -68,6 +68,10 @@ export type LineaAlmuerzo = {
   ensaladas: number[];
   /** Productos de las categorías propias del cliente que van en el plato */
   propios?: number[];
+  /** Adicionales del catálogo (tipo ADICIONAL) que van EN este plato: un id
+   *  por unidad pedida. Se cobran con su precio y se imprimen dentro del
+   *  «PEDIDO n» del plato, no en el grupo compartido de extras. */
+  adicionales?: number[];
   sopaId: number | null;
   /** Cuántos almuerzos idénticos van en esta línea (1 a 50) */
   cantidad: number;
@@ -135,6 +139,9 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
       const propios =
         l.propios === undefined ? [] : enumerar(l.propios, 10);
       if (!propios) return null;
+      const adicionales =
+        l.adicionales === undefined ? [] : enumerar(l.adicionales, 10);
+      if (!adicionales) return null;
       if (l.sopaId !== null && l.sopaId !== undefined && !esId(l.sopaId)) return null;
       unidas.push({
         conSopa: l.conSopa,
@@ -142,6 +149,7 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
         principios,
         ensaladas,
         propios,
+        adicionales,
         sopaId: l.sopaId ?? null,
         cantidad: l.cantidad,
       });
@@ -151,7 +159,9 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
     for (const linea of unidas) {
       const clave = `${linea.conSopa ? "c" : "b"}|${linea.proteinaId}|${linea.sopaId ?? 0}|${[
         ...linea.principios,
-      ].sort((a, b) => a - b).join(",")}|${[...linea.ensaladas].sort((a, b) => a - b).join(",")}`;
+      ].sort((a, b) => a - b).join(",")}|${[...linea.ensaladas].sort((a, b) => a - b).join(",")}|${
+        [...(linea.adicionales ?? [])].sort((a, b) => a - b).join(",")
+      }`;
       const previa = fusion.get(clave);
       if (previa) {
         previa.cantidad += linea.cantidad;
@@ -177,6 +187,7 @@ export function lineasDeLaCarga(carga: CargaPedido): LineaAlmuerzo[] | null {
       proteinaId,
       principios: principiosViejos,
       ensaladas: ensaladasViejas,
+      adicionales: [],
       sopaId: sopaId ?? null,
       cantidad: 1,
     },
@@ -272,6 +283,26 @@ export async function crearPedido(opciones: {
     (await getCategoriasPersonalizadas()).map((c) => c.nombre),
   );
 
+  // Adicionales que van EN el plato: productos del catálogo (tipo
+  // ADICIONAL), no ítems del menú, así que se validan contra él de una vez.
+  const idsAdicionales = new Set(
+    lineasDePlato.flatMap((l) => l.adicionales ?? []),
+  );
+  const catalogoAdicionales =
+    idsAdicionales.size > 0
+      ? await db.producto.findMany({
+          where: { id: { in: [...idsAdicionales] }, activo: true, tipo: "ADICIONAL" },
+        })
+      : [];
+  if (catalogoAdicionales.length !== idsAdicionales.size) {
+    throw new ErrorDePedido(
+      "Un adicional ya no está disponible. Recarga la página.",
+    );
+  }
+  const porProductoAdicional = new Map(
+    catalogoAdicionales.map((p) => [p.id, p] as const),
+  );
+
   for (const linea of lineasDePlato) {
     const proteina = porItemId.get(linea.proteinaId);
     if (!proteina || proteina.tipo !== "PROTEINA") {
@@ -289,9 +320,10 @@ export async function crearPedido(opciones: {
       // del día, igual que sopa, principios y ensaladas.
       // PRECIO ESPECIAL del día (se fija en el Menú del día): los asados del
       // domingo $24.000, gallina $17.000, pescados $25.000 — el plato vale lo
-      // mismo con o sin sopa y para llevar solo se añade el icopor. Sin
-      // precio especial rige el almuerzo corriente ($13.000 con sopa ·
-      // $12.000 bandeja, + empaque de llevar).
+      // mismo con o sin sopa, y para llevar solo el COMPLETO suma el icopor
+      // (el empaque de la bandeja ya va incluido en su $13.000). Sin precio
+      // especial rige el almuerzo corriente ($13.000 con sopa · $12.000
+      // bandeja, + empaque de llevar).
       cobrar(proteina, 1);
       filas.push({
         productoId: proteina.productoId,
@@ -300,7 +332,11 @@ export async function crearPedido(opciones: {
         cantidad: 1,
         precio:
           proteina.precioPropio > 0
-            ? proteina.precioPropio + (llevar ? PRECIO_ICOPOR : 0)
+            ? precioEspecialDelDia(
+                proteina.precioPropio,
+                linea.conSopa,
+                llevar,
+              )
             : precioAlmuerzo(linea.conSopa, llevar),
         grupo: grupoActual,
       });
@@ -384,10 +420,32 @@ export async function crearPedido(opciones: {
           grupo: grupoActual,
         });
       }
+
+      // Adicionales pegados al plato: mismo grupo (aparecen dentro del
+      // «PEDIDO n» de la comanda), se cobran con su precio de catálogo y
+      // se multiplican por los platos de la línea.
+      const conteoAdicional = new Map<number, number>();
+      for (const productoId of linea.adicionales ?? []) {
+        conteoAdicional.set(productoId, (conteoAdicional.get(productoId) ?? 0) + 1);
+      }
+      for (const [productoId, unidades] of conteoAdicional) {
+        const a = porProductoAdicional.get(productoId)!;
+        filas.push({
+          productoId: a.id,
+          tipo: a.tipo,
+          conSopa: null,
+          cantidad: unidades,
+          precio: a.precio,
+          grupo: grupoActual,
+        });
+      }
     }
   }
 
-  // Extras (bebidas y adicionales): grupo 0 (no son platos)
+  // Extras compartidos del pedido (grupo 0: no son platos). Con la carga
+  // nueva del formulario aquí solo llegan bebidas; los adicionales elegidos
+  // en el constructor viajan dentro del plato (lineas[].adicionales). La
+  // carga vieja (pedidos a mano) sigue trayendo adicionales por acá.
   const extras = enumerar(carga.extras, 40);
   if (!extras) {
     throw new ErrorDePedido("Formato del pedido incorrecto.");

@@ -350,7 +350,14 @@ function TarjetaDomicilio({
                     )}
                     {grupo === 0 && (
                       <p className="mb-2 text-center text-[11px] font-black tracking-widest uppercase">
-                        --- Extras / Bebidas ---
+                        ---{" "}
+                        {items.some((i) => i.tipo === "BEBIDA") &&
+                        items.some((i) => i.tipo !== "BEBIDA")
+                          ? "Extras / Bebidas"
+                          : items.some((i) => i.tipo === "BEBIDA")
+                            ? "Bebidas"
+                            : "Extras"}{" "}
+                        ---
                       </p>
                     )}
                     <ul className="space-y-1">
