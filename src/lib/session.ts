@@ -6,7 +6,38 @@ import { destinoRol, type Rol } from "./roles";
 
 const COOKIE_NAME = "buen_gusto_session";
 const MAX_AGE_SEG = 60 * 60 * 12; // 12 horas
-const SECRET = process.env.AUTH_SECRET ?? "el-buen-gusto-secreto";
+
+/** Resuelve la clave con la que se firman las cookies de sesión.
+ *  SIN secretos inseguros por defecto: en producción EXIGE AUTH_SECRET con
+ *  32+ caracteres (128 bits de entropía); en desarrollo se admite la corta
+ *  del .env con aviso, o un secreto efímero aleatorio de este proceso (las
+ *  sesiones dev se invalidan al reiniciar, a propósito). */
+function resolverSecreto(): string {
+  const valor = process.env.AUTH_SECRET?.trim() ?? "";
+  if (valor.length >= 32) return valor;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Falta o es corta la variable AUTH_SECRET: es la clave con la que se " +
+        "firman las cookies de sesión. Escríbela en .env (o en las variables " +
+        "del despliegue) con 32+ caracteres aleatorios. Genera una con: " +
+        'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
+    );
+  }
+
+  if (valor.length > 0) {
+    console.warn(
+      "AUTH_SECRET tiene menos de 32 caracteres: solo apéndala el desarrollo; en producción será obligatoria larga.",
+    );
+    return valor;
+  }
+  console.warn(
+    "AUTH_SECRET no está definida: sesión firmada con un secreto efímero de desarrollo (se reinicia al reiniciar el dev).",
+  );
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+const SECRET = resolverSecreto();
 
 export type Sesion = { id: number; nombre: string; rol: Rol };
 
