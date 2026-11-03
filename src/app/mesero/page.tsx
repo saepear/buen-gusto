@@ -14,7 +14,7 @@ export default async function PaginaMesero() {
   const [mesasBrutas, comandas] = await Promise.all([
     db.mesa.findMany({
       // La mesa virtual de domicilios no es una mesa del salón
-      where: { activa: true, esDomicilio: false },
+      where: { activa: true, esDomicilio: false, esApartado: false },
     }),
     db.pedido.findMany({
       where: {

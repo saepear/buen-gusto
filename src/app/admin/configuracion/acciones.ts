@@ -254,6 +254,12 @@ export async function borrarMesa(
       ok: null,
     };
   }
+  if (mesa.esApartado) {
+    return {
+      error: "La mesa de apartados la crea el sistema: no se puede borrar.",
+      ok: null,
+    };
+  }
   if (mesa.estado !== "LIBRE") {
     return {
       error: `La mesa «${mesa.nombre}» está ocupada: cobra o cancela sus comandas antes de borrarla.`,

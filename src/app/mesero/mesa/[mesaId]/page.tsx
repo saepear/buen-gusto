@@ -73,7 +73,7 @@ export default async function PaginaMesa(
   if (!Number.isInteger(mesaId)) notFound();
 
   const mesa = await db.mesa.findFirst({
-    where: { id: mesaId, activa: true, esDomicilio: false },
+    where: { id: mesaId, activa: true, esDomicilio: false, esApartado: false },
   });
   if (!mesa) notFound();
 

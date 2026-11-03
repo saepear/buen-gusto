@@ -15,7 +15,7 @@ export default async function PaginaConfiguracion() {
   const [usuarios, mesasBrutas, temaActual, historial] = await Promise.all([
     db.usuario.findMany(),
     // La mesa virtual de domicilios no se administra como mesa del salón
-    db.mesa.findMany({ where: { esDomicilio: false } }),
+    db.mesa.findMany({ where: { esDomicilio: false, esApartado: false } }),
     getTemaActual(),
     // Comandas históricas por mesa
     db.pedido.groupBy({ by: ["mesaId"], _count: { _all: true } }),

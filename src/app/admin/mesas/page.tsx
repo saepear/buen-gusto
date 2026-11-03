@@ -11,7 +11,7 @@ import { TableroMesas, type MesaDetalle } from "./tablero";
 export default async function PaginaMesas() {
   const mesasBrutas = await db.mesa.findMany({
     // La mesa virtual de domicilios se gestiona en su propio tablero
-    where: { activa: true, esDomicilio: false },
+    where: { activa: true, esDomicilio: false, esApartado: false },
   });
   // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
   const mesas = ordenMesasPorNombre(mesasBrutas);

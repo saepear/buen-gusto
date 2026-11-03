@@ -43,8 +43,9 @@ export default async function PaginaCaja(
       where: {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
         activa: true,
-        // Los domicilios se cobran contra entrega, no como mesa de salón
+        // Domicilios y apartados no se cobran como mesas de salón
         esDomicilio: false,
+        esApartado: false,
       },
     }),
     db.pago.findMany({
@@ -351,7 +352,11 @@ export default async function PaginaCaja(
                   Pago #{pago.id}
                 </span>
                 <span className="text-sm text-texto-muted/70">
-                  {pago.pedido.mesa.esDomicilio ? "Domicilio" : pago.pedido.mesa.nombre}
+                  {pago.pedido.mesa.esDomicilio
+                    ? "Domicilio"
+                    : pago.pedido.mesa.esApartado
+                      ? "Apartado (recogido)"
+                      : pago.pedido.mesa.nombre}
                 </span>
                 <span className="text-xs text-texto-muted/45">
                   {formatHora(pago.createdAt)}

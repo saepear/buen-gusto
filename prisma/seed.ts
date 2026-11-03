@@ -45,6 +45,10 @@ const MESAS = [
 // sirve para reutilizar el stock y el cobro de una comanda normal.
 const MESA_DOMICILIO = "Domicilios";
 
+// Mesa virtual sobre la que nace la comanda de un apartado entregado.
+// Igual que la de domicilios: no aparece en el salón ni en la caja.
+const MESA_APARTADO = "Apartados";
+
 const PRODUCTOS = [
   // Proteínas
   { nombre: "Res", tipo: "PROTEINA", precio: 0 },
@@ -135,6 +139,11 @@ async function sembrarSinBorrar(): Promise<void> {
     ...MESAS.filter((n) => !nombresMesas.has(n)).map((nombre) => ({ nombre })),
     ...(!nombresMesas.has(MESA_DOMICILIO)
       ? [{ nombre: MESA_DOMICILIO, esDomicilio: true }]
+      : []),
+    // Mesa virtual de apartados: aunque la entrega la crea sola, queda
+    // lista en setups nuevos
+    ...(!nombresMesas.has(MESA_APARTADO)
+      ? [{ nombre: MESA_APARTADO, esApartado: true }]
       : []),
   ];
   if (mesasNuevas.length > 0) {
