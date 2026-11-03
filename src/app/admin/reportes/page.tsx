@@ -1,220 +1,180 @@
 import {
+  Banknote,
   Bike,
+  CalendarClock,
   CalendarDays,
   Clock,
   Coins,
+  FileSpreadsheet,
+  HandCoins,
   Receipt,
+  ShoppingCart,
+  Tag,
   TrendingUp,
   UtensilsCrossed,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
-import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatFecha, formatHora } from "@/lib/format";
-import { precioUnitarioItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
-import {
-  ESTADO_DOMICILIO,
-  ESTADOS_ACTIVOS_DOMICILIO,
-  METODOS_PAGO,
-} from "@/lib/roles";
+import { datosReporte, ETIQUETA_METODO } from "./datos-reporte";
 import { FormularioCierre } from "./boton-cierre";
 import { BarraUnidades, GraficoDinero } from "./graficos";
 
 export const metadata = { title: "Reportes" };
 
-const METODO_TXT: Record<string, string> = {
-  EFECTIVO: "Efectivo",
-  TARJETA: "Tarjeta",
-  TRANSFERENCIA: "Transferencia",
-};
-
 const CHIP_METODO: Record<string, string> = {
   EFECTIVO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  TARJETA: "bg-[#4aa3ff]/10 text-[#8fc6ff] ring-1 ring-[#4aa3ff]/20",
-  TRANSFERENCIA: "bg-[#b06fd0]/10 text-[#d3a7e8] ring-1 ring-[#b06fd0]/20",
+  TARJETA: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
+  TRANSFERENCIA: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
 };
 
-export default async function PaginaReportes() {
-  const fecha = inicioDeHoy();
-  const desdeSemana = (() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - 6);
-    return d;
-  })();
-
-  const [pagosHoy, pedidosHoy, pagosSemana, cierres, domiciliosHoy] =
-    await Promise.all([
-      db.pago.findMany({
-        where: { createdAt: { gte: fecha } },
-        orderBy: { createdAt: "asc" },
-      }),
-      db.pedido.findMany({
-        where: { createdAt: { gte: fecha } },
-        include: { items: { include: { producto: true } } },
-        orderBy: { createdAt: "asc" },
-      }),
-      db.pago.findMany({
-        where: { createdAt: { gte: desdeSemana } },
-        orderBy: { createdAt: "asc" },
-      }),
-      db.cierreCaja.findMany({
-        orderBy: { fecha: "desc" },
-        take: 7,
-        include: { cerradoPor: true },
-      }),
-      db.domicilio.findMany({
-        where: { createdAt: { gte: fecha } },
-        include: { domiciliario: true },
-        orderBy: { createdAt: "asc" },
-      }),
-    ]);
-
-  // ---- Resumen de hoy ----
-  const totalPagos = pagosHoy.reduce((s, p) => s + p.total, 0);
-  const propinasHoy = pagosHoy.reduce((s, p) => s + p.propina, 0);
-  const pagadoHoy = totalPagos + propinasHoy;
-  const porMetodo = new Map<string, number>();
-  for (const m of METODOS_PAGO) porMetodo.set(m, 0);
-  for (const p of pagosHoy) {
-    porMetodo.set(p.metodo, (porMetodo.get(p.metodo) ?? 0) + p.total);
+export default async function PaginaReportes(
+  props: PageProps<"/admin/reportes">,
+) {
+  // Día a reportar: hoy por defecto; `?fecha=YYYY-MM-DD` pinta un día pasado.
+  const { fecha: fechaCruda } = await props.searchParams;
+  const hoyClave = claveDia(new Date());
+  let fechaFila = inicioDeHoy();
+  if (typeof fechaCruda === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fechaCruda)) {
+    const [y, m, d] = fechaCruda.split("-").map(Number);
+    fechaFila = new Date(y, m - 1, d);
   }
-  const ticketPromedio =
-    pagosHoy.length > 0 ? Math.round(pagadoHoy / pagosHoy.length) : 0;
+  const esOtroDia = claveDia(fechaFila) !== hoyClave;
 
-  // ---- Comandas de hoy ----
-  const servidas = pedidosHoy.filter(
-    (p) => p.estado === "SERVIDO" || p.estado === "COBRADO",
-  );
-  const enCocina = pedidosHoy.filter((p) =>
-    ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "POR_PAGAR"].includes(
-      p.estado,
-    ),
-  );
-  const canceladas = pedidosHoy.filter((p) => p.estado === "CANCELADO");
-
-  // ---- Almuerzos por proteína (solo lo que llegó a la mesa) ----
-  const porProteina = new Map<string, { unidades: number; sinSopa: number }>();
-  const extras = new Map<string, { unidades: number; recaudo: number }>();
-  for (const pedido of servidas) {
-    for (const item of pedido.items) {
-      if (item.tipo === "PROTEINA") {
-        const fila = porProteina.get(item.producto.nombre) ?? {
-          unidades: 0,
-          sinSopa: 0,
-        };
-        fila.unidades += item.cantidad;
-        if (item.conSopa === false) fila.sinSopa += item.cantidad;
-        porProteina.set(item.producto.nombre, fila);
-      } else if (precioUnitarioItem(item) > 0) {
-        const fila = extras.get(item.producto.nombre) ?? {
-          unidades: 0,
-          recaudo: 0,
-        };
-        fila.unidades += item.cantidad;
-        fila.recaudo += precioUnitarioItem(item) * item.cantidad;
-        extras.set(item.producto.nombre, fila);
-      }
-    }
-  }
-  const proteinasLista = [...porProteina.entries()].sort(
-    (a, b) => b[1].unidades - a[1].unidades,
-  );
-  const extrasLista = [...extras.entries()].sort(
-    (a, b) => b[1].recaudo - a[1].recaudo,
-  );
-
-  // ---- Ingresos por hora (de los pagos) ----
-  const porHora = new Map<number, number>();
-  for (const pago of pagosHoy) {
-    const h = pago.createdAt.getHours();
-    porHora.set(h, (porHora.get(h) ?? 0) + pago.total + pago.propina);
-  }
-  const horasLista = [...porHora.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([h, valor]) => ({
-      etiqueta: `${h} h`,
-      valor,
-    }));
-
-  // ---- Últimos 7 días ----
-  const claveHoy = claveDia(new Date());
-  const porDia = new Map<string, number>();
-  for (const pago of pagosSemana) {
-    const k = claveDia(pago.createdAt);
-    porDia.set(k, (porDia.get(k) ?? 0) + pago.total + pago.propina);
-  }
-  const dias = [...Array(7).keys()].map((i) => {
-    const d = new Date(desdeSemana);
-    d.setDate(d.getDate() + i);
-    const k = claveDia(d);
-    return {
-      etiqueta: d.toLocaleDateString("es-CO", { weekday: "short" }),
-      valor: porDia.get(k) ?? 0,
-      resaltar: k === claveHoy,
-    };
-  });
-
-  // ---- Cierre de caja ----
-  const cierreHoy = cierres.find((c) => c.fecha === claveHoy);
-
-  // ---- Domicilios de hoy ----
-  const domActivos = new Set<string>(ESTADOS_ACTIVOS_DOMICILIO);
-  const domEntregados = domiciliosHoy.filter(
-    (d) => d.estado === ESTADO_DOMICILIO.ENTREGADO,
-  );
-  const domEnCurso = domiciliosHoy.filter((d) => domActivos.has(d.estado));
-  const domFallidos = domiciliosHoy.filter(
-    (d) =>
-      d.estado === ESTADO_DOMICILIO.NO_ENTREGADO ||
-      d.estado === ESTADO_DOMICILIO.CANCELADO,
-  );
-  const recaudoDomicilios = domEntregados.reduce(
-    (s, d) => s + (d.cobradoMonto ?? 0),
-    0,
-  );
-  const porRepartidor = new Map<string, { entregas: number; recaudo: number }>();
-  for (const d of domEntregados) {
-    const nombre = d.domiciliario?.nombre ?? "Sin asignar";
-    const fila = porRepartidor.get(nombre) ?? { entregas: 0, recaudo: 0 };
-    fila.entregas += 1;
-    fila.recaudo += d.cobradoMonto ?? 0;
-    porRepartidor.set(nombre, fila);
-  }
-  const repartidoresLista = [...porRepartidor.entries()].sort(
-    (a, b) => b[1].entregas - a[1].entregas,
-  );
+  const {
+    pagosHoy,
+    propinasHoy,
+    pagadoHoy,
+    ticketPromedio,
+    porMetodo,
+    servidas,
+    enCocina,
+    canceladas,
+    proteinasLista,
+    extrasLista,
+    horasLista,
+    dias,
+    cierreHoy,
+    cierres,
+    domiciliosHoy,
+    domEntregados,
+    domEnCurso,
+    domFallidos,
+    recaudoDomicilios,
+    repartidoresLista,
+    // nuevos módulos financieros
+    propinasPorMetodo,
+    abonosTotal,
+    abonosPorMetodo,
+    numeroAbonos,
+    filasAbonos,
+    cuentasCreadasHoy,
+    cxcCreadasValor,
+    cuentasPendientesLista,
+    cxcPendienteTotal,
+    gastosTotal,
+    gastosCaja,
+    gastosCajaEfectivo,
+    gastosExternos,
+    filasGastos,
+    apartadosCreados,
+    apartadosEntregados,
+    efectivoDisponible,
+  } = await datosReporte(fechaFila);
 
   return (
     <>
       <EncabezadoPagina
         titulo="Reportes"
-        subtitulo={`El pulso del negocio · ${formatFecha(new Date())}`}
+        subtitulo={`El pulso del negocio · ${formatFecha(esOtroDia ? fechaFila : new Date())}`}
+        acciones={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* Exporta EXACTAMENTE el día que se está mirando */}
+            <Link
+              prefetch={false}
+              href={`/admin/reportes/exportar?fecha=${claveDia(fechaFila)}`}
+              className="flex items-center gap-2 rounded-2xl bg-success/10 px-4 py-2.5 text-sm font-bold text-success-text ring-1 ring-success/25 transition hover:bg-success/20"
+            >
+              <FileSpreadsheet aria-hidden className="h-4 w-4" />
+              Exportar a Excel
+            </Link>
+            <form
+              method="get"
+              action="/admin/reportes"
+              className="flex items-center gap-1.5"
+            >
+              <input
+                type="date"
+                name="fecha"
+                defaultValue={claveDia(fechaFila)}
+                max={hoyClave}
+                aria-label="Día del reporte"
+                className="rounded-2xl bg-panel-app px-3 py-2.5 text-sm text-texto-app ring-1 ring-borde-app"
+              />
+              <button
+                type="submit"
+                title="Ver el reporte de ese día"
+                className="rounded-2xl bg-panel-app px-3.5 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+              >
+                Ver
+              </button>
+            </form>
+          </div>
+        }
       />
 
       {/* Tiles de hoy */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
-            nombre: "Cobrado hoy",
+            nombre: "Ventas del día",
             valor: formatCOP(pagadoHoy),
             Icono: Wallet,
+            pista: "Cobranzas de salón, llevar y domicilios",
           },
           {
-            nombre: "Pagos",
+            nombre: "Abonos recibidos",
+            valor: formatCOP(abonosTotal),
+            Icono: Coins,
+            pista: `Pagos de deudas (${numeroAbonos}) — no son ventas`,
+          },
+          {
+            nombre: "Gastos de caja",
+            valor: formatCOP(gastosCaja),
+            Icono: ShoppingCart,
+            pista: `De ellos ${formatCOP(gastosCajaEfectivo)} en efectivo`,
+          },
+          {
+            nombre: "Efectivo disponible",
+            valor: formatCOP(efectivoDisponible),
+            Icono: Banknote,
+            pista: "Ventas + abonos − gastos en efectivo",
+          },
+          {
+            nombre: "Tickets / pagos",
             valor: String(pagosHoy.length),
             Icono: Receipt,
+            pista: `Ticket promedio ${formatCOP(ticketPromedio)}`,
+          },
+          {
+            nombre: "Fiado por cobrar",
+            valor: formatCOP(cxcPendienteTotal),
+            Icono: HandCoins,
+            pista: `Hoy quedaron ${formatCOP(cxcCreadasValor)} fiados nuevos`,
+          },
+          {
+            nombre: "Gastos externos",
+            valor: formatCOP(gastosExternos),
+            Icono: Tag,
+            pista: "Auditados, no tocan la caja",
           },
           {
             nombre: "Propinas",
             valor: formatCOP(propinasHoy),
-            Icono: Coins,
-          },
-          {
-            nombre: "Ticket promedio",
-            valor: formatCOP(ticketPromedio),
             Icono: TrendingUp,
+            pista: "Además de las ventas",
           },
         ].map((tile) => (
           <div
@@ -224,12 +184,15 @@ export default async function PaginaReportes() {
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-app">
               <tile.Icono className="h-5.5 w-5.5" />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
                 {tile.nombre}
               </p>
               <p className="font-display text-2xl text-texto-app">
                 {tile.valor}
+              </p>
+              <p className="truncate text-[10px] text-texto-muted/40">
+                {tile.pista}
               </p>
             </div>
           </div>
@@ -246,9 +209,18 @@ export default async function PaginaReportes() {
               (CHIP_METODO[m] ?? "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
             }
           >
-            {METODO_TXT[m] ?? m}: {formatCOP(valor)}
+            {ETIQUETA_METODO[m] ?? m}: {formatCOP(valor)}
           </span>
         ))}
+        {abonosTotal > 0 ? (
+          <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
+            Abonos de deudas:{" "}
+            {[...abonosPorMetodo.entries()]
+              .filter(([, v]) => v > 0)
+              .map(([m, v]) => `${ETIQUETA_METODO[m] ?? m} ${formatCOP(v)}`)
+              .join(" · ")}
+          </span>
+        ) : null}
         <span className="flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
           <UtensilsCrossed className="h-3.5 w-3.5" /> Servidas: {servidas.length}
         </span>
@@ -398,6 +370,186 @@ export default async function PaginaReportes() {
         )}
       </section>
 
+      {/* ——— Otros movimientos financieros del día ——— */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        {/* Fiados creados hoy (promesas, NO ingreso) */}
+        <section className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
+          <h2 className="flex items-center gap-2 font-display text-lg text-texto-app">
+            <HandCoins className="h-5 w-5 text-danger-text" /> Fiados del día
+          </h2>
+          <p className="mt-1 text-xs text-texto-muted/55">
+            Lo fiado hoy NO es ingreso de caja: entra el día en que se pague.
+          </p>
+          {cuentasCreadasHoy.length === 0 ? (
+            <p className="mt-3 text-sm text-texto-muted/45">
+              Hoy no se fió nada (buena señal para el bolsillo).
+            </p>
+          ) : (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
+                  Deudas nuevas: {cuentasCreadasHoy.length}
+                </span>
+                <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
+                  Valor: {formatCOP(cxcCreadasValor)}
+                </span>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {cuentasCreadasHoy.slice(0, 6).map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-panel-app px-3 py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-texto-app">
+                        {c.cliente.nombre}
+                      </span>
+                      <span className="block truncate text-[11px] text-texto-muted/50">
+                        {c.concepto}
+                      </span>
+                    </span>
+                    <strong className="shrink-0 text-danger-text">
+                      {formatCOP(c.valorOriginal)}
+                    </strong>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {cuentasPendientesLista.length > 0 ? (
+            <div className="mt-4 rounded-xl bg-fondo-app p-3">
+              <p className="text-xs font-bold text-texto-muted/60">
+                Deuda total por cobrar ahora mismo:{" "}
+                <span className="font-display text-lg text-danger-text">
+                  {formatCOP(cxcPendienteTotal)}
+                </span>{" "}
+                ({cuentasPendientesLista.length} cuentas)
+              </p>
+              <ul className="mt-2 space-y-1 text-[11px] text-texto-muted/70">
+                {cuentasPendientesLista
+                  .slice()
+                  .sort((a, b) => b.saldo - a.saldo)
+                  .slice(0, 5)
+                  .map((c) => (
+                    <li key={c.id} className="flex justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {c.cliente} — {c.concepto}
+                      </span>
+                      <span className="shrink-0 font-bold">
+                        {formatCOP(c.saldo)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+              <Link
+                href="/admin/cuentas"
+                className="mt-2 inline-block text-xs font-bold text-amber-brand hover:underline"
+              >
+                Abrir Cuentas por cobrar →
+              </Link>
+            </div>
+          ) : null}
+        </section>
+
+        {/* Abonos + gastos del día */}
+        <section className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
+          <h2 className="flex items-center gap-2 font-display text-lg text-texto-app">
+            <Coins className="h-5 w-5 text-success-text" /> Pagos de deudas recibidos
+          </h2>
+          {filasAbonos.length === 0 ? (
+            <p className="mt-3 text-sm text-texto-muted/45">
+              Hoy no llegó ningún abono de deudas.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-1.5 text-sm">
+              {filasAbonos.slice(0, 6).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-panel-app px-3 py-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-bold text-texto-app">
+                      {a.cliente} · {a.metodoLabel}
+                    </span>
+                    <span className="block truncate text-[11px] text-texto-muted/50">
+                      {a.concepto} — {formatHora(a.hora)}
+                    </span>
+                  </span>
+                  <strong className="shrink-0 text-success-text">
+                    +{formatCOP(a.monto)}
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h2 className="mt-6 flex items-center gap-2 font-display text-lg text-texto-app">
+            <ShoppingCart className="h-5 w-5 text-warning-text" /> Gastos del día
+          </h2>
+          {filasGastos.filter((g) => !g.anulado).length === 0 ? (
+            <p className="mt-3 text-sm text-texto-muted/45">
+              Hoy no se registraron gastos.
+            </p>
+          ) : (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-amber-brand ring-1 ring-warning/20">
+                  Total {formatCOP(gastosTotal)} {gastosExternos > 0 ? `(caja: ${formatCOP(gastosCaja)}) (externo: ${formatCOP(gastosExternos)})` : ""}
+                </span>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {filasGastos
+                  .filter((g) => !g.anulado)
+                  .slice(0, 6)
+                  .map((g) => (
+                    <li
+                      key={g.id}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-panel-app px-3 py-2"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-texto-app">
+                          {g.descripcion}
+                        </span>
+                        <span className="block truncate text-[11px] text-texto-muted/50">
+                          {g.categoriaLabel} · {g.metodoLabel} · {g.origenLabel}
+                        </span>
+                      </span>
+                      <strong className="shrink-0 text-warning-text">
+                        −{formatCOP(g.valor)}
+                      </strong>
+                    </li>
+                  ))}
+              </ul>
+              <Link
+                href="/admin/gastos"
+                className="mt-2 inline-block text-xs font-bold text-amber-brand hover:underline"
+              >
+                Ver todos los gastos →
+              </Link>
+            </>
+          )}
+        </section>
+      </div>
+
+      {/* Apartados */}
+      {apartadosCreados > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[2rem] bg-panel-app px-5 py-4 ring-1 ring-borde-app">
+          <CalendarClock className="h-5 w-5 text-amber-brand" />
+          <span className="text-sm font-bold text-texto-app">
+            Apartados del día:
+          </span>
+          <span className="rounded-full bg-info/10 px-3 py-1.5 text-xs font-bold text-info-text ring-1 ring-info/20">
+            Creados: {apartadosCreados}
+          </span>
+          <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
+            Entregados: {apartadosEntregados}
+          </span>
+          <Link href="/admin/apartados" className="ml-auto text-xs font-bold text-amber-brand hover:underline">
+            Ver apartados →
+          </Link>
+        </div>
+      ) : null}
+
       {/* Cierre de caja */}
       <section className="mt-8 rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app">
         <h2 className="font-display text-2xl text-texto-app">Cierre de caja</h2>
@@ -415,7 +567,7 @@ export default async function PaginaReportes() {
             </p>
             <div className="mt-4 grid gap-x-8 gap-y-2 text-sm text-texto-app sm:grid-cols-2">
               <p className="flex justify-between">
-                <span>Total pagos (sin propinas)</span>
+                <span>Ventas del día (sin propinas)</span>
                 <span className="font-bold">{formatCOP(cierreHoy.totalPagos)}</span>
               </p>
               <p className="flex justify-between">
@@ -423,7 +575,7 @@ export default async function PaginaReportes() {
                 <span className="font-bold">{formatCOP(cierreHoy.totalPropinas)}</span>
               </p>
               <p className="flex justify-between">
-                <span>Efectivo</span>
+                <span>Efectivo (ventas)</span>
                 <span className="font-bold">{formatCOP(cierreHoy.totalEfectivo)}</span>
               </p>
               <p className="flex justify-between">
@@ -435,7 +587,7 @@ export default async function PaginaReportes() {
                 <span className="font-bold">{formatCOP(cierreHoy.totalTransfer)}</span>
               </p>
               <p className="flex justify-between">
-                <span>…de los cuales, domicilios</span>
+                <span>…de las ventas, domicilios</span>
                 <span className="font-bold">{formatCOP(cierreHoy.totalDomicilios)}</span>
               </p>
               <p className="flex justify-between">
@@ -444,6 +596,91 @@ export default async function PaginaReportes() {
                   {cierreHoy.numeroPagos} / {cierreHoy.numeroComandas}
                 </span>
               </p>
+              {/* Fotografía financiera (cierres nuevos; null = cierre viejo) */}
+              {cierreHoy.abonosTotal !== null ? (
+                <p className="flex justify-between">
+                  <span>Abonos de deudas recibidos</span>
+                  <span className="font-bold text-success-text">
+                    {formatCOP(cierreHoy.abonosTotal)}
+                  </span>
+                </p>
+              ) : null}
+              {cierreHoy.abonosEfectivo !== null && cierreHoy.abonosEfectivo > 0 ? (
+                <p className="flex justify-between text-[11px] text-texto-muted/60">
+                  <span>…de los abonos en efectivo</span>
+                  <span className="font-bold">
+                    {formatCOP(cierreHoy.abonosEfectivo)}
+                  </span>
+                </p>
+              ) : null}
+              {cierreHoy.totalGastosCaja !== null ? (
+                <p className="flex justify-between">
+                  <span>Gastos pagados desde caja</span>
+                  <span className="font-bold text-warning-text">
+                    −{formatCOP(cierreHoy.totalGastosCaja)}
+                  </span>
+                </p>
+              ) : null}
+              {cierreHoy.gastosCajaEfectivo !== null && cierreHoy.gastosCajaEfectivo > 0 ? (
+                <p className="flex justify-between text-[11px] text-texto-muted/60">
+                  <span>…en efectivo de caja</span>
+                  <span className="font-bold">
+                    {formatCOP(cierreHoy.gastosCajaEfectivo)}
+                  </span>
+                </p>
+              ) : null}
+              {cierreHoy.totalGastosExternos !== null && cierreHoy.totalGastosExternos > 0 ? (
+                <p className="flex justify-between">
+                  <span>Gastos con dinero externo (auditados)</span>
+                  <span className="font-bold">
+                    {formatCOP(cierreHoy.totalGastosExternos)}
+                  </span>
+                </p>
+              ) : null}
+              <p className="flex justify-between sm:col-span-2 border-t border-dashed border-success/30 pt-2">
+                <span>Efectivo disponible al cierre</span>
+                <span className="font-display text-lg text-texto-app">
+                  {formatCOP(
+                    Math.max(
+                      0,
+                      (cierreHoy.totalEfectivo + cierreHoy.totalPropinas +
+                        (cierreHoy.abonosEfectivo ?? 0)) -
+                        (cierreHoy.gastosCajaEfectivo ?? 0),
+                    ),
+                  )}
+                </span>
+              </p>
+              {cierreHoy.abonosTotal !== null ? (
+                <>
+                  <p className="flex justify-between">
+                    <span>Fiados creados hoy / valor</span>
+                    <span className="font-bold text-danger-text">
+                      {cierreHoy.cxcCreadasCantidad} /{" "}
+                      {formatCOP(cierreHoy.cxcCreadasValor ?? 0)}
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Deuda total por cobrar al cierre</span>
+                    <span className="font-bold text-danger-text">
+                      {formatCOP(cierreHoy.cxcTotalPendiente ?? 0)}
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Domicilios / apartados del día</span>
+                    <span className="font-bold">
+                      {cierreHoy.numeroDomicilios ?? 0} /{" "}
+                      {cierreHoy.numeroApartados ?? 0} (
+                      {cierreHoy.numeroApartadosEntrega ?? 0} entregados)
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Gastos registrados / abonos</span>
+                    <span className="font-bold">
+                      {cierreHoy.numeroGastos ?? 0} / {cierreHoy.numeroAbonos ?? 0}
+                    </span>
+                  </p>
+                </>
+              ) : null}
               {cierreHoy.efectivoContado !== null ? (
                 <p className="flex justify-between sm:col-span-2">
                   <span>Efectivo contado en caja</span>
@@ -460,28 +697,62 @@ export default async function PaginaReportes() {
         ) : (
           <div className="mt-5 grid gap-x-8 gap-y-2 rounded-2xl bg-panel-app p-5 text-sm text-texto-app ring-1 ring-borde-app">
             <p className="flex justify-between">
-              <span>Efectivo</span>
+              <span>Ventas de hoy (con propinas)</span>
+              <span className="font-bold">{formatCOP(pagadoHoy)}</span>
+            </p>
+            <p className="flex justify-between text-[11px] text-texto-muted/55">
+              <span>…en efectivo</span>
               <span className="font-bold">
-                {formatCOP(porMetodo.get("EFECTIVO") ?? 0)}
+                {formatCOP(
+                  (porMetodo.get("EFECTIVO") ?? 0) +
+                    (propinasPorMetodo.get("EFECTIVO") ?? 0),
+                )}
               </span>
             </p>
-            <p className="flex justify-between">
-              <span>Tarjeta</span>
+            <p className="flex justify-between text-[11px] text-texto-muted/55">
+              <span>…en tarjeta</span>
               <span className="font-bold">
                 {formatCOP(porMetodo.get("TARJETA") ?? 0)}
               </span>
             </p>
-            <p className="flex justify-between">
-              <span>Transferencia</span>
+            <p className="flex justify-between text-[11px] text-texto-muted/55">
+              <span>…en transferencia</span>
               <span className="font-bold">
                 {formatCOP(porMetodo.get("TRANSFERENCIA") ?? 0)}
               </span>
             </p>
-            <p className="flex justify-between border-t border-dashed border-borde-app pt-2">
-              <span>Total con propinas</span>
-              <span className="font-bold">{formatCOP(pagadoHoy)}</span>
+            <p className="flex justify-between">
+              <span>Abonos de deudas (no son ventas)</span>
+              <span className="font-bold text-success-text">
+                {formatCOP(abonosTotal)}
+              </span>
             </p>
-            <FormularioCierre conPagos={pagosHoy.length > 0} />
+            <p className="flex justify-between">
+              <span>Gastos de caja (descuentan efectivo)</span>
+              <span className="font-bold text-warning-text">
+                −{formatCOP(gastosCajaEfectivo)}
+              </span>
+            </p>
+            <p className="flex justify-between border-t border-dashed border-borde-app pt-2">
+              <span>Efectivo disponible si cierras ya</span>
+              <span className="font-display text-lg text-texto-app">
+                {formatCOP(Math.max(0, efectivoDisponible))}
+              </span>
+            </p>
+            <p className="flex justify-between">
+              <span>Fiado pendiente de cobro</span>
+              <span className="font-bold text-danger-text">
+                {formatCOP(cxcPendienteTotal)}
+              </span>
+            </p>
+            <FormularioCierre
+              conPagos={
+                pagosHoy.length > 0 ||
+                numeroAbonos > 0 ||
+                filasGastos.length > 0 ||
+                cxcCreadasValor > 0
+              }
+            />
           </div>
         )}
       </section>

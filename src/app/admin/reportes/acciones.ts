@@ -41,13 +41,50 @@ export async function registrarCierre(
       if (existente) {
         throw new ErrorDeCierre("El cierre de hoy ya está registrado.");
       }
+      const hoy = inicioDeHoy();
 
       const pagos = await tx.pago.findMany({
-        where: { createdAt: { gte: inicioDeHoy() } },
+        where: { createdAt: { gte: hoy } },
         select: { total: true, propina: true, metodo: true },
       });
-      if (pagos.length === 0) {
-        throw new ErrorDeCierre("Hoy no hay pagos: no hay nada que cerrar.");
+
+      // ═══ Módulos financieros del día (fotografía, no cálculo en vivo) ═══
+      const abonos = await tx.abonoCuenta.findMany({
+        where: { createdAt: { gte: hoy } },
+        select: { monto: true, metodo: true },
+      });
+      const cxcCreadas = await tx.cuentaPorCobrar.findMany({
+        where: { createdAt: { gte: hoy }, estado: { not: "ANULADA" } },
+        select: { clienteId: true, concepto: true, valorOriginal: true, pagado: true },
+      });
+      const cxcPendientes = await tx.cuentaPorCobrar.findMany({
+        where: { estado: "PENDIENTE" },
+        include: { cliente: true },
+        orderBy: { createdAt: "asc" },
+      });
+      const gastos = await tx.gasto.findMany({
+        where: { createdAt: { gte: hoy }, anulado: false },
+        select: { valor: true, metodo: true, origen: true },
+      });
+      const numeroApartados = await tx.apartado.count({
+        where: { createdAt: { gte: hoy } },
+      });
+      const numeroApartadosEntrega = await tx.apartado.count({
+        where: { estado: "ENTREGADO", entregadoAt: { gte: hoy } },
+      });
+      const numeroDomicilios = await tx.domicilio.count({
+        where: { createdAt: { gte: hoy } },
+      });
+
+      // El cierre sigue VIVO aunque hoy no entre una venta: mientras hayan
+      // existido abonos, gastos o deudas del día, la caja se airea igual.
+      if (
+        pagos.length === 0 &&
+        abonos.length === 0 &&
+        gastos.length === 0 &&
+        cxcCreadas.length === 0
+      ) {
+        throw new ErrorDeCierre("Hoy no hay pagos que cerrar (ni abonos, gastos o deudas).");
       }
 
       const totalEfectivo = pagos
@@ -62,19 +99,59 @@ export async function registrarCierre(
       const totalPropinas = pagos.reduce((s, p) => s + p.propina, 0);
 
       const numeroComandas = await tx.pedido.count({
-        where: { estado: { in: ["SERVIDO", "COBRADO"] }, createdAt: { gte: inicioDeHoy() } },
+        where: { estado: { in: ["SERVIDO", "COBRADO"] }, createdAt: { gte: hoy } },
       });
 
       // El recaudo de domicilios: los pagos del día sobre la mesa virtual de
       // domicilios (el domiciliario cobra contra entrega)
       const pagosDomicilios = await tx.pago.findMany({
         where: {
-          createdAt: { gte: inicioDeHoy() },
+          createdAt: { gte: hoy },
           pedido: { mesa: { esDomicilio: true } },
         },
         select: { total: true },
       });
       const totalDomicilios = pagosDomicilios.reduce((s, p) => s + p.total, 0);
+
+      // —— Desgloses financieros de la fotografía ——
+      const abonosTotal = abonos.reduce((s, a) => s + a.monto, 0);
+      const abonosEfectivo = abonos
+        .filter((a) => a.metodo === "EFECTIVO")
+        .reduce((s, a) => s + a.monto, 0);
+      const abonosTarjeta = abonos
+        .filter((a) => a.metodo === "TARJETA")
+        .reduce((s, a) => s + a.monto, 0);
+      const abonosTransfer = abonos
+        .filter((a) => a.metodo === "TRANSFERENCIA")
+        .reduce((s, a) => s + a.monto, 0);
+
+      const totalGastosCaja = gastos
+        .filter((g) => g.origen === "CAJA")
+        .reduce((s, g) => s + g.valor, 0);
+      const gastosCajaEfectivo = gastos
+        .filter((g) => g.origen === "CAJA" && g.metodo === "EFECTIVO")
+        .reduce((s, g) => s + g.valor, 0);
+      const totalGastosExternos = gastos
+        .filter((g) => g.origen === "EXTERNO")
+        .reduce((s, g) => s + g.valor, 0);
+
+      const cxcCreadasValor = cxcCreadas.reduce((s, c) => s + c.valorOriginal, 0);
+      const cxcTotalPendiente = cxcPendientes.reduce(
+        (s, c) => s + Math.max(0, c.valorOriginal - c.pagado),
+        0,
+      );
+      // La lista exacta de pendientes tal como se veían AL CERRAR la caja
+      const cxcSnapshot = JSON.stringify(
+        cxcPendientes.map((c) => ({
+          id: c.id,
+          cliente: c.cliente?.nombre ?? "—",
+          concepto: c.concepto,
+          fecha: c.createdAt.toISOString().slice(0, 10),
+          valor: c.valorOriginal,
+          abonado: c.pagado,
+          saldo: Math.max(0, c.valorOriginal - c.pagado),
+        })),
+      );
 
       await tx.cierreCaja.create({
         data: {
@@ -89,6 +166,23 @@ export async function registrarCierre(
           numeroComandas,
           totalDomicilios,
           efectivoContado,
+          // —— Fotografía financiera del día ——
+          numeroDomicilios,
+          numeroApartados,
+          numeroApartadosEntrega,
+          numeroAbonos: abonos.length,
+          abonosTotal,
+          abonosEfectivo,
+          abonosTarjeta,
+          abonosTransfer,
+          numeroGastos: gastos.length,
+          totalGastosCaja,
+          gastosCajaEfectivo,
+          totalGastosExternos,
+          cxcCreadasCantidad: cxcCreadas.length,
+          cxcCreadasValor,
+          cxcTotalPendiente,
+          cxcSnapshot,
         },
       });
     });
