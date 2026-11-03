@@ -13,6 +13,7 @@ import {
   type LineaAlmuerzo,
 } from "@/lib/pedido";
 import { getCategoriasPersonalizadas } from "@/lib/config";
+import { buscarOcrearCliente } from "@/lib/clientes";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
@@ -97,6 +98,16 @@ export async function crearDomicilio(
   const observaciones =
     texto(datos.get("observaciones"), 140) || null;
 
+  // El cliente del módulo Clientes: si ya existe (por teléfono o nombre)
+  // se reutiliza su ficha; si no, se crea. El domicilio queda enlazado a
+  // su historial para el módulo de clientes.
+  const { id: clienteId } = await buscarOcrearCliente({
+    nombre: cliente,
+    telefono,
+    direccion,
+    barrio,
+  });
+
   let pedidoId: number;
   try {
     pedidoId = await crearPedido({
@@ -127,6 +138,7 @@ export async function crearDomicilio(
       horaEntrega,
       horaEntregaMinutos: minutosDeHora(horaEntrega),
       estado: ESTADO_DOMICILIO.PENDIENTE,
+      clienteId,
     },
   });
 
@@ -405,6 +417,13 @@ export async function repetirUltimoDomicilio(
       horaEntrega: origen.horaEntrega,
       horaEntregaMinutos: origen.horaEntregaMinutos,
       estado: ESTADO_DOMICILIO.PENDIENTE,
+      // La ficha del cliente de aquella vez: reutilizada o creada aquí
+      clienteId: (await buscarOcrearCliente({
+        nombre: origen.cliente,
+        telefono: origen.telefono,
+        direccion: origen.direccion,
+        barrio: origen.barrio,
+      })).id,
     },
   });
 
