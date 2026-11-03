@@ -139,3 +139,69 @@ export function destinoRol(rol: Rol): string {
       return "/login";
   }
 }
+
+// ════════ Módulos administrativos: apartados, cuentas por cobrar y gastos ════════
+// (SQLite no soporta enums: String validadas contra estas constantes)
+
+export const ESTADO_APARTADO = {
+  PENDIENTE: "PENDIENTE",
+  ENTREGADO: "ENTREGADO",
+  CANCELADO: "CANCELADO",
+} as const;
+
+export type EstadoApartado = keyof typeof ESTADO_APARTADO;
+
+export const ESTADO_APARTADO_LABEL: Record<EstadoApartado, string> = {
+  PENDIENTE: "Por entregar",
+  ENTREGADO: "Entregado",
+  CANCELADO: "Cancelado",
+};
+
+/** Los únicos apartados sobre los que tienen sentido las acciones */
+export const ESTADOS_VIVOS_APARTADO: EstadoApartado[] = [
+  ESTADO_APARTADO.PENDIENTE,
+];
+
+export const ESTADO_CUENTA = {
+  PENDIENTE: "PENDIENTE",
+  PAGADA: "PAGADA",
+  ANULADA: "ANULADA",
+} as const;
+
+export type EstadoCuenta = keyof typeof ESTADO_CUENTA;
+
+export const ESTADO_CUENTA_LABEL: Record<EstadoCuenta, string> = {
+  PENDIENTE: "Por cobrar",
+  PAGADA: "Pagada",
+  ANULADA: "Anulada",
+};
+
+export const CATEGORIA_GASTO = {
+  INGREDIENTES: "INGREDIENTES",
+  BEBIDAS: "BEBIDAS",
+  SERVICIOS: "SERVICIOS",
+  UTENSILIOS: "UTENSILIOS",
+  TRANSPORTE: "TRANSPORTE",
+  OTROS: "OTROS",
+} as const;
+
+export type CategoriaGasto = keyof typeof CATEGORIA_GASTO;
+
+export const CATEGORIA_GASTO_LABEL: Record<CategoriaGasto, string> = {
+  INGREDIENTES: "Ingredientes",
+  BEBIDAS: "Bebidas",
+  SERVICIOS: "Servicios",
+  UTENSILIOS: "Utensilios",
+  TRANSPORTE: "Transporte",
+  OTROS: "Otros",
+};
+
+export const ORIGEN_GASTO = {
+  CAJA: "CAJA",
+  EXTERNO: "EXTERNO",
+} as const;
+
+export const ORIGEN_GASTO_LABEL: Record<keyof typeof ORIGEN_GASTO, string> = {
+  CAJA: "Caja",
+  EXTERNO: "Dinero externo",
+};

@@ -21,7 +21,15 @@ model Usuario {
 
   pedidos    Pedido[]
   cierres    CierreCaja[]
-  domicilios Domicilio[] @relation("Domiciliario")
+  domicilios Domicilio[]  @relation("Domiciliario")
+
+  // Módulos financieros (quién hizo qué)
+  apartadosCreados  Apartado[]        @relation("ApartadoCreadoPor")
+  cuentasCreadas    CuentaPorCobrar[] @relation("CuentaCreadaPor")
+  abonosRegistrados AbonoCuenta[]     @relation("AbonoRegistradoPor")
+  gastosRegistrados Gasto[]           @relation("GastoRegistradoPor")
+  gastosAnulados    Gasto[]           @relation("GastoAnuladoPor")
+  cuentasAnuladas   CuentaPorCobrar[] @relation("CuentaAnuladaPor")
 
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
 }
@@ -29,13 +37,14 @@ model Usuario {
 model Producto {
   id        Int      @id @default(autoincrement())
   nombre    String
-  tipo      String   // PROTEINA | PRINCIPIO | SOPA | BEBIDA | ADICIONAL
+  tipo      String // PROTEINA | PRINCIPIO | SOPA | BEBIDA | ADICIONAL
   precio    Int      @default(0) // COP enteros; 0 = incluido en el almuerzo
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  menuItems   MenuDiaItem[]
-  pedidoItems PedidoItem[]
+  menuItems     MenuDiaItem[]
+  pedidoItems   PedidoItem[]
+  apartadoItems ApartadoItem[]
 }
 
 // Menú del día: que comidas se ofrecen HOY (proteínas, principios, sopas)
@@ -50,14 +59,14 @@ model MenuDia {
 
 // Porciones disponibles por producto en el menú del día (stock en tiempo real)
 model MenuDiaItem {
-  id             Int     @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   menuDiaId      Int
-  menuDia        MenuDia @relation(fields: [menuDiaId], references: [id], onDelete: Cascade)
+  menuDia        MenuDia  @relation(fields: [menuDiaId], references: [id], onDelete: Cascade)
   productoId     Int
   producto       Producto @relation(fields: [productoId], references: [id])
   stockPorciones Int? // null = porciones ilimitadas
-  vendidos       Int     @default(0)
-  visible        Boolean @default(true) // false: el mesero no lo ve (se acabó antes de tiempo)
+  vendidos       Int      @default(0)
+  visible        Boolean  @default(true) // false: el mesero no lo ve (se acabó antes de tiempo)
 
   // Precio especial de ESTE día (COP): es como se cobran los especiales del
   // domingo (asados $24.000, gallina $17.000, pescados $25.000) aunque el
@@ -75,6 +84,7 @@ model Mesa {
   estado      String  @default("LIBRE") // LIBRE | OCUPADA | POR_PAGAR
   activa      Boolean @default(true) // false = oculta (sin pedidos nuevos)
   esDomicilio Boolean @default(false) // true = mesa virtual que agrupa los domicilios
+  esApartado  Boolean @default(false) // true = mesa virtual sobre la que nace la comanda de un apartado
 
   pedidos Pedido[]
 }
@@ -95,6 +105,7 @@ model Pedido {
   pagos Pago[]
 
   domicilio Domicilio?
+  apartado  Apartado?  @relation("ApartadoEntregado") // comanda creada al entregar un apartado
 }
 
 model PedidoItem {
@@ -103,26 +114,26 @@ model PedidoItem {
   pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   productoId Int
   producto   Producto @relation(fields: [productoId], references: [id])
-  tipo       String   // snapshot del tipo del producto al momento de ordenar
+  tipo       String // snapshot del tipo del producto al momento de ordenar
   cantidad   Int      @default(1)
-  precio     Int?     // precio por unidad fijado al ordenar (almuerzo, bebidas...); null = usa producto.precio
+  precio     Int? // precio por unidad fijado al ordenar (almuerzo, bebidas...); null = usa producto.precio
   conSopa    Boolean? // aplica a la línea principal del almuerzo
-  nota       String?  // ej: "Res sin cebolla"
+  nota       String? // ej: "Res sin cebolla"
   grupo      Int      @default(0) // 0 = extra, 1+ = índice del plato en la comanda
 }
 
 model Pago {
-  id        Int      @id @default(autoincrement())
-  pedidoId  Int
-  pedido    Pedido   @relation(fields: [pedidoId], references: [id])
-  total     Int // COP enteros, sin decimales
-  propina   Int      @default(0)
-  metodo    String   // EFECTIVO | TARJETA | TRANSFERENCIA
+  id          Int      @id @default(autoincrement())
+  pedidoId    Int
+  pedido      Pedido   @relation(fields: [pedidoId], references: [id])
+  total       Int // COP enteros, sin decimales
+  propina     Int      @default(0)
+  metodo      String // EFECTIVO | TARJETA | TRANSFERENCIA
   // ¿Con cuánto dinero entregó el cliente y cuánto se le devolvió? Solo
   // aplican al efectivo; null = pago exacto o con otro método.
   montoPagado Int?
   vueltas     Int?
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
 
 // Comprobante del cierre de caja del día (uno por fecha)
@@ -141,6 +152,25 @@ model CierreCaja {
   numeroComandas  Int // comandas servidas o cobradas del día
   efectivoContado Int? // plata contada a mano (opcional); null = no se contó
   createdAt       DateTime @default(now())
+
+  // —— Fotografía financiera del día (solo en cierres nuevos; null = un cierre
+  // anterior cuyas secciones se calculan en vivo para mirar) ——
+  numeroDomicilios       Int? // domicilios registrados hoy
+  numeroApartados        Int? // apartados registrados hoy
+  numeroApartadosEntrega Int? // apartados entregados hoy
+  numeroAbonos           Int? // abonos/pagos de deudas recibidos hoy
+  abonosTotal            Int? // dinero RECIBIDO por deudas hoy (¡no es venta!)
+  abonosEfectivo         Int?
+  abonosTarjeta          Int?
+  abonosTransfer         Int?
+  numeroGastos           Int? // gastos no anulados registrados hoy
+  totalGastosCaja        Int? // gastos pagados desde caja (todos los métodos)
+  gastosCajaEfectivo     Int? // de esos, los pagados con dinero FÍSICO de caja
+  totalGastosExternos    Int? // auditados, no tocan la caja
+  cxcCreadasCantidad     Int? // deudas creadas hoy
+  cxcCreadasValor        Int?
+  cxcTotalPendiente      Int? // saldo por cobrar AL MOMENTO DEL CIERRE
+  cxcSnapshot            String? // JSON: lista de pendientes al cierre (cliente/concepto/fecha/valor/abonado/saldo)
 }
 
 model Configuracion {
@@ -152,26 +182,158 @@ model Configuracion {
 // Domicilio: entrega a la dirección del cliente. 1:1 con la comanda (Pedido),
 // que se crea sobre la mesa virtual "Domicilios" para reutilizar stock y cobro.
 model Domicilio {
-  id             Int      @id @default(autoincrement())
-  pedidoId       Int      @unique
-  pedido         Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  cliente        String
-  telefono       String
-  direccion      String
-  barrio         String?
-  referencia     String?
-  horaEntrega    String? // hora futura que dijo el cliente, ej: "las 12", "la 1 y media"
+  id                 Int       @id @default(autoincrement())
+  pedidoId           Int       @unique
+  pedido             Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  cliente            String
+  telefono           String
+  direccion          String
+  barrio             String?
+  referencia         String?
+  horaEntrega        String? // hora futura que dijo el cliente, ej: "las 12", "la 1 y media"
   // La misma hora en minutos desde medianoche (ej. 12:30 → 750) para poder
   // ordenar el tablero por hora de entrega; null = el cliente no la dijo.
   horaEntregaMinutos Int?
-  estado         String   @default("PENDIENTE") // PENDIENTE | ASIGNADO | EN_CAMINO | ENTREGADO | NO_ENTREGADO | CANCELADO
-  domiciliarioId Int?
-  domiciliario   Usuario? @relation("Domiciliario", fields: [domiciliarioId], references: [id])
-  cobradoMonto   Int? // total cobrado contra entrega (null = aún no cobrado)
-  cobradoMetodo  String? // EFECTIVO | TARJETA | TRANSFERENCIA
-  notaEntrega    String? // motivo de no entrega u observación del repartidor
-  asignadoAt     DateTime?
-  entregadoAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  estado             String    @default("PENDIENTE") // PENDIENTE | ASIGNADO | EN_CAMINO | ENTREGADO | NO_ENTREGADO | CANCELADO
+  domiciliarioId     Int?
+  domiciliario       Usuario?  @relation("Domiciliario", fields: [domiciliarioId], references: [id])
+  cobradoMonto       Int? // total cobrado contra entrega (null = aún no cobrado)
+  cobradoMetodo      String? // EFECTIVO | TARJETA | TRANSFERENCIA
+  notaEntrega        String? // motivo de no entrega u observación del repartidor
+  asignadoAt         DateTime?
+  entregadoAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Cliente registrado del módulo Clientes (null = domicilio anterior sin vincular)
+  clienteId         Int?
+  clienteRegistrado Cliente? @relation(fields: [clienteId], references: [id])
+}
+
+// ════════ Módulo de clientes ════════
+// Personas y domiciliarias registradas. No lleva claves únicas estrictas:
+// la no-duplicación se comparte en el app (mismo teléfono normalizado,
+// o mismo nombre en minúscula para los que van sin teléfono), que es como
+// agrupa el historial de domicilios.
+model Cliente {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  telefono      String   @default("") // puede ir vacío (clientes «solo el nombre»)
+  direccion     String   @default("")
+  barrio        String?
+  observaciones String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  domicilios Domicilio[]
+  apartados  Apartado[]
+  cuentas    CuentaPorCobrar[]
+}
+
+// ════════ Módulo de apartados ════════
+// Almuerzos/pedidos reservados por un cliente para recoger después.
+// El total queda CONGELADO al apartar; al entregar nace la comanda (Pedido,
+// sobre la mesa virtual «Apartados») con los precios congelados, y según el
+// caso un Pago (pagada, venta normal) o una CuentaPorCobrar (fiada, deuda).
+// Nunca se cuenta doble: el dinero entra o por Pago, o después por abonos.
+model Apartado {
+  id                 Int              @id @default(autoincrement())
+  clienteId          Int
+  cliente            Cliente          @relation(fields: [clienteId], references: [id])
+  estado             String           @default("PENDIENTE") // PENDIENTE | ENTREGADO | CANCELADO
+  fechaEntrega       String? // yyyy-mm-dd deseado (opcional; hoy si no se dijo)
+  horaEntrega        String? // "12:30 p. m." tal como lo dijo el cliente
+  horaEntregaMinutos Int? // «12:30» → 750, para ordenar la fila
+  total              Int              @default(0) // COP congelado al apartar
+  observaciones      String?
+  pedidoId           Int?             @unique // comanda registrada al entregar
+  pedido             Pedido?          @relation("ApartadoEntregado", fields: [pedidoId], references: [id])
+  cuentaId           Int?             @unique // deuda creada si se entregó sin pagar
+  cuenta             CuentaPorCobrar? @relation("ApartadoOrigen", fields: [cuentaId], references: [id])
+  createdById        Int
+  creadoPor          Usuario          @relation("ApartadoCreadoPor", fields: [createdById], references: [id])
+  entregadoAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  items ApartadoItem[]
+}
+
+// Línea de un apartado: nombre/precio CONGELADOS (el menú de aquel día puede
+// cambiar antes de la entrega; el cliente pagó lo pactado)
+model ApartadoItem {
+  id         Int       @id @default(autoincrement())
+  apartadoId Int
+  apartado   Apartado  @relation(fields: [apartadoId], references: [id], onDelete: Cascade)
+  productoId Int? // null = ítem narrado a mano que no está en el catálogo
+  producto   Producto? @relation(fields: [productoId], references: [id])
+  nombre     String
+  tipo       String // snapshot del tipo (PROTEINA, BEBIDA, ADICIONAL, OTRO)
+  cantidad   Int       @default(1)
+  precio     Int       @default(0) // COP por unidad, congelado al apartar
+  conSopa    Boolean? // solo en almuerzos: para rearmar el plato al entregar
+  nota       String? // «sin cebolla», «toalla aparte»…
+}
+
+// ════════ Cuentas por cobrar (fiados) ════════
+// Lo que debe un cliente. Una deuda registrada NO es dinero recibido: no
+// toca los ingresos ni el efectivo; solo cuando el abono llega entra como
+// dinero el día en que se recibe (y por separado de las ventas).
+model CuentaPorCobrar {
+  id            Int       @id @default(autoincrement())
+  clienteId     Int
+  cliente       Cliente   @relation(fields: [clienteId], references: [id])
+  concepto      String // motivo/detalle («2 almuerzos del día»…)
+  valorOriginal Int // COP de la deuda al momento de crearla
+  pagado        Int       @default(0) // suma de los abonos (saldo = original − pagado)
+  estado        String    @default("PENDIENTE") // PENDIENTE | PAGADA | ANULADA
+  pedidoId      Int? // origen opcional (pedido, que puede ser de domicilio)
+  createdById   Int
+  creadoPor     Usuario   @relation("CuentaCreadaPor", fields: [createdById], references: [id])
+  anuladaById   Int?
+  anuladaPor    Usuario?  @relation("CuentaAnuladaPor", fields: [anuladaById], references: [id])
+  anuladaAt     DateTime?
+  anuladaMotivo String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  apartados Apartado[]    @relation("ApartadoOrigen")
+  abonos    AbonoCuenta[]
+}
+
+// Pago total o parcial de una deuda. Nunca se borra: al llegar el saldo a
+// cero la cuenta pasa a PAGADA y queda en el historial para auditoría.
+model AbonoCuenta {
+  id            Int             @id @default(autoincrement())
+  cuentaId      Int
+  cuenta        CuentaPorCobrar @relation(fields: [cuentaId], references: [id])
+  monto         Int // COP abonado en este pago
+  metodo        String // EFECTIVO | TARJETA | TRANSFERENCIA
+  nota          String?
+  usuarioId     Int
+  registradoPor Usuario         @relation("AbonoRegistradoPor", fields: [usuarioId], references: [id])
+  createdAt     DateTime        @default(now())
+}
+
+// ════════ Gastos ════════
+// Lo que el restaurante gasta. Con origen CAJA descontar del efectivo (solo
+// el pagado con EFECTIVO); con origen EXTERNO queda auditado sin tocar caja.
+// Anular ≠ borrar: se marca anulado con quién/cuándo/por qué, el registro
+// queda para auditoría.
+model Gasto {
+  id            Int       @id @default(autoincrement())
+  descripcion   String
+  categoria     String // constante CATEGORIA_GASTO (roles.ts): INGREDIENTES…
+  valor         Int // COP
+  metodo        String // EFECTIVO | TARJETA | TRANSFERENCIA (cómo se pagó)
+  origen        String // CAJA (toca el efectivo si es efectivo) | EXTERNO
+  usuarioId     Int
+  registradoPor Usuario   @relation("GastoRegistradoPor", fields: [usuarioId], references: [id])
+  observaciones String?
+  anulado       Boolean   @default(false)
+  anuladoById   Int?
+  anuladoPor    Usuario?  @relation("GastoAnuladoPor", fields: [anuladoById], references: [id])
+  anuladoAt     DateTime?
+  anuladoMotivo String?
+  createdAt     DateTime  @default(now())
 }
