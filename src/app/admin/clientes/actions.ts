@@ -85,6 +85,26 @@ export async function crearCliente(
   return { error: null, ok: `Cliente registrado (#${id}).`, clienteCreado: creado };
 }
 
+/** Búsqueda paginada para el picker de clientes del formulario de fiados:
+ *  envuelve la búsqueda en BD (nombre/teléfono/«#ficha») con una página
+ *  corta. Solo ADMIN (se usa en formularios sensibles de dinero). */
+export async function buscarClientesPicker(term: string, pagina = 1) {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { filas: [], total: 0, pagina: 1 };
+  }
+  const r = await buscarClientesPagina(term, pagina, 8);
+  return {
+    filas: r.filas.map((c) => ({
+      id: c.id,
+      etiqueta: `#${c.id} · ${c.nombre}${c.telefono ? ` · ${c.telefono}` : ""}`,
+    })),
+    total: r.total,
+    pagina: r.pagina,
+  };
+}
+
 /** Edita los datos de un cliente existente. Aún así advierte si el teléfono
  *  editado queda igual al de otra ficha (familias comparten el número). */
 export async function editarCliente(

@@ -18,6 +18,7 @@ import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
 import {
   FormularioAbono,
   FormularioAnularCuenta,
+  FormularioCondonarCuenta,
   FormularioNuevaCuenta,
 } from "@/app/admin/cuentas/formularios";
 import { FormularioEditarCliente } from "./editar";
@@ -29,6 +30,7 @@ const CHIP_ESTADO_CUENTA: Record<EstadoCuenta, string> = {
   PENDIENTE: "bg-danger/10 text-danger-text ring-1 ring-danger/25",
   PAGADA: "bg-success/10 text-success-text ring-1 ring-success/25",
   ANULADA: "bg-panel-app text-texto-muted/50 ring-1 ring-borde-app",
+  CONDONADA: "bg-warning/10 text-warning ring-1 ring-warning/25",
 };
 
 const CHIP_ESTADO_APARTADO: Record<EstadoApartado, string> = {
@@ -71,6 +73,7 @@ export default async function PaginaFichaCliente(
           abonos: { orderBy: { createdAt: "asc" } },
           creadoPor: true,
           anuladaPor: true,
+          condonadoPor: true,
         },
       },
     },
@@ -79,7 +82,10 @@ export default async function PaginaFichaCliente(
 
   const saldoFiado = cliente.cuentas
     .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
-    .reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado), 0);
+    .reduce(
+      (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
+      0,
+    );
 
   // Rastro de fusiones recibidas (auditoría de FusionCliente)
   const fusionesRecibidas = await db.fusionCliente.findMany({
@@ -230,13 +236,20 @@ export default async function PaginaFichaCliente(
         ) : (
           <div className="mt-4 space-y-2.5">
             {cliente.cuentas.map((cuenta) => {
-              const saldo = Math.max(0, cuenta.valorOriginal - cuenta.pagado);
+              const saldo = Math.max(
+                0,
+                cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado,
+              );
               return (
                 <article
                   key={cuenta.id}
                   className={
                     "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app " +
-                    (cuenta.estado === ESTADO_CUENTA.ANULADA ? "opacity-60" : "")
+                    (cuenta.estado === ESTADO_CUENTA.ANULADA
+                      ? "opacity-60"
+                      : cuenta.estado === ESTADO_CUENTA.CONDONADA
+                        ? "opacity-90"
+                        : "")
                   }
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -260,6 +273,14 @@ export default async function PaginaFichaCliente(
                     <span className="text-success-text">
                       {formatCOP(cuenta.pagado)}
                     </span>
+                    {cuenta.saldoCondonado > 0 ? (
+                      <>
+                        {" "}· condonado{" "}
+                        <span className="font-bold text-warning">
+                          {formatCOP(cuenta.saldoCondonado)}
+                        </span>
+                      </>
+                    ) : null}
                     {cuenta.estado === ESTADO_CUENTA.PENDIENTE && saldo > 0 ? (
                       <>
                         {" "}· saldo{" "}
@@ -294,10 +315,30 @@ export default async function PaginaFichaCliente(
                   {cuenta.estado === ESTADO_CUENTA.PENDIENTE ? (
                     <div className="mt-3 border-t border-borde-app/60 pt-3">
                       <FormularioAbono cuentaId={cuenta.id} saldo={saldo} />
-                      <div className="mt-2">
+                      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                        <FormularioCondonarCuenta
+                          cuentaId={cuenta.id}
+                          valorOriginal={cuenta.valorOriginal}
+                          abonado={cuenta.pagado}
+                          saldo={saldo}
+                        />
                         <FormularioAnularCuenta cuentaId={cuenta.id} />
                       </div>
                     </div>
+                  ) : null}
+
+                  {cuenta.estado === ESTADO_CUENTA.CONDONADA ? (
+                    <p className="mt-2 rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning ring-1 ring-warning/20">
+                      Saldo condonado el{" "}
+                      {cuenta.condonadoAt
+                        ? `${new Date(cuenta.condonadoAt).toLocaleDateString("es-CO")} ${formatHora(cuenta.condonadoAt)}`
+                        : "—"}
+                      {cuenta.condonadoPor ? ` por ${cuenta.condonadoPor.nombre}` : ""}
+                      {cuenta.condonadoMotivo ? ` · «${cuenta.condonadoMotivo}»` : ""}
+                      {cuenta.pagado > 0
+                        ? ` · los abonos recibidos (${formatCOP(cuenta.pagado)}) siguen siendo dinero de caja`
+                        : " · no fue ingreso de caja"}
+                    </p>
                   ) : null}
 
                   {cuenta.estado === ESTADO_CUENTA.ANULADA ? (

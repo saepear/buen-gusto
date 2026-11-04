@@ -4,6 +4,7 @@
 // fichas; la identidad se determina con la información conjunta.
 import { db } from "@/lib/db";
 import { ESTADO_CUENTA } from "@/lib/roles";
+import { formatCOP } from "@/lib/format";
 
 /** «+57 320 456 7890» → "3204567890": solo los dígitos, para comparar teléfonos */
 export function telefonoNormalizado(telefono: string): string {
@@ -132,12 +133,18 @@ export async function buscarOcrearCliente(
   return { id, yaExistia: false };
 }
 
-/** Qué historial tiene una ficha (para decidir «eliminar» vs «fusionar») */
+/** Qué historial tiene una ficha (para decidir «eliminar» vs «fusionar»).
+ *  Contabiliza TODAS las deudas por estado (pendientes, pagadas, anuladas,
+ *  condonadas), no solo las pendientes. */
 export type HistorialDeCliente = {
   domicilios: number;
   apartados: number;
-  cuentas: number;
-  saldoPendiente: number; // COP: suma de (valorOriginal − pagado) de las PENDIENTE
+  cuentas: number; // TODAS
+  cuentasPendientes: number;
+  cuentasPagadas: number;
+  cuentasAnuladas: number;
+  cuentasCondonadas: number;
+  saldoPendiente: number; // COP: suma de (valorOriginal − pagado) de las vivas
 };
 
 export async function historialDeCliente(id: number): Promise<HistorialDeCliente> {
@@ -145,15 +152,26 @@ export async function historialDeCliente(id: number): Promise<HistorialDeCliente
     db.domicilio.count({ where: { clienteId: id } }),
     db.apartado.count({ where: { clienteId: id } }),
     db.cuentaPorCobrar.findMany({
-      where: { clienteId: id, estado: ESTADO_CUENTA.PENDIENTE },
-      select: { valorOriginal: true, pagado: true },
+      where: { clienteId: id },
+      select: { estado: true, valorOriginal: true, pagado: true },
     }),
   ]);
+  const vivas = cuentas.filter(
+    (c) =>
+      c.estado === ESTADO_CUENTA.PENDIENTE ||
+      c.estado === ESTADO_CUENTA.PAGADA,
+  );
   return {
     domicilios,
     apartados,
     cuentas: cuentas.length,
-    saldoPendiente: cuentas.reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado), 0),
+    cuentasPendientes: vivas.filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE).length,
+    cuentasPagadas: vivas.filter((c) => c.estado === ESTADO_CUENTA.PAGADA).length,
+    cuentasAnuladas: cuentas.filter((c) => c.estado === ESTADO_CUENTA.ANULADA).length,
+    cuentasCondonadas: cuentas.filter((c) => c.estado === ESTADO_CUENTA.CONDONADA).length,
+    saldoPendiente: vivas
+      .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
+      .reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado), 0),
   };
 }
 
@@ -199,7 +217,31 @@ export async function fusionarClientes(
   }
 
   const resultado = await db.$transaction(async (tx) => {
-    // updateMany devuelve BatchPayload: mapeamos .count para trabajar con números
+    // (A) CAPTURA del saldo que VIAJA desde el origen: se lee ANTES de
+    // reasignar las cuentas, así la auditoría registra solo lo movido y no
+    // el saldo ya existente en la ficha destino.
+    const cuentasOrigen = await tx.cuentaPorCobrar.findMany({
+      where: { clienteId: origenId },
+      select: { estado: true, valorOriginal: true, pagado: true },
+    });
+    const pendientesOrigen = cuentasOrigen.filter(
+      (c) => c.estado === ESTADO_CUENTA.PENDIENTE,
+    );
+    const saldoMovido = pendientesOrigen.reduce(
+      (s, c) => s + Math.max(0, c.valorOriginal - c.pagado),
+      0,
+    );
+
+    // (B) Fusiones RECIBIDAS antes por la ficha origen: su FK de auditaría
+    // se reasigna a la ficha que sobrevive. Esto NO borra auditorías (el
+    // registro conserva fechas, origen y responsables) y evita el bloqueo
+    // de FK al borrar la ficha origen.
+    const fusionesReenviadas = await tx.fusionCliente.updateMany({
+      where: { destinoId: origenId },
+      data: { destinoId: destinoId },
+    });
+
+    // Traslada TODA la trazabilidad al destino
     const [domicilios, apartados, cuentas] = (
       await Promise.all([
         tx.domicilio.updateMany({ where: { clienteId: origenId }, data: { clienteId: destinoId } }),
@@ -207,6 +249,13 @@ export async function fusionarClientes(
         tx.cuentaPorCobrar.updateMany({ where: { clienteId: origenId }, data: { clienteId: destinoId } }),
       ])
     ).map((r) => r.count);
+
+    // Sanity: lo movido tiene que coincidir con lo capturado/auditoría
+    if (cuentas !== cuentasOrigen.length) {
+      throw new Error(
+        `Cuentas movidas (${cuentas}) no coinciden con las capturadas (${cuentasOrigen.length})`,
+      );
+    }
 
     // Rellena los datos vacíos del destino con los del origen: nunca
     // sobrescribe lo que ya está escrito
@@ -227,15 +276,6 @@ export async function fusionarClientes(
         },
       });
     }
-
-    const saldoOrigen = await tx.cuentaPorCobrar.findMany({
-      where: { clienteId: destinoId, estado: ESTADO_CUENTA.PENDIENTE },
-      select: { valorOriginal: true, pagado: true },
-    });
-    const saldoMovido = saldoOrigen.reduce(
-      (s, c) => s + Math.max(0, c.valorOriginal - c.pagado),
-      0,
-    );
 
     // Auditar ANTES de borrar: los datos del origen se copian aquí porque la
     // ficha va a desaparecer físicamente
@@ -258,24 +298,49 @@ export async function fusionarClientes(
       tx.domicilio.count({ where: { clienteId: origenId } }),
       tx.apartado.count({ where: { clienteId: origenId } }),
       tx.cuentaPorCobrar.count({ where: { clienteId: origenId } }),
+      tx.fusionCliente.count({ where: { destinoId: origenId } }),
     ]);
     if (quedan.some((n) => n > 0)) {
       throw new Error(`La ficha origen aún tiene referencias: ${quedan.join("/")}`);
     }
     await tx.cliente.delete({ where: { id: origenId } });
 
-    return { domicilios, apartados, cuentas };
+    return {
+      domicilios,
+      apartados,
+      cuentas,
+      porCobrar: pendientesOrigen.length,
+      pagadas: cuentasOrigen.filter((c) => c.estado === ESTADO_CUENTA.PAGADA).length,
+      anuladas: cuentasOrigen.filter((c) => c.estado === ESTADO_CUENTA.ANULADA).length,
+      condonadas: cuentasOrigen.filter((c) => c.estado === ESTADO_CUENTA.CONDONADA).length,
+      fusionesReenviadas: fusionesReenviadas.count,
+      saldoMovido,
+    };
   });
 
+  const detalleCuentas = resultado.cuentas
+    ? ` (${resultado.porCobrar} por cobrar${resultado.pagadas ? ` · ${resultado.pagadas} pagadas` : ""}${resultado.anuladas ? ` · ${resultado.anuladas} anuladas` : ""}${resultado.condonadas ? ` · ${resultado.condonadas} condonadas` : ""})`
+    : "";
   return {
     ok: true,
-    mensaje: `Fusión lista: ${resultado.domicilios} domicilios, ${resultado.apartados} apartados y ${resultado.cuentas} cuenta(s) de ${origen.nombre} quedaron en la ficha de ${destino.nombre}.`,
-    movidos: resultado,
+    mensaje:
+      `Fusión lista: ${resultado.domicilios} domicilios, ${resultado.apartados} apartados ` +
+      `y ${resultado.cuentas} cuenta(s)${detalleCuentas} de ${origen.nombre} quedaron en la ficha de ` +
+      `${destino.nombre}${resultado.saldoMovido ? ` · saldo movido: ${formatCOP(resultado.saldoMovido)}` : ""}.` +
+      (resultado.fusionesReenviadas > 0
+        ? ` Esta ficha ya había recibido ${resultado.fusionesReenviadas} fusión${resultado.fusionesReenviadas === 1 ? "" : "es"}: esas auditorías quedaron apuntando aquí.`
+        : ""),
+    movidos: {
+      domicilios: resultado.domicilios,
+      apartados: resultado.apartados,
+      cuentas: resultado.cuentas,
+    },
   };
 }
 
-/** Búsqueda paginada en BD para picker/listados: nombré y teléfono parcial,
- *  sin acentos, sin cargar toda la base. */
+/** Búsqueda paginada en BD para picker/listados: nombre y teléfono parcial,
+ *  sin acentos, sin cargar toda la base. «#12» (o «12» puro) busca la ficha
+ *  por su identificador exacto. */
 export async function buscarClientesPagina(
   term: string,
   pagina = 1,
@@ -285,17 +350,23 @@ export async function buscarClientesPagina(
   const canon = nombreCanonico(crudo);
   const digitos = telefonoNormalizado(crudo);
 
+  // Identificador de ficha: «#12», «# 12» o un número solo
+  const ficha = /^#?\s*(\d{1,7})$/.exec(crudo);
+  const idFicha = ficha ? Number.parseInt(ficha[1], 10) : null;
+
   const donde =
-    digitos.length >= 3
-      ? {
-          OR: [
-            { telefonoBusqueda: { contains: digitos } },
-            ...(canon ? [{ nombreBusqueda: { contains: canon } }] : []),
-          ],
-        }
-      : canon
-        ? { nombreBusqueda: { contains: canon } }
-        : {};
+    idFicha !== null
+      ? { OR: [{ id: idFicha }, ...(digitos.length >= 3 ? [{ telefonoBusqueda: { contains: digitos } }] : []), ...(canon ? [{ nombreBusqueda: { contains: canon } }] : [])] }
+      : digitos.length >= 3
+        ? {
+            OR: [
+              { telefonoBusqueda: { contains: digitos } },
+              ...(canon ? [{ nombreBusqueda: { contains: canon } }] : []),
+            ],
+          }
+        : canon
+          ? { nombreBusqueda: { contains: canon } }
+          : {};
 
   const [total, filas] = await Promise.all([
     db.cliente.count({ where: donde }),
