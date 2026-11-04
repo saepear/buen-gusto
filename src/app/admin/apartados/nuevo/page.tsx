@@ -21,9 +21,11 @@ export default async function PaginaNuevoApartado() {
       where: { activo: true, tipo: { in: ["BEBIDA", "ADICIONAL"] }, precio: { gt: 0 } },
       orderBy: { nombre: "asc" },
     }),
+    // Semilla del picker: los 12 más recientes; al escribir, la búsqueda va
+    // EN BASE (buscarClientesApartado) sin el límite de 300 fichas.
     db.cliente.findMany({
       orderBy: { updatedAt: "desc" },
-      take: 300,
+      take: 12,
       select: { id: true, nombre: true, telefono: true },
     }),
   ]);

@@ -6,14 +6,21 @@ import {
   Plus,
   StickyNote,
   Trash2,
+  UserPlus,
   UserRound,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { formatCOP } from "@/lib/format";
-import { crearApartado, type CargaApartado, type EstadoAccionApartado } from "./actions";
+import {
+  buscarClientesApartado,
+  crearApartado,
+  crearClienteRapido,
+  type CargaApartado,
+  type ClienteRapidoResultado,
+  type EstadoAccionApartado,
+} from "./actions";
 
 const INICIAL: EstadoAccionApartado = { error: null, ok: null };
 
@@ -98,7 +105,7 @@ function Stepper({
 export function FormularioApartado({
   proteinas,
   extras,
-  clientes,
+  clientes: clientesIniciales,
 }: {
   proteinas: ProteinaHoy[];
   extras: ExtraDelCatalogo[];
@@ -106,14 +113,96 @@ export function FormularioApartado({
 }) {
   const [estado, accion, pendiente] = useActionState(crearApartado, INICIAL);
 
+  // ── Cliente: filtro en vivo (busca EN BASE) + ficha + creación rápida ──
+  const [clientes, setClientes] = useState<ClienteOpcion[]>(clientesIniciales);
   const [clienteQ, setClienteQ] = useState("");
   const [clienteId, setClienteId] = useState<number | null>(null);
+  const [buscandoClientes, setBuscandoClientes] = useState(false);
+
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [extrasCant, setExtrasCant] = useState<Record<number, number>>({});
   const [otros, setOtros] = useState<Otro[]>([]);
+
+  // Panel «registrar cliente nuevo» (sin abrir otra página ni perder el pedido)
+  const [panelCrear, setPanelCrear] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [nuevoTelefono, setNuevoTelefono] = useState("");
+  const [nuevaDireccion, setNuevaDireccion] = useState("");
+  const [nuevoBarrio, setNuevoBarrio] = useState("");
+  const [creandoCliente, setCreandoCliente] = useState(false);
+  const [errCrear, setErrCrear] = useState<string | null>(null);
+  const [avisoCrear, setAvisoCrear] = useState<string | null>(null);
+  const [coincidencias, setCoincidencias] = useState<
+    ClienteRapidoResultado["coincidencias"] | null
+  >(null);
+
+  // Búsqueda en BD con 250 ms de reposo; la página siembra 12 fichas al abrir
+  const primerRun = useRef(true);
+  useEffect(() => {
+    if (primerRun.current) {
+      primerRun.current = false;
+      return;
+    }
+    let vivo = true;
+    setBuscandoClientes(true);
+    const t = setTimeout(async () => {
+      const filas = await buscarClientesApartado(clienteQ.trim());
+      if (vivo) {
+        setClientes(filas);
+        setBuscandoClientes(false);
+      }
+    }, 250);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [clienteQ]);
+
+  /** Alta desde el panel: misma regla de duplicados de Clientes. Los campos
+   *  del constructor (planes, extras, entrega) NO se tocan. */
+  const crearRapido = async (forzar = false) => {
+    setCreandoCliente(true);
+    setErrCrear(null);
+    setAvisoCrear(null);
+    try {
+      const res = await crearClienteRapido({
+        nombre: nuevoNombre,
+        telefono: nuevoTelefono,
+        direccion: nuevaDireccion,
+        barrio: nuevoBarrio,
+        forzar,
+      });
+      if (res.error) {
+        setErrCrear(res.error);
+      } else if (res.coincidencias && res.coincidencias.length > 0) {
+        setCoincidencias(res.coincidencias);
+      } else if (res.cliente) {
+        const c = res.cliente;
+        setCoincidencias(null);
+        setAvisoCrear(res.ok);
+        setClientes((prev) => [
+          { id: c.id, nombre: c.nombre, telefono: c.telefono },
+          ...prev.filter((x) => x.id !== c.id),
+        ]);
+        setClienteId(c.id); // queda seleccionado al instante
+        setPanelCrear(false);
+        setNuevoNombre("");
+        setNuevoTelefono("");
+        setNuevaDireccion("");
+        setNuevoBarrio("");
+      }
+    } finally {
+      setCreandoCliente(false);
+    }
+  };
+
+  /** Enter no debe mandar el form principal al escribir en el panel */
+  const sinEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") e.preventDefault();
+  };
 
   const limito = clienteQ.trim().toLowerCase();
   const clientesFiltrados = clientes
@@ -124,6 +213,7 @@ export function FormularioApartado({
         c.telefono.replace(/\D/g, "").includes(limito.replace(/\D/g, "")),
     )
     .slice(0, 30);
+  const clienteElegido = clientes.find((c) => c.id === clienteId);
 
   const precioProteina = (p: ProteinaHoy, conSopa: boolean) =>
     p.precioBase > 0
@@ -192,45 +282,248 @@ export function FormularioApartado({
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg text-texto-app">
           <UserRound className="h-5 w-5 text-amber-brand" /> ¿Quién aparta?
         </h2>
-        <input
-          type="search"
-          value={clienteQ}
-          onChange={(e) => setClienteQ(e.target.value)}
-          placeholder="Filtrar cliente por nombre o teléfono…"
-          aria-label="Filtrar clientes"
-          className={CAMPO + " mb-2.5"}
-        />
-        <div className="flex flex-wrap gap-2">
-          {clientesFiltrados.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setClienteId(c.id)}
-              className={
-                "rounded-xl px-3.5 py-2 text-sm font-bold ring-1 transition " +
-                (clienteId === c.id
-                  ? "bg-amber-brand text-brown-950 ring-amber-brand"
-                  : "bg-fondo-app text-texto-app ring-borde-app hover:ring-amber-brand/50")
-              }
-            >
-              {c.nombre}
-              {c.telefono ? (
-                <span className="ml-1.5 font-medium opacity-70">
-                  {c.telefono}
-                </span>
-              ) : null}
-            </button>
-          ))}
-          {clientesFiltrados.length === 0 ? (
-            <p className="text-sm text-texto-muted/60">
-              No hay clientes con ese filtro. Regístralo en{" "}
-              <Link href="/admin/clientes" className="text-amber-brand underline">
-                Clientes
-              </Link>
-              .
+
+        {clienteId !== null && clienteElegido ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-brand/10 px-3.5 py-2.5 ring-1 ring-amber-brand/40">
+            <p className="text-sm text-texto-app">
+              Apertando para{" "}
+              <strong className="font-bold">
+                {clienteElegido.nombre}
+                {clienteElegido.telefono ? ` · ${clienteElegido.telefono}` : ""}
+              </strong>{" "}
+              <span className="text-texto-muted/60">(#{clienteId})</span>
             </p>
-          ) : null}
-        </div>
+            <button
+              type="button"
+              onClick={() => setClienteId(null)}
+              className="flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+            >
+              <X className="h-3.5 w-3.5" /> Cambiar cliente
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              type="search"
+              value={clienteQ}
+              onChange={(e) => setClienteQ(e.target.value)}
+              placeholder="Buscar cliente por nombre o teléfono…"
+              aria-label="Buscar clientes"
+              className={CAMPO + " mb-1"}
+            />
+            <p aria-live="polite" className="mb-2 min-h-4 text-[11px] text-texto-muted/50">
+              {!buscandoClientes &&
+              clienteQ.trim() !== "" &&
+              clientesFiltrados.length === 0
+                ? "Nadie con ese nombre o teléfono: regístralo abajo."
+                : ""}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {clientesFiltrados.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setClienteId(c.id)}
+                  className={
+                    "rounded-xl px-3.5 py-2 text-sm font-bold ring-1 transition " +
+                    (clienteId === c.id
+                      ? "bg-amber-brand text-brown-950 ring-amber-brand"
+                      : "bg-fondo-app text-texto-app ring-borde-app hover:ring-amber-brand/50")
+                  }
+                >
+                  {c.nombre}
+                  {c.telefono ? (
+                    <span className="ml-1.5 font-medium opacity-70">
+                      {c.telefono}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+
+            {/* Creación rápida: las mismas reglas de Clientes, sin salir de aquí */}
+            {panelCrear ? (
+              <div className="mt-3 rounded-xl bg-panel-app p-3.5 ring-1 ring-borde-app">
+                <p className="text-sm font-bold text-texto-app">
+                  Registrar cliente nuevo
+                </p>
+                <p className="text-xs text-texto-muted/60">
+                  Si ya existe aparecerá arriba para que decidas: no se crea
+                  doble ficha ni se reutiliza en silencio.
+                </p>
+                <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
+                  <label className={ETIQUETA}>
+                    NOMBRE *
+                    <input
+                      value={nuevoNombre}
+                      onChange={(e) => setNuevoNombre(e.target.value)}
+                      onKeyDown={sinEnter}
+                      maxLength={60}
+                      placeholder="Ej: Gloria Ramírez"
+                      className={CAMPO + " mt-1"}
+                    />
+                  </label>
+                  <label className={ETIQUETA}>
+                    TELÉFONO (opcional)
+                    <input
+                      value={nuevoTelefono}
+                      onChange={(e) => setNuevoTelefono(e.target.value)}
+                      onKeyDown={sinEnter}
+                      inputMode="tel"
+                      maxLength={24}
+                      placeholder="Ej: 313 555 0202"
+                      className={CAMPO + " mt-1"}
+                    />
+                  </label>
+                  <label className={ETIQUETA}>
+                    DIRECCIÓN (opcional)
+                    <input
+                      value={nuevaDireccion}
+                      onChange={(e) => setNuevaDireccion(e.target.value)}
+                      onKeyDown={sinEnter}
+                      maxLength={120}
+                      placeholder="Ej: Cra 8 # 5-55"
+                      className={CAMPO + " mt-1"}
+                    />
+                  </label>
+                  <label className={ETIQUETA}>
+                    BARRIO (opcional)
+                    <input
+                      value={nuevoBarrio}
+                      onChange={(e) => setNuevoBarrio(e.target.value)}
+                      onKeyDown={sinEnter}
+                      maxLength={60}
+                      placeholder="Ej: Centro"
+                      className={CAMPO + " mt-1"}
+                    />
+                  </label>
+                </div>
+
+                {errCrear ? (
+                  <p
+                    aria-live="polite"
+                    className="mt-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger-text ring-1 ring-danger/20"
+                  >
+                    {errCrear}
+                  </p>
+                ) : null}
+
+                {coincidencias && coincidencias.length > 0 ? (
+                  <div
+                    role="status"
+                    className="mt-2 rounded-xl bg-info/10 px-3.5 py-3 text-sm ring-1 ring-info/20"
+                  >
+                    <p className="font-bold text-info-text">
+                      Ya hay fichas que podrían ser este cliente
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {coincidencias.map((c) => (
+                        <li
+                          key={c.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-panel-app px-3 py-2 ring-1 ring-borde-app"
+                        >
+                          <span className="text-texto-app">
+                            <span className="font-bold">
+                              #{c.id} · {c.nombre}
+                            </span>
+                            {c.telefono ? (
+                              <span className="text-texto-muted/70">
+                                {" "}
+                                · {c.telefono}
+                              </span>
+                            ) : null}
+                            {c.direccion || c.barrio ? (
+                              <span className="text-texto-muted/50">
+                                {" "}
+                                · {[c.direccion, c.barrio].filter(Boolean).join(" · ")}
+                              </span>
+                            ) : null}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClientes((prev) => [
+                                { id: c.id, nombre: c.nombre, telefono: c.telefono },
+                                ...prev.filter((x) => x.id !== c.id),
+                              ]);
+                              setClienteId(c.id);
+                              setCoincidencias(null);
+                              setPanelCrear(false);
+                              setNuevoNombre("");
+                              setNuevoTelefono("");
+                              setNuevaDireccion("");
+                              setNuevoBarrio("");
+                            }}
+                            className="rounded-lg bg-fondo-app px-2.5 py-1.5 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:ring-amber-brand/50"
+                          >
+                            Apertar a esta ficha
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      disabled={creandoCliente}
+                      onClick={() => crearRapido(true)}
+                      className="mt-2 rounded-xl bg-panel-app px-3.5 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand/20 disabled:opacity-50"
+                    >
+                      {creandoCliente ? "Guardando…" : "Es otra persona: crear ficha nueva"}
+                    </button>
+                  </div>
+                ) : null}
+
+                {avisoCrear ? (
+                  <p
+                    aria-live="polite"
+                    className="mt-2 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success-text ring-1 ring-success/20"
+                  >
+                    {avisoCrear}
+                  </p>
+                ) : null}
+
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={creandoCliente}
+                    onClick={() => crearRapido(false)}
+                    className="rounded-xl bg-amber-brand px-4 py-2.5 text-sm font-bold text-brown-950 transition hover:bg-orange-brand disabled:opacity-40"
+                  >
+                    {creandoCliente ? "Guardando…" : "Guardar cliente"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPanelCrear(false);
+                      setNuevoNombre("");
+                      setNuevoTelefono("");
+                      setNuevaDireccion("");
+                      setNuevoBarrio("");
+                      setErrCrear(null);
+                      setCoincidencias(null);
+                      setAvisoCrear(null);
+                    }}
+                    className="rounded-xl bg-fondo-app px-3.5 py-2.5 text-sm font-bold text-texto-muted/70 ring-1 ring-borde-app transition hover:text-texto-app"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setPanelCrear(true);
+                  setErrCrear(null);
+                  setCoincidencias(null);
+                  setAvisoCrear(null);
+                }}
+                className="mt-2.5 flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+              >
+                <UserPlus className="h-4 w-4 text-amber-brand" /> Registrar cliente nuevo
+              </button>
+            )}
+          </>
+        )}
       </section>
 
       {/* Almuerzos del menú de hoy */}

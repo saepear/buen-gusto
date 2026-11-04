@@ -9,6 +9,7 @@ import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_APARTADO } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { buscarClientesPagina, coincidenciasDeCliente, crearClienteNuevo, telefonoNormalizado, type ClienteResumen } from "@/lib/clientes";
 
 export type EstadoAccionApartado = { error: string | null; ok: string | null };
 
@@ -598,4 +599,88 @@ export async function entregarApartado(
     redirect(`/admin/caja/recibo/${pagoCreadoId}`);
   }
   return { error: null, ok: "Apartado entregado y fiado. La deuda ya está en Cuentas por cobrar." };
+}
+
+// ─── Cliente rápido desde Apartados ──────────────────────────────────────────
+// Mismas reglas de duplicados del módulo Clientes (lib/clientes.ts): nunca se
+// reutiliza ni fusiona en silencio; si hay coincidencias se muestran y el
+// administrador decide.
+
+export type ClienteRapidoResultado = {
+  error: string | null;
+  ok: string | null;
+  /** Fichas existentes que podrían ser el mismo cliente (para decidir) */
+  coincidencias?: ClienteResumen[];
+  /** Ficha creada: se selecciona al momento en el constructor */
+  cliente?: { id: number; nombre: string; telefono: string };
+};
+
+/** Crea un cliente desde el constructor de apartados con decisión explícita:
+ *  1.ª llamada sin `forzar`: si hay coincidencias las devuelve sin crear nada.
+ *  2.ª llamada con `forzar: true`: crea la ficha nueva de todas formas. */
+export async function crearClienteRapido(
+  datos: {
+    nombre: string;
+    telefono: string;
+    direccion?: string;
+    barrio?: string;
+    observaciones?: string;
+    forzar?: boolean;
+  },
+): Promise<ClienteRapidoResultado> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador gestiona clientes.", ok: null };
+  }
+
+  const nombre = String(datos.nombre ?? "").trim().slice(0, 60);
+  const telefono = String(datos.telefono ?? "").trim().slice(0, 24);
+  if (nombre.length < 2) {
+    return { error: "Escribe el nombre del cliente.", ok: null };
+  }
+  if (telefono && telefonoNormalizado(telefono).length < 7) {
+    return {
+      error: "El teléfono no es válido (7 dígitos o más); déjalo vacío si no lo sabe.",
+      ok: null,
+    };
+  }
+
+  const carga = {
+    nombre,
+    telefono,
+    direccion: String(datos.direccion ?? "").trim().slice(0, 120),
+    barrio: String(datos.barrio ?? "").trim().slice(0, 60) || null,
+    observaciones: String(datos.observaciones ?? "").trim().slice(0, 300) || null,
+  };
+
+  if (!datos.forzar) {
+    const coincidencias = await coincidenciasDeCliente(carga);
+    if (coincidencias.length > 0) {
+      // Sin fusión automática: el admin usa una ficha existente o insiste
+      return { error: null, ok: null, coincidencias };
+    }
+  }
+
+  const id = await crearClienteNuevo(carga);
+  revalidatePath("/admin/clientes");
+  return {
+    error: null,
+    ok: `Cliente registrado (#${id}).`,
+    cliente: { id, nombre, telefono },
+  };
+}
+
+/** Búsqueda paginada EN BASE (sin el límite de 300): alimenta el picker del
+ *  constructor de apartados; nombre sin acentos y teléfono en dígitos. */
+export async function buscarClientesApartado(
+  term: string,
+): Promise<{ id: number; nombre: string; telefono: string }[]> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return [];
+  }
+  const { filas } = await buscarClientesPagina(term, 1, 12);
+  return filas.map((f) => ({ id: f.id, nombre: f.nombre, telefono: f.telefono }));
 }
