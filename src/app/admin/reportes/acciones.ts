@@ -62,6 +62,12 @@ export async function registrarCierre(
         include: { cliente: true },
         orderBy: { createdAt: "asc" },
       });
+      // Condonaciones hechas HOY: perdón del saldo restante (no ingreso, no
+      // fila de abono); entra a la fotografía con su propio contador
+      const cxcCondonadasHoy = await tx.cuentaPorCobrar.findMany({
+        where: { condonadoAt: { gte: hoy } },
+        select: { saldoCondonado: true },
+      });
       const gastos = await tx.gasto.findMany({
         where: { createdAt: { gte: hoy }, anulado: false },
         select: { valor: true, metodo: true, origen: true },
@@ -77,12 +83,14 @@ export async function registrarCierre(
       });
 
       // El cierre sigue VIVO aunque hoy no entre una venta: mientras hayan
-      // existido abonos, gastos o deudas del día, la caja se airea igual.
+      // existido abonos, gastos, deudas o condonaciones del día, la caja se
+      // airea igual.
       if (
         pagos.length === 0 &&
         abonos.length === 0 &&
         gastos.length === 0 &&
-        cxcCreadas.length === 0
+        cxcCreadas.length === 0 &&
+        cxcCondonadasHoy.length === 0
       ) {
         throw new ErrorDeCierre("Hoy no hay pagos que cerrar (ni abonos, gastos o deudas).");
       }
@@ -136,8 +144,13 @@ export async function registrarCierre(
         .reduce((s, g) => s + g.valor, 0);
 
       const cxcCreadasValor = cxcCreadas.reduce((s, c) => s + c.valorOriginal, 0);
+      // Saldo REAL de lo que sigue por cobrar: original − pagado − condonado
       const cxcTotalPendiente = cxcPendientes.reduce(
-        (s, c) => s + Math.max(0, c.valorOriginal - c.pagado),
+        (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
+        0,
+      );
+      const cxcCondonadasValor = cxcCondonadasHoy.reduce(
+        (s, c) => s + c.saldoCondonado,
         0,
       );
       // La lista exacta de pendientes tal como se veían AL CERRAR la caja
@@ -149,7 +162,7 @@ export async function registrarCierre(
           fecha: c.createdAt.toISOString().slice(0, 10),
           valor: c.valorOriginal,
           abonado: c.pagado,
-          saldo: Math.max(0, c.valorOriginal - c.pagado),
+          saldo: Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
         })),
       );
 
@@ -183,6 +196,9 @@ export async function registrarCierre(
           cxcCreadasValor,
           cxcTotalPendiente,
           cxcSnapshot,
+          // —— Condonaciones del día (persistidas con la fotografía) ——
+          cxcCondonadasCantidad: cxcCondonadasHoy.length,
+          cxcCondonadasValor,
         },
       });
     });

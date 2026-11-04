@@ -71,9 +71,14 @@ export default async function PaginaReportes(
     numeroAbonos,
     filasAbonos,
     cuentasCreadasHoy,
+    cxcCreadasCantidad,
     cxcCreadasValor,
     cuentasPendientesLista,
     cxcPendienteTotal,
+    // condonaciones del día
+    filasCondonaciones,
+    numeroCondonaciones,
+    cxcCondonadoValorHoy,
     gastosTotal,
     gastosCaja,
     gastosCajaEfectivo,
@@ -406,11 +411,16 @@ export default async function PaginaReportes(
             <>
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
-                  Deudas nuevas: {cuentasCreadasHoy.length}
+                  Deudas nuevas: {cxcCreadasCantidad}
                 </span>
                 <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
                   Valor: {formatCOP(cxcCreadasValor)}
                 </span>
+                {numeroCondonaciones > 0 ? (
+                  <span className="rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning ring-1 ring-warning/25">
+                    Condonadas: {numeroCondonaciones} · {formatCOP(cxcCondonadoValorHoy)} (no ingreso)
+                  </span>
+                ) : null}
               </div>
               <ul className="mt-3 space-y-1.5 text-sm">
                 {cuentasCreadasHoy.slice(0, 6).map((c) => (
@@ -500,6 +510,31 @@ export default async function PaginaReportes(
               ))}
             </ul>
           )}
+
+          {/* Condonaciones del día: se listan aparte del dinero (no son
+              ingreso) y de las anulaciones (eso no nace como deuda viva) */}
+          {filasCondonaciones.length > 0 ? (
+            <div className="mt-3 rounded-xl bg-warning/10 p-3 ring-1 ring-warning/20">
+              <p className="text-xs font-bold text-warning">
+                Condonaciones de hoy: {numeroCondonaciones} ·{" "}
+                {formatCOP(cxcCondonadoValorHoy)} perdonados (no es ingreso ni
+                pago)
+              </p>
+              <ul className="mt-2 space-y-1 text-[11px] text-texto-muted/75">
+                {filasCondonaciones.slice(0, 5).map((c) => (
+                  <li key={c.id} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      #{c.id} · {c.cliente} — {c.concepto} · {c.condonadoPor}
+                      {c.motivo ? ` · «${c.motivo}»` : ""}
+                    </span>
+                    <span className="shrink-0 font-bold text-warning">
+                      −{formatCOP(c.condonado)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <h2 className="mt-6 flex items-center gap-2 font-display text-lg text-texto-app">
             <ShoppingCart className="h-5 w-5 text-warning-text" /> Gastos del día
@@ -683,6 +718,16 @@ export default async function PaginaReportes(
                       {formatCOP(cierreHoy.cxcTotalPendiente ?? 0)}
                     </span>
                   </p>
+                  {cierreHoy.cxcCondonadasCantidad !== null &&
+                  cierreHoy.cxcCondonadasCantidad > 0 ? (
+                    <p className="flex justify-between">
+                      <span>Condonadas hoy (no ingreso)</span>
+                      <span className="font-bold text-warning">
+                        {cierreHoy.cxcCondonadasCantidad} /{" "}
+                        {formatCOP(cierreHoy.cxcCondonadasValor ?? 0)}
+                      </span>
+                    </p>
+                  ) : null}
                   <p className="flex justify-between">
                     <span>Domicilios / apartados del día</span>
                     <span className="font-bold">

@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 import { claveDia } from "@/lib/format";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import {
   CATEGORIA_GASTO_LABEL,
   ESTADO_CUENTA,
+  ESTADO_CUENTA_LABEL,
   ESTADO_DOMICILIO,
   ESTADO_DOMICILIO_LABEL,
   ESTADO_PEDIDO_LABEL,
@@ -70,6 +71,22 @@ export type FilaCuentaReporte = {
   valorOriginal: number;
   pedidoId: number | null;
   creadoPor: string;
+  /** Estado de la ficha al momento del reporte (p. ej. anulada por error) */
+  estadoLabel: string;
+};
+
+/** Condonación hecha HOY: no es ingreso ni pago; el rastro completo queda */
+export type FilaCondonacionReporte = {
+  id: number;
+  hora: Date;
+  cliente: string;
+  telefono: string;
+  concepto: string;
+  valorOriginal: number;
+  abonado: number;
+  condonado: number;
+  condonadoPor: string;
+  motivo: string | null;
 };
 
 /** Gasto del día (anulado o no; los anulados no suman) */
@@ -140,6 +157,7 @@ export async function datosReporte(fechaFila: Date) {
     abonosHoy,
     cuentasCreadasHoy,
     cuentasPendientes,
+    cuentasCondonadasHoy,
     gastosHoy,
     apartadosHoy,
   ] = await Promise.all([
@@ -188,6 +206,12 @@ export async function datosReporte(fechaFila: Date) {
       where: { estado: ESTADO_CUENTA.PENDIENTE },
       include: { cliente: true, creadoPor: true },
       orderBy: { createdAt: "asc" },
+    }),
+    // Condonaciones hechas HOY (perdón del saldo restante; NO es ingreso)
+    db.cuentaPorCobrar.findMany({
+      where: { condonadoAt: { gte: fechaFila, lt: hastaDia } },
+      include: { cliente: true, condonadoPor: true },
+      orderBy: { condonadoAt: "asc" },
     }),
     // Gastos del día (los anulados se listan pero no suman)
     db.gasto.findMany({
@@ -255,7 +279,10 @@ export async function datosReporte(fechaFila: Date) {
   for (const pedido of servidas) {
     for (const item of pedido.items) {
       if (item.tipo === "PROTEINA") {
-        const fila = porProteina.get(item.producto.nombre) ?? {
+        // Nombre congelado: el reporte no se rompe si el producto ya se
+        // borró del catálogo (y viejas filas usan la foto guardada)
+        const nombre = nombreDeItem(item);
+        const fila = porProteina.get(nombre) ?? {
           unidades: 0,
           sinSopa: 0,
           recaudo: 0,
@@ -263,16 +290,17 @@ export async function datosReporte(fechaFila: Date) {
         fila.unidades += item.cantidad;
         fila.recaudo += precioUnitarioItem(item) * item.cantidad;
         if (item.conSopa === false) fila.sinSopa += item.cantidad;
-        porProteina.set(item.producto.nombre, fila);
+        porProteina.set(nombre, fila);
       } else if (precioUnitarioItem(item) > 0) {
-        const fila = extras.get(item.producto.nombre) ?? {
+        const nombre = nombreDeItem(item);
+        const fila = extras.get(nombre) ?? {
           unidades: 0,
           recaudo: 0,
           tipo: item.tipo,
         };
         fila.unidades += item.cantidad;
         fila.recaudo += precioUnitarioItem(item) * item.cantidad;
-        extras.set(item.producto.nombre, fila);
+        extras.set(nombre, fila);
       }
     }
   }
@@ -396,7 +424,12 @@ export async function datosReporte(fechaFila: Date) {
   }));
 
   // ---- Deudas creadas hoy (no son ingreso: quedan por cobrar) ----
-  const cxcCreadasValor = cuentasCreadasHoy.reduce(
+  // Las ANULADAS (error) no cuentan ni en cantidad ni en valor: no son
+  // deudas vivas en ningún sentido — quedan listadas para auditoría.
+  const cuentasCreadasVivas = cuentasCreadasHoy.filter(
+    (c) => c.estado !== ESTADO_CUENTA.ANULADA,
+  );
+  const cxcCreadasValor = cuentasCreadasVivas.reduce(
     (s, c) => s + c.valorOriginal,
     0,
   );
@@ -409,11 +442,36 @@ export async function datosReporte(fechaFila: Date) {
     valorOriginal: c.valorOriginal,
     pedidoId: c.pedidoId,
     creadoPor: c.creadoPor?.nombre ?? "—",
+    estadoLabel:
+      ESTADO_CUENTA_LABEL[c.estado as keyof typeof ESTADO_CUENTA_LABEL] ?? c.estado,
   }));
 
+  // ---- Condonaciones hechas HOY (perdón del saldo restante) ----
+  // NO es ingreso de caja y NO es una fila de abono: el dinero cobrado del
+  // saldo ya entró el día de sus abonos; esto solo perdona lo que faltaba.
+  const cxcCondonadoValorHoy = cuentasCondonadasHoy.reduce(
+    (s, c) => s + c.saldoCondonado,
+    0,
+  );
+  const filasCondonaciones: FilaCondonacionReporte[] = cuentasCondonadasHoy.map(
+    (c) => ({
+      id: c.id,
+      hora: c.condonadoAt ?? c.updatedAt,
+      cliente: c.cliente?.nombre ?? "—",
+      telefono: c.cliente?.telefono ?? "",
+      concepto: c.concepto,
+      valorOriginal: c.valorOriginal,
+      abonado: c.pagado,
+      condonado: c.saldoCondonado,
+      condonadoPor: c.condonadoPor?.nombre ?? "—",
+      motivo: c.condonadoMotivo,
+    }),
+  );
+
   // ---- Fotografía de lo pendiente AL MOMENTO de este reporte ----
+  // Saldo REAL: por cada deuda viva, original − pagado − condonado (nunca < 0)
   const cxcPendienteTotal = cuentasPendientes.reduce(
-    (s, c) => s + Math.max(0, c.valorOriginal - c.pagado),
+    (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
     0,
   );
   const cuentasPendientesLista = cuentasPendientes.map((c) => ({
@@ -424,7 +482,7 @@ export async function datosReporte(fechaFila: Date) {
     fecha: claveDia(c.createdAt),
     valor: c.valorOriginal,
     abonado: c.pagado,
-    saldo: Math.max(0, c.valorOriginal - c.pagado),
+    saldo: Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
   }));
 
   // ---- Gastos del día: con origen CAJA tocan el efectivo ----
@@ -518,12 +576,17 @@ export async function datosReporte(fechaFila: Date) {
     numeroAbonos: abonosHoy.length,
     filasAbonos,
     cuentasCreadasHoy,
-    cxcCreadasCantidad: cuentasCreadasHoy.length,
+    cxcCreadasCantidad: cuentasCreadasVivas.length,
     cxcCreadasValor,
     filasCuentasCreadas,
     cuentasPendientes,
     cxcPendienteTotal,
     cuentasPendientesLista,
+    // —— Condonaciones del día (no son ingreso: perdón del saldo restante) ——
+    cuentasCondonadasHoy,
+    numeroCondonaciones: cuentasCondonadasHoy.length,
+    cxcCondonadoValorHoy,
+    filasCondonaciones,
     gastosHoy,
     gastosTotal,
     gastosCaja,

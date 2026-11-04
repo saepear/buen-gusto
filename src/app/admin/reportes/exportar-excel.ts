@@ -90,13 +90,13 @@ function filaResumen(
   fila: number,
   etiqueta: string,
   valor: Valor,
-  opciones: { dinero?: boolean; fuerte?: boolean } = {},
+  opciones: { dinero?: boolean; fuerte?: boolean; advertencia?: boolean } = {},
 ): void {
   const et = hoja.getCell(fila, 1);
   et.value = etiqueta;
   et.font = {
     bold: opciones.fuerte === true,
-    color: { argb: COLOR_TINTA },
+    color: { argb: opciones.advertencia ? COLOR_SUBTITULO : COLOR_TINTA },
   };
 
   const va = hoja.getCell(fila, 2);
@@ -104,8 +104,8 @@ function filaResumen(
   va.alignment = { horizontal: "right" };
   if (opciones.dinero && typeof valor === "number") va.numFmt = COP;
   va.font = {
-    bold: opciones.fuerte === true,
-    color: { argb: COLOR_TINTA },
+    bold: opciones.fuerte === true || opciones.advertencia === true,
+    color: { argb: opciones.advertencia ? COLOR_AMBAR : COLOR_TINTA },
   };
 }
 
@@ -276,17 +276,25 @@ export async function construirLibroExcel(
   fila += 1;
   filaResumen(resumen, fila, "Valor fiado hoy", datos.cxcCreadasValor, { dinero: true });
   fila += 1;
-  filaResumen(resumen, fila, "Deuda pendiente de cobrar", datos.cxcPendienteTotal, {
+  filaResumen(resumen, fila, "Deuda pendiente de cobrar (saldo real)", datos.cxcPendienteTotal, {
     dinero: true,
     fuerte: true,
   });
+  fila += 1;
+  filaResumen(
+    resumen,
+    fila,
+    `Condonaciones de hoy${datos.numeroCondonaciones > 0 ? ` (${datos.numeroCondonaciones})` : ""}`,
+    datos.cxcCondonadoValorHoy,
+    { dinero: true, advertencia: true },
+  );
   fila += 1;
   filaResumen(resumen, fila, "Apartados creados / entregados", `${datos.apartadosCreados} / ${datos.apartadosEntregados}`);
   filaResumen(resumen, fila + 1, "Cierre de caja", datos.cierreHoy ? "Hecho" : "Pendiente");
   notaHoja(
     resumen,
     fila + 3,
-    "Una deuda fiada NO es ingreso de caja: el dinero entra el día en que se paga (abonos). Detalle completo en las hojas siguientes.",
+    "Una deuda fiada NO es ingreso de caja: el dinero entra el día en que se paga (abonos). La condonación perdona el saldo restante: tampoco es ingreso. Detalle en las hojas siguientes.",
     2,
   );
 
@@ -547,8 +555,9 @@ export async function construirLibroExcel(
     { width: 14 },
     { width: 34 },
     { width: 15 },
+    { width: 13 },
     { width: 15 },
-    { width: 15 },
+    { width: 16 },
   ];
   tituloHoja(cxcHoja, "El Buen Gusto · Fiados (cuentas por cobrar)", 8, diaLegible, generado);
 
@@ -557,18 +566,25 @@ export async function construirLibroExcel(
     dinero: true,
     fuerte: true,
   });
-  filaResumen(cxcHoja, 7, "Deuda TOTAL por cobrar ahora mismo", datos.cxcPendienteTotal, {
+  filaResumen(
+    cxcHoja,
+    7,
+    "Condonado HOY (saldo perdonado: tampoco es ingreso)",
+    datos.cxcCondonadoValorHoy,
+    { dinero: true, advertencia: true },
+  );
+  filaResumen(cxcHoja, 8, "Deuda TOTAL por cobrar ahora mismo (saldo real)", datos.cxcPendienteTotal, {
     dinero: true,
     fuerte: true,
   });
-  notaHoja(cxcHoja, 8, "El listado de pendientes abarca TODAS las deudas vivas (de hoy y anteriores).", 8);
+  notaHoja(cxcHoja, 9, "El listado de pendientes abarca TODAS las deudas vivas (de hoy y anteriores).", 8);
 
-  let filaCxc = 10;
+  let filaCxc = 11;
   notaHoja(cxcHoja, filaCxc, "Fiados creados HOY", 8);
   const finCreadas = tablaSimple(
     cxcHoja,
     filaCxc + 1,
-    ["ID", "Hora", "Cliente", "Teléfono", "Concepto", "Valor", "Pedido ref.", "Registró"],
+    ["ID", "Hora", "Cliente", "Teléfono", "Concepto", "Valor", "Estado", "Pedido ref.", "Registró"],
     datos.filasCuentasCreadas.map((c) => [
       c.id,
       formatoHora(c.hora),
@@ -576,13 +592,14 @@ export async function construirLibroExcel(
       c.telefono,
       c.concepto,
       c.valorOriginal,
+      c.estadoLabel,
       c.pedidoId ? `#${c.pedidoId}` : "—",
       c.creadoPor,
     ]),
     {
       colDinero: [6],
       total: [
-        "Total",
+        "Total vivas (sin anuladas)",
         "",
         "",
         "",
@@ -590,11 +607,45 @@ export async function construirLibroExcel(
         datos.cxcCreadasValor,
         "",
         "",
+        "",
       ],
     },
   );
 
   filaCxc = finCreadas + 2;
+  notaHoja(cxcHoja, filaCxc, "Condonaciones hechas HOY (perdón del saldo restante; conserva los abonos)", 8);
+  const finCondonadas = tablaSimple(
+    cxcHoja,
+    filaCxc + 1,
+    ["ID", "Hora", "Cliente", "Teléfono", "Concepto", "Original", "Abonado", "Condonado", "Hizo la condonación"],
+    datos.filasCondonaciones.map((c) => [
+      c.id,
+      formatoHora(c.hora),
+      c.cliente,
+      c.telefono,
+      c.concepto,
+      c.valorOriginal,
+      c.abonado,
+      c.condonado,
+      c.condonadoPor,
+    ]),
+    {
+      colDinero: [6, 7, 8],
+      total: [
+        "Total",
+        "",
+        "",
+        "",
+        "",
+        datos.filasCondonaciones.reduce((s, c) => s + c.valorOriginal, 0),
+        datos.filasCondonaciones.reduce((s, c) => s + c.abonado, 0),
+        datos.cxcCondonadoValorHoy,
+        "",
+      ],
+    },
+  );
+
+  filaCxc = finCondonadas + 2;
   notaHoja(cxcHoja, filaCxc, "Deuda pendiente AL MOMENTO de este reporte", 8);
   tablaSimple(
     cxcHoja,
@@ -650,7 +701,7 @@ export async function construirLibroExcel(
 
   let filaAbonos = 9;
   notaHoja(abonosHoja, filaAbonos, "Abonos del día", 8);
-  tablaSimple(
+  const finAbonos = tablaSimple(
     abonosHoja,
     filaAbonos + 1,
     ["ID", "Hora", "Cliente", "Método", "Concepto de la deuda", "Monto", "Cuenta", "Registró"],
@@ -679,7 +730,40 @@ export async function construirLibroExcel(
     },
   );
 
-  filaAbonos += datos.filasAbonos.length + 4;
+  // Condonaciones del día: se listan aparte (NO son dinero recibido ni
+  // filas de abono). Van después de los abonos y antes del contraste.
+  filaAbonos = finAbonos + 2;
+  notaHoja(abonosHoja, filaAbonos, "Condonaciones del día (perdón del saldo restante: no es ingreso)", 8);
+  const finCondonaciones = tablaSimple(
+    abonosHoja,
+    filaAbonos + 1,
+    ["ID", "Hora", "Cliente", "Concepto de la deuda", "Abonado antes", "Condonado", "Motivo", "Hizo la condonación"],
+    datos.filasCondonaciones.map((c) => [
+      c.id,
+      formatoHora(c.hora),
+      c.cliente,
+      c.concepto,
+      c.abonado,
+      c.condonado,
+      c.motivo ?? "—",
+      c.condonadoPor,
+    ]),
+    {
+      colDinero: [5, 6],
+      total: [
+        "Total",
+        "",
+        "",
+        "",
+        datos.filasCondonaciones.reduce((s, c) => s + c.abonado, 0),
+        datos.cxcCondonadoValorHoy,
+        "",
+        "",
+      ],
+    },
+  );
+
+  filaAbonos = finCondonaciones + 2;
   notaHoja(abonosHoja, filaAbonos, "Pagos de caja del día (ventas), para contraste", 8);
   tablaSimple(
     abonosHoja,
@@ -841,10 +925,17 @@ export async function construirLibroExcel(
       filaResumen(cierreHoja, 22, "Gastos con dinero externo", cierre.totalGastosExternos ?? 0, { dinero: true });
       filaResumen(cierreHoja, 23, "Fiados creados hoy", cierre.cxcCreadasCantidad ?? 0);
       filaResumen(cierreHoja, 24, "Valor fiado hoy", cierre.cxcCreadasValor ?? 0, { dinero: true });
-      filaResumen(cierreHoja, 25, "Deuda por cobrar al cierre", cierre.cxcTotalPendiente ?? 0, { dinero: true, fuerte: true });
+      filaResumen(cierreHoja, 25, "Deuda por cobrar al cierre (saldo real)", cierre.cxcTotalPendiente ?? 0, { dinero: true, fuerte: true });
       filaResumen(
         cierreHoja,
         26,
+        `Condonadas hoy${(cierre.cxcCondonadasCantidad ?? 0) > 0 ? ` (${cierre.cxcCondonadasCantidad})` : ""}`,
+        cierre.cxcCondonadasValor ?? 0,
+        { dinero: true, advertencia: true },
+      );
+      filaResumen(
+        cierreHoja,
+        27,
         "Efectivo disponible al cierre",
         Math.max(
           0,
@@ -854,7 +945,7 @@ export async function construirLibroExcel(
       );
       filaResumen(
         cierreHoja,
-        27,
+        28,
         "Domicilios / apartados del día",
         `${cierre.numeroDomicilios ?? 0} / ${cierre.numeroApartados ?? 0} (${cierre.numeroApartadosEntrega ?? 0} apartados entregados)`,
       );
