@@ -1,4 +1,4 @@
-import { ArrowLeft, Bike, Coffee, Receipt } from "lucide-react";
+import { ArrowLeft, Coffee, Receipt } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { precioUnitarioItem } from "@/lib/precios";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
-import { ESTADO_MESA, ESTADO_DOMICILIO, ESTADO_DOMICILIO_LABEL } from "@/lib/roles";
+import { ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
 import { ordenMesasPorNombre } from "@/lib/mesas";
 import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 import { PanelCobroDomicilio } from "@/app/admin/domicilios/panel-cobro-domicilio";
@@ -65,7 +65,6 @@ export default async function PaginaCaja(
           where: { id: buscarDomicilio },
           include: {
             pedido: { include: { items: { include: { producto: true } } } },
-            domiciliario: true,
           },
         })
       : Promise.resolve(null),
@@ -153,9 +152,6 @@ export default async function PaginaCaja(
       (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
       0,
     );
-    const etiquetaDomi = domicilioCobro.domiciliario
-      ? ` · reparte ${domicilioCobro.domiciliario.nombre}`
-      : "";
 
     if (domicilioCobro.cobradoMonto !== null) {
       // Ya tiene pago: se recuerda dónde queda el recibo
@@ -179,28 +175,25 @@ export default async function PaginaCaja(
             </div>
             {pagoDomi ? (
               <Link
-                href={`/admin/caja/recibo/${pagoDomi.id}`}
+                href={`/admin/domicilios/factura/${pagoDomi.id}`}
                 className="inline-flex items-center gap-2 rounded-xl bg-amber-brand px-4 py-2.5 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app"
               >
-                <Receipt className="h-4 w-4" /> Ver recibo
+                <Receipt className="h-4 w-4" /> Ver factura
               </Link>
             ) : null}
           </div>
         </section>
       );
-    } else if (domicilioCobro.estado !== ESTADO_DOMICILIO.ENTREGADO) {
+    } else if (domicilioCobro.estado === ESTADO_DOMICILIO.CANCELADO) {
       seccionDomicilio = (
-        <section className="mb-6 rounded-[2rem] bg-glass-app p-5 ring-2 ring-amber-brand/70 shadow-2xl">
+        <section className="mb-6 rounded-[2rem] bg-glass-app p-5 ring-2 ring-danger/40 shadow-2xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-display text-2xl text-amber-brand">
-                Domicilio #{domicilioCobro.id} de {domicilioCobro.cliente}
+              <p className="font-display text-2xl text-danger-text">
+                Domicilio #{domicilioCobro.id} cancelado
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
-                {ESTADO_DOMICILIO_LABEL[
-                  domicilioCobro.estado as keyof typeof ESTADO_DOMICILIO_LABEL
-                ] ?? domicilioCobro.estado}
-                {etiquetaDomi} · tocado a la caja desde el tablero
+                {domicilioCobro.cliente} · el envío fue cancelado: no se cobra
               </p>
             </div>
             <Link
@@ -209,26 +202,6 @@ export default async function PaginaCaja(
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Tablero
             </Link>
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-            <FacturaDomicilio
-              carga={carga}
-              volverParaImprimir={`/admin/caja?domicilio=${domicilioCobro.id}`}
-            />
-            <div className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
-              <p className="font-display text-2xl text-texto-app">
-                Todavía no se puede cobrar
-              </p>
-              <p className="mt-2 flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2.5 text-xs font-bold text-warning-text ring-1 ring-warning/25">
-                <Bike className="mt-0.5 h-4 w-4 shrink-0" />
-                Está «
-                {ESTADO_DOMICILIO_LABEL[
-                  domicilioCobro.estado as keyof typeof ESTADO_DOMICILIO_LABEL
-                ] ?? domicilioCobro.estado}
-                ». Márcalo «Entregado» en el tablero cuando el domiciliario
-                llegue con la plata y aquí aparecerá el panel de cobro.
-              </p>
-            </div>
           </div>
         </section>
       );
@@ -241,8 +214,8 @@ export default async function PaginaCaja(
                 Cobrando domicilio #{domicilioCobro.id}
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
-                {domicilioCobro.cliente}
-                {etiquetaDomi} · toca «Cobrar» del panel y va directo al recibo
+                {domicilioCobro.cliente} · toca «Cobrar» del panel y va directo
+                a la factura imprimible
               </p>
             </div>
             <Link

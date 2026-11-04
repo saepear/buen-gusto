@@ -1,6 +1,6 @@
 import { MapPin, Phone, Printer } from "lucide-react";
 import Link from "next/link";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 
@@ -28,26 +28,50 @@ export type CargaFacturaDomicilio = {
   items: ItemFacturaDomicilio[];
 };
 
+/** El pago REAL que registró el modal de cobro (vía el Pago de la caja) */
+export type PagoFacturaDomicilio = {
+  fecha: Date;
+  metodo: string;
+  total: number;
+  propina: number;
+  /** Billete con el que pagó el cliente (solo efectivo; null = pago exacto) */
+  recibido: number | null;
+  vueltas: number | null;
+};
+
+const METODO_TXT: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  TARJETA: "Tarjeta",
+  TRANSFERENCIA: "Transferencia",
+};
+
 /**
- * La factura en blanco (estilo ticket) del domicilio: comanda completa
- * con los datos de entrega. La usan la caja (/admin/caja?domicilio=…)
- * y la vista de cobro del tablero de domicilios.
+ * La factura del domicilio en estilo ticket (80 mm). Sin `pago` es la
+ * pre-cuenta que revisa el admin desde el tablero (con botón para reimpri-
+ * mir la comanda); con `pago` es la factura del cobro ya registrado: lleva
+ * método, propina, recibido y vueltas tal como entraron en la caja.
  */
 export function FacturaDomicilio({
   carga,
+  pago,
   volverParaImprimir,
 }: {
   carga: CargaFacturaDomicilio;
+  /** El pago registrado: cuando existe, la factura se imprime con esos datos */
+  pago?: PagoFacturaDomicilio;
   /** Ruta a la que regresa la comanda imprimible después de imprimir */
   volverParaImprimir?: string;
 }) {
   const items = carga.items
     .filter((item) => item.cantidad > 0)
     .sort((a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id);
-  const total = items.reduce(
-    (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
-    0,
-  );
+  const total =
+    pago?.total ??
+    items.reduce(
+      (suma, item) => suma + precioUnitarioItem(item) * item.cantidad,
+      0,
+    );
+  const totalPagado = pago ? pago.total + pago.propina : null;
 
   return (
     <section className="mx-auto w-full max-w-md bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl lg:mx-0 lg:max-w-none">
@@ -135,11 +159,59 @@ export function FacturaDomicilio({
           {formatCOP(total)}
         </span>
       </p>
-      <p className="mt-1.5 text-center text-[11px] text-brown-950/60">
-        La propina y las vueltas se ajustan en el panel de pago
-      </p>
 
-      {volverParaImprimir ? (
+      {pago && totalPagado !== null ? (
+        <>
+          {/* El dinero como entró en caja: propina, método y el efectivo */}
+          <div className="mt-1.5 space-y-1 text-sm">
+            <p className="flex justify-between">
+              <span>Propina</span>
+              <span className="font-bold">{formatCOP(pago.propina)}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Método</span>
+              <span className="font-bold">
+                {METODO_TXT[pago.metodo] ?? pago.metodo}
+              </span>
+            </p>
+            {pago.metodo === "EFECTIVO" && pago.recibido !== null ? (
+              <>
+                <p className="flex justify-between">
+                  <span>Recibido</span>
+                  <span className="font-bold">{formatCOP(pago.recibido)}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span>Vueltas</span>
+                  <span className="font-bold">{formatCOP(pago.vueltas ?? 0)}</span>
+                </p>
+              </>
+            ) : null}
+          </div>
+
+          <div className="my-3 border-t-2 border-dashed border-brown-950/40" />
+          <p className="flex items-baseline justify-between text-base">
+            <span className="font-bold">TOTAL PAGADO</span>
+            <span className="font-display text-2xl font-bold">
+              {formatCOP(totalPagado)}
+            </span>
+          </p>
+          <p className="mt-1.5 text-center text-[11px] text-brown-950/60">
+            Pago registrado el {formatFecha(pago.fecha)} a las{" "}
+            {formatHora(pago.fecha)}
+          </p>
+          <p className="mt-2 text-center text-[11px] font-bold uppercase tracking-widest text-brown-950/50">
+            ¡Gracias por su compra! · El Buen Gusto
+          </p>
+        </>
+      ) : (
+        <p className="mt-1.5 text-center text-[11px] text-brown-950/60">
+          La propina y las vueltas se ajustan en el panel de cobro
+        </p>
+      )}
+
+      {/* La reimpresión de la comanda solo aplica antes de cobrar: la de
+          cocina ya salió al crear el pedido y el pago sale en factura */}
+      {volverParaImprimir && !pago ? (
         <Link
           href={`/ordenes/comanda/${carga.pedidoId}?autoPrint=1&volver=${encodeURIComponent(volverParaImprimir)}`}
           className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-amber-brand px-4 py-2.5 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app print:hidden"

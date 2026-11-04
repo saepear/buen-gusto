@@ -36,7 +36,7 @@ const BILLETES = [
 /**
  * El pago del domicilio: método de pago, propina y — solo en efectivo —
  * el billete con el que paga el cliente con sus vueltas en vivo. Al
- * confirmar, la acción del servidor lo manda directo al recibo.
+ * confirmar, la acción del servidor manda directo a la factura imprimible.
  * Vive a nivel del módulo de domicilios para que también la use la caja.
  */
 export function PanelCobroDomicilio({

@@ -9,7 +9,9 @@ import { getTemaActual } from "@/lib/config";
 
 export const metadata = { title: "Configuración" };
 
-const ORDEN_ROL: Record<string, number> = { ADMIN: 0, MESERO: 1, DOMICILIARIO: 2 };
+// Administrador primero y luego meseros; el rol histórico DOMICILIARIO
+// (ya retirado) y cualquier otro cae al final por el fallback de `?? 9`
+const ORDEN_ROL: Record<string, number> = { ADMIN: 0, MESERO: 1 };
 
 export default async function PaginaConfiguracion() {
   const [usuarios, mesasBrutas, temaActual, historial] = await Promise.all([
@@ -31,7 +33,7 @@ export default async function PaginaConfiguracion() {
   // Administrador primero y luego meseros; nombre alfabético en ambos
   usuarios.sort(
     (a, b) =>
-      ORDEN_ROL[a.rol] - ORDEN_ROL[b.rol] ||
+      (ORDEN_ROL[a.rol] ?? 9) - (ORDEN_ROL[b.rol] ?? 9) ||
       a.nombre.localeCompare(b.nombre, "es"),
   );
 

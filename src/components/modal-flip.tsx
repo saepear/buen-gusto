@@ -1,0 +1,173 @@
+"use client";
+
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
+
+gsap.registerPlugin(useGSAP);
+
+/** Rect de la ficha que abrió el modal: el panel nace ahí y allí se pliega */
+export type OrigenModal = { x: number; y: number; w: number; h: number };
+
+/** FLIP manual: rectángulo de origen vs. final */
+function centroDe(r: DOMRect) {
+  return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+}
+
+/**
+ * Modal con la animación del POS (nació en Mesas, hoy la comparten módulos):
+ * el panel nace dentro del rect de la ficha que lo abrió, crece a su tamaño
+ * final mientras el fondo se oscurece y el contenido entra en cascada
+ * ([data-anim]); al cerrar el contenido se recoge primero y el panel se
+ * pliega de regreso hacia la ficha. Escape y clic fuera cierran; el scroll
+ * del fondo queda bloqueado mientras está abierto.
+ *
+ * `origen` se toma del rect de la ficha (getBoundingClientRect). Con
+ * prefers-reduced-motion la animación se omite sin perder funcionalidad.
+ */
+export function ModalFlip({
+  origen,
+  onClose,
+  ariaLabel,
+  children,
+}: {
+  origen: OrigenModal;
+  onClose: () => void;
+  ariaLabel: string;
+  /** Contenido del panel; recibe la función de cierre para el botón ✕ */
+  children: (cerrar: () => void) => ReactNode;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const cerrandoRef = useRef(false);
+
+  const { contextSafe } = useGSAP(
+    () => {
+      const panel = panelRef.current;
+      const overlay = overlayRef.current;
+      if (!panel || !overlay) return;
+
+      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
+      const reducido = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      if (reducido || !origen) {
+        gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
+        return;
+      }
+
+      // El panel mide su posición final ANTES de pintarse (useGSAP corre en
+      // layout effect): sin parpadeo del panel en el centro.
+      const final = panel.getBoundingClientRect();
+      const fc = centroDe(final);
+      gsap.set(panel, {
+        transformOrigin: "50% 50%",
+        x: origen.x + origen.w / 2 - fc.cx,
+        y: origen.y + origen.h / 2 - fc.cy,
+        scaleX: origen.w / final.width,
+        scaleY: origen.h / final.height,
+        autoAlpha: 1, // la superficie nace donde está la mesa y crece de ahí
+      });
+      gsap.set([overlay, ...filas], { autoAlpha: 0 });
+
+      // Apertura: ficha → superficie expansión y luego el contenido en cascada
+      gsap
+        .timeline()
+        .to(overlay, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
+        .to(
+          panel,
+          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.55, ease: "power4.inOut" },
+          0.06,
+        )
+        .fromTo(
+          filas,
+          { autoAlpha: 0, y: 14 },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.38,
+            ease: "power3.out",
+            stagger: 0.05,
+          },
+          0.32,
+        );
+    },
+    { scope: panelRef },
+  );
+
+  // Cierre asimétrico: el contenido se recoge primero y el panel se pliega
+  // de regreso hacia la ficha que abrió el modal.
+  const cerrar = useCallback(() => {
+    if (cerrandoRef.current) return;
+    cerrandoRef.current = true;
+
+    const panel = panelRef.current;
+    const overlay = overlayRef.current;
+    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!panel || !overlay || !origen || reducido) {
+      onClose();
+      return;
+    }
+
+    contextSafe(() => {
+      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
+      const r = panel.getBoundingClientRect();
+      const c = centroDe(r);
+      gsap
+        .timeline({ onComplete: onClose })
+        .to(
+          filas,
+          {autoAlpha: 0, y: -8, duration: 0.13, stagger: 0.012, ease: "power2.in"},
+          0,
+        )
+        .to(
+          panel,
+          {
+            x: origen.x + origen.w / 2 - c.cx,
+            y: origen.y + origen.h / 2 - c.cy,
+            scaleX: origen.w / r.width,
+            scaleY: origen.h / r.height,
+            duration: 0.42,
+            ease: "power3.inOut",
+            overwrite: "auto",
+          },
+          0.08,
+        )
+        .to(overlay, { autoAlpha: 0, duration: 0.26, ease: "power2.in" }, 0.16);
+    })();
+  }, [contextSafe, onClose, origen]);
+
+  // Escape para cerrar y bloqueo del scroll de fondo mientras está abierto
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cerrar();
+    };
+    document.addEventListener("keydown", alTeclear);
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", alTeclear);
+      document.body.style.overflow = anterior;
+    };
+  }, [cerrar]);
+
+  return (
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={ariaLabel}
+      onClick={cerrar}
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-brown-950/70 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+    >
+      <div
+        ref={panelRef}
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-fondo-app shadow-pop ring-1 ring-borde-app"
+      >
+        {children(cerrar)}
+      </div>
+    </div>
+  );
+}

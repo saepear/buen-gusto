@@ -37,9 +37,9 @@ const CHIP_ESTADO_APARTADO: Record<EstadoApartado, string> = {
 };
 
 const CHIP_ESTADO_DOMICILIO: Record<string, string> = {
+  PENDIENTE: "bg-warning/10 text-warning-text ring-1 ring-warning/25",
   ENTREGADO: "bg-success/10 text-success-text ring-1 ring-success/25",
   CANCELADO: "bg-panel-app text-texto-muted/50 ring-1 ring-borde-app",
-  NO_ENTREGADO: "bg-danger/10 text-danger-text ring-1 ring-danger/25",
 };
 
 export default async function PaginaFichaCliente(
@@ -56,7 +56,7 @@ export default async function PaginaFichaCliente(
       domicilios: {
         orderBy: { createdAt: "desc" },
         take: 30,
-        include: { pedido: true, domiciliario: true },
+        include: { pedido: true },
       },
       apartados: {
         orderBy: { createdAt: "desc" },

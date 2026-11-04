@@ -102,8 +102,8 @@ export async function registrarCierre(
         where: { estado: { in: ["SERVIDO", "COBRADO"] }, createdAt: { gte: hoy } },
       });
 
-      // El recaudo de domicilios: los pagos del día sobre la mesa virtual de
-      // domicilios (el domiciliario cobra contra entrega)
+      // El recaudo de domicilios: los pagos del día sobre la mesa virtual
+      // de domicilios (el cobro del tablero es exactamente uno de esos pagos)
       const pagosDomicilios = await tx.pago.findMany({
         where: {
           createdAt: { gte: hoy },

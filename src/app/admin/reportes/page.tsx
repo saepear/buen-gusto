@@ -59,11 +59,11 @@ export default async function PaginaReportes(
     cierreHoy,
     cierres,
     domiciliosHoy,
-    domEntregados,
+    domCobrados,
     domEnCurso,
     domFallidos,
     recaudoDomicilios,
-    repartidoresLista,
+    filasDomicilios,
     // nuevos módulos financieros
     propinasPorMetodo,
     abonosTotal,
@@ -335,37 +335,55 @@ export default async function PaginaReportes(
                 Creados: {domiciliosHoy.length}
               </span>
               <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
-                Entregados: {domEntregados.length} · {formatCOP(recaudoDomicilios)}
+                Cobrados: {domCobrados.length} · {formatCOP(recaudoDomicilios)}
               </span>
               {domEnCurso.length > 0 ? (
                 <span className="rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning-text ring-1 ring-warning/20">
-                  En curso: {domEnCurso.length}
+                  Pendientes de cobro: {domEnCurso.length}
                 </span>
               ) : null}
               {domFallidos.length > 0 ? (
                 <span className="rounded-full bg-danger/10 px-3 py-1.5 text-xs font-bold text-danger-text ring-1 ring-danger/20">
-                  No entregados / cancelados: {domFallidos.length}
+                  Cancelados: {domFallidos.length}
                 </span>
               ) : null}
             </div>
 
-            {repartidoresLista.length > 0 ? (
-              <div className="mt-4 space-y-3">
-                {repartidoresLista.map(([nombre, f]) => (
-                  <BarraUnidades
-                    key={nombre}
-                    etiqueta={nombre}
-                    unidades={f.entregas}
-                    max={Math.max(...repartidoresLista.map(([, x]) => x.entregas))}
-                    detalle={formatCOP(f.recaudo)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-texto-muted/45">
-                Aún no se ha entregado ningún domicilio hoy.
-              </p>
-            )}
+            {/* El listado del día: lo cobrado muestra el dinero que entró */}
+            <div className="mt-4 space-y-2">
+              {filasDomicilios.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-campo-app px-3.5 py-2.5 text-sm"
+                >
+                  <span className="font-mono text-xs text-texto-muted/55">
+                    {formatHora(d.hora)}
+                  </span>
+                  <span className="font-bold text-texto-app">
+                    #{d.id} · {d.cliente}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-texto-muted/60">
+                    {d.direccion}
+                    {d.barrio ? ` · ${d.barrio}` : ""}
+                  </span>
+                  <span
+                    className={
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
+                      (d.cobradoMonto !== null
+                        ? "bg-success/10 text-success-text ring-1 ring-success/20"
+                        : d.estadoLabel === "Cancelado"
+                          ? "bg-panel-app text-texto-muted/50 ring-1 ring-borde-app"
+                          : "bg-warning/10 text-warning-text ring-1 ring-warning/20")
+                    }
+                  >
+                    {d.cobradoMonto !== null ? "Cobrado" : d.estadoLabel}
+                  </span>
+                  <span className="text-xs font-bold text-texto-app">
+                    {d.cobradoMonto !== null ? formatCOP(d.cobradoMonto) : "—"}
+                  </span>
+                </div>
+              ))}
+            </div>
           </>
         )}
       </section>

@@ -765,44 +765,26 @@ export async function construirLibroExcel(
       { width: 26 },
       { width: 12 },
       { width: 14 },
-      { width: 16 },
       { width: 14 },
       { width: 14 },
     ];
-    tituloHoja(domHoja, "El Buen Gusto · Domicilios", 11, diaLegible, generado);
+    tituloHoja(domHoja, "El Buen Gusto · Domicilios", 10, diaLegible, generado);
 
     filaResumen(domHoja, 5, "Domicilios creados", datos.domiciliosHoy.length);
-    filaResumen(domHoja, 6, "Entregados", datos.domEntregados.length);
-    filaResumen(domHoja, 7, "En curso (pendiente/asignado/en camino)", datos.domEnCurso.length);
-    filaResumen(domHoja, 8, "Fallidos (no entregado/cancelado)", datos.domFallidos.length);
-    filaResumen(domHoja, 9, "Recaudo de entregados", datos.recaudoDomicilios, {
+    filaResumen(domHoja, 6, "Cobrados (pago registrado)", datos.domCobrados.length);
+    filaResumen(domHoja, 7, "Pendientes de cobro", datos.domEnCurso.length);
+    filaResumen(domHoja, 8, "Cancelados", datos.domFallidos.length);
+    filaResumen(domHoja, 9, "Recaudo de los cobrados", datos.recaudoDomicilios, {
       dinero: true,
       fuerte: true,
     });
 
     let fina = 11;
-    notaHoja(domHoja, fina, "Por repartidor (entregas del día)", 11);
-    fina = tablaSimple(
-      domHoja,
-      fina + 1,
-      ["Repartidor", "Entregas", "Recaudo"],
-      datos.repartidoresLista.map(([nombre, f]) => [nombre, f.entregas, f.recaudo]),
-      {
-        colDinero: [3],
-        total: [
-          "Total",
-          datos.repartidoresLista.reduce((s, [, f]) => s + f.entregas, 0),
-          datos.repartidoresLista.reduce((s, [, f]) => s + f.recaudo, 0),
-        ],
-      },
-    );
-
-    fina += 2;
-    notaHoja(domHoja, fina, "Detalle de cada domicilio", 11);
+    notaHoja(domHoja, fina, "Detalle de cada domicilio", 10);
     tablaSimple(
       domHoja,
       fina + 1,
-      ["ID", "Hora", "Cliente", "Teléfono", "Barrio", "Dirección", "Hora entrega", "Estado", "Repartidor", "Cobrado", "Método"],
+      ["ID", "Hora", "Cliente", "Teléfono", "Barrio", "Dirección", "Hora entrega", "Estado", "Cobrado", "Método"],
       datos.filasDomicilios.map((d) => [
         d.id,
         formatoHora(d.hora),
@@ -812,13 +794,12 @@ export async function construirLibroExcel(
         d.direccion,
         d.horaEntrega,
         d.estadoLabel,
-        d.domiciliario,
         d.cobradoMonto ?? null,
         d.cobradoMetodo
           ? ETIQUETA_METODO[d.cobradoMetodo] ?? d.cobradoMetodo
           : "Sin cobrar",
       ]),
-      { colDinero: [10] },
+      { colDinero: [9] },
     );
   }
 

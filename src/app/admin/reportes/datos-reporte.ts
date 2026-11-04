@@ -43,7 +43,6 @@ export type FilaDomicilioReporte = {
   direccion: string;
   horaEntrega: string | null;
   estadoLabel: string;
-  domiciliario: string;
   cobradoMonto: number | null;
   cobradoMetodo: string | null;
 };
@@ -119,15 +118,6 @@ function apEstadoLabel(estado: string): string {
 }
 
 /**
- * Resumen por repartidor (domicilios ENTREGADOS en el día).
- */
-export type FilaRepartidor = {
-  nombre: string;
-  entregas: number;
-  recaudo: number;
-};
-
-/**
  * TODO el cálculo del reporte de UN día. Lo consume la página de Reportes
  * (que pinta los mismos números) y la exportación a Excel: una sola fuente
  * de verdad, mismas consultas a la base, cero lógica duplicada.
@@ -178,7 +168,6 @@ export async function datosReporte(fechaFila: Date) {
     }),
     db.domicilio.findMany({
       where: { createdAt: { gte: fechaFila, lt: hastaDia } },
-      include: { domiciliario: true },
       orderBy: { createdAt: "asc" },
     }),
     // ═══ Módulos financieros del día ═══
@@ -355,29 +344,19 @@ export async function datosReporte(fechaFila: Date) {
 
   // ---- Domicilios del día ----
   const domActivos = new Set<string>(ESTADOS_ACTIVOS_DOMICILIO);
-  const domEntregados = domiciliosHoy.filter(
-    (d) => d.estado === ESTADO_DOMICILIO.ENTREGADO,
+  // Cobrado = con pago registrado en caja (cobradoMonto): eso es plata que
+  // sí entró. El resto vivo sigue pendiente de cobro, aunque el envío ya
+  // salió (los «entregados» históricos sin cobro cuentan como pendientes).
+  const domCobrados = domiciliosHoy.filter((d) => d.cobradoMonto !== null);
+  const domEnCurso = domiciliosHoy.filter(
+    (d) => d.cobradoMonto === null && domActivos.has(d.estado),
   );
-  const domEnCurso = domiciliosHoy.filter((d) => domActivos.has(d.estado));
   const domFallidos = domiciliosHoy.filter(
-    (d) =>
-      d.estado === ESTADO_DOMICILIO.NO_ENTREGADO ||
-      d.estado === ESTADO_DOMICILIO.CANCELADO,
+    (d) => d.estado === ESTADO_DOMICILIO.CANCELADO,
   );
-  const recaudoDomicilios = domEntregados.reduce(
+  const recaudoDomicilios = domCobrados.reduce(
     (s, d) => s + (d.cobradoMonto ?? 0),
     0,
-  );
-  const porRepartidor = new Map<string, { entregas: number; recaudo: number }>();
-  for (const d of domEntregados) {
-    const nombre = d.domiciliario?.nombre ?? "Sin asignar";
-    const fila = porRepartidor.get(nombre) ?? { entregas: 0, recaudo: 0 };
-    fila.entregas += 1;
-    fila.recaudo += d.cobradoMonto ?? 0;
-    porRepartidor.set(nombre, fila);
-  }
-  const repartidoresLista = [...porRepartidor.entries()].sort(
-    (a, b) => b[1].entregas - a[1].entregas,
   );
   const filasDomicilios: FilaDomicilioReporte[] = domiciliosHoy.map((d) => ({
     id: d.id,
@@ -388,7 +367,6 @@ export async function datosReporte(fechaFila: Date) {
     direccion: d.direccion,
     horaEntrega: d.horaEntrega,
     estadoLabel: ESTADO_DOMICILIO_LABEL[d.estado as EstadoDomicilio] ?? d.estado,
-    domiciliario: d.domiciliario?.nombre ?? "Sin asignar",
     cobradoMonto: d.cobradoMonto,
     cobradoMetodo: d.cobradoMetodo,
   }));
@@ -526,11 +504,10 @@ export async function datosReporte(fechaFila: Date) {
     dias,
     filasPedidos,
     domiciliosHoy,
-    domEntregados,
+    domCobrados,
     domEnCurso,
     domFallidos,
     recaudoDomicilios,
-    repartidoresLista,
     filasDomicilios,
     cierres,
     cierreHoy,

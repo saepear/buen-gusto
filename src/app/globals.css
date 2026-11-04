@@ -299,12 +299,14 @@ select option:checked {
   }
 }
 
-/* Entrada del tablero de mesas: el HTML de servidor oculta las fichas solo
-   por CSS para que GSAP las revele en cascada una sola vez. Esto elimina el
-   doble pintado «las fichas aparecen, JS las oculta y las vuelve a animar»
-   que se percibía como una carga a medias al entrar al módulo. */
+/* Entrada de los tableros (mesas, domicilios): el HTML de servidor oculta
+   las fichas solo por CSS para que GSAP las revele en cascada una sola vez.
+   Esto elimina el doble pintado «las fichas aparecen, JS las oculta y las
+   vuelve a animar» que se percibía como una carga a medias al entrar al
+   módulo. */
 @media (prefers-reduced-motion: no-preference) {
-  .escenario-cascada .tarjeta-mesa {
+  .escenario-cascada .tarjeta-mesa,
+  .escenario-cascada .tarjeta-domicilio {
     opacity: 0;
   }
 }

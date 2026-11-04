@@ -20,10 +20,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatCOP } from "@/lib/format";
 import type { EstadoMesa } from "@/lib/roles";
+import { ModalFlip } from "@/components/modal-flip";
 
 gsap.registerPlugin(useGSAP);
 
@@ -125,10 +126,7 @@ function minutosDe(desde: number | null, ahora: number): number | null {
   return Math.max(0, Math.floor((ahora - desde) / 60_000));
 }
 
-/** FLIP manual: rectángulo de origen vs. final */
-function centroDe(r: DOMRect) {
-  return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
-}
+/** FLIP manual del panel: lo calcula ModalFlip (compartido con Domicilios) */
 
 function TarjetaMesa({
   mesa,
@@ -230,282 +228,164 @@ function ModalMesa({
   ahora: number;
   onClose: () => void;
 }) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const cerrandoRef = useRef(false);
-
-  const { contextSafe } = useGSAP(
-    () => {
-      const panel = panelRef.current;
-      const overlay = overlayRef.current;
-      if (!panel || !overlay) return;
-
-      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
-      const reducido = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-
-      if (reducido || !origen) {
-        gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
-        return;
-      }
-
-      // El panel mide su posición final ANTES de pintarse (useGSAP corre en
-      // layout effect): sin parpadeo del panel en el centro.
-      const final = panel.getBoundingClientRect();
-      const fc = centroDe(final);
-      gsap.set(panel, {
-        transformOrigin: "50% 50%",
-        x: origen.x + origen.w / 2 - fc.cx,
-        y: origen.y + origen.h / 2 - fc.cy,
-        scaleX: origen.w / final.width,
-        scaleY: origen.h / final.height,
-        autoAlpha: 1, // la superficie nace donde está la mesa y crece de ahí
-      });
-      gsap.set([overlay, ...filas], { autoAlpha: 0 });
-
-      // Apertura: mesa → superficie expansión y luego el contenido en cascada
-      gsap
-        .timeline()
-        .to(overlay, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
-        .to(
-          panel,
-          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.55, ease: "power4.inOut" },
-          0.06,
-        )
-        .fromTo(
-          filas,
-          { autoAlpha: 0, y: 14 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: 0.38,
-            ease: "power3.out",
-            stagger: 0.05,
-          },
-          0.32,
-        );
-    },
-    { scope: panelRef },
-  );
-
-  // Cierre asimétrico: el contenido se recoge primero y el panel se pliega
-  // de regreso hacia la ficha que abrió el modal.
-  const cerrar = useCallback(() => {
-    if (cerrandoRef.current) return;
-    cerrandoRef.current = true;
-
-    const panel = panelRef.current;
-    const overlay = overlayRef.current;
-    const reducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!panel || !overlay || !origen || reducido) {
-      onClose();
-      return;
-    }
-
-    contextSafe(() => {
-      const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
-      const r = panel.getBoundingClientRect();
-      const c = centroDe(r);
-      gsap
-        .timeline({ onComplete: onClose })
-        .to(
-          filas,
-          {autoAlpha: 0, y: -8, duration: 0.13, stagger: 0.012, ease: "power2.in"},
-          0,
-        )
-        .to(
-          panel,
-          {
-            x: origen.x + origen.w / 2 - c.cx,
-            y: origen.y + origen.h / 2 - c.cy,
-            scaleX: origen.w / r.width,
-            scaleY: origen.h / r.height,
-            duration: 0.42,
-            ease: "power3.inOut",
-            overwrite: "auto",
-          },
-          0.08,
-        )
-        .to(overlay, { autoAlpha: 0, duration: 0.26, ease: "power2.in" }, 0.16);
-    })();
-  }, [contextSafe, onClose, origen]);
-
-  // Escape para cerrar y bloqueo del scroll de fondo mientras está abierto
-  useEffect(() => {
-    const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cerrar();
-    };
-    document.addEventListener("keydown", alTeclear);
-    const anterior = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", alTeclear);
-      document.body.style.overflow = anterior;
-    };
-  }, [cerrar]);
-
   const estado = mesa.estado as EstadoMesa;
   const minutos = minutosDe(mesa.desde, ahora);
   const ocupada = mesa.comandas.length > 0;
 
   return (
-    <div
-      ref={overlayRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Detalle de la mesa ${mesa.nombre}`}
-      onClick={cerrar}
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-brown-950/70 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+    // La animación GSAP (apertura FLIP desde la ficha, cascada del contenido
+    // y cierre pliegando de regreso) vive en ModalFlip, compartida.
+    <ModalFlip
+      origen={origen}
+      onClose={onClose}
+      ariaLabel={`Detalle de la mesa ${mesa.nombre}`}
     >
-      <div
-        ref={panelRef}
-        onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-fondo-app shadow-pop ring-1 ring-borde-app"
-      >
-        {/* Cabecera */}
-        <div
-          data-anim
-          className="flex items-start justify-between gap-3 border-b border-borde-app/50 p-5"
-        >
-          <div className="min-w-0">
-            <p className="truncate font-display text-3xl leading-none text-texto-app">
-              {mesa.nombre}
-            </p>
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <span
-                className={
-                  "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
-                  ESTILO_ESTADO[estado]
-                }
-              >
-                {TEXTO_ESTADO[estado]}
-              </span>
-              {minutos !== null ? (
-                <span className="flex items-center gap-1 text-xs font-semibold text-texto-muted/60">
-                  <Clock className="h-3.5 w-3.5" /> Lleva {minutos} min
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={cerrar}
-            aria-label="Cerrar"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-danger/15 hover:text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {ocupada ? (
-          <>
-            <div
-              data-anim
-              className="grid grid-cols-3 gap-2 border-b border-borde-app/50 px-5 py-4"
-            >
-              <Dato etiqueta="Platos" valor={String(mesa.platos)} />
-              <Dato
-                etiqueta="Comandas"
-                valor={String(mesa.comandas.length)}
-              />
-              <Dato etiqueta="Total" valor={formatCOP(mesa.total)} acento />
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {mesa.comandas.map((comanda) => (
-                  <div
-                    key={comanda.id}
-                    data-anim
-                    className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold text-texto-app">
-                        Comanda #{comanda.id}
-                      </span>
-                      <span
-                        className={
-                          "rounded-full px-2 py-0.5 text-[10px] font-bold " +
-                          (CHIP_COMANDA[comanda.estado] ??
-                            "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-                        }
-                      >
-                        {TXT_COMANDA[comanda.estado] ?? comanda.estado}
-                      </span>
-                      {comanda.paraLlevar ? (
-                        <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
-                          <ShoppingBag className="h-3 w-3" /> Para llevar
-                        </span>
-                      ) : null}
-                      <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-muted/45">
-                        <Clock className="h-3 w-3" /> {comanda.hora}
-                      </span>
-                    </div>
-
-                    <ul className="mt-2.5 space-y-1.5">
-                      {comanda.items.map((item, i) => {
-                        const Icono = ICONO_TIPO[item.tipo] ?? UtensilsCrossed;
-                        return (
-                          <li
-                            key={`${comanda.id}-${i}`}
-                            className="flex items-center gap-2.5 text-sm"
-                          >
-                            <span
-                              className={
-                                "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg " +
-                                (CLASE_TIPO[item.tipo] ??
-                                  "bg-panel-app text-texto-muted/60")
-                              }
-                            >
-                              <Icono className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="min-w-0 flex-1 font-bold text-texto-app">
-                              {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
-                              {item.nombre}
-                            </span>
-                            {item.precio > 0 ? (
-                              <span className="shrink-0 text-xs font-bold text-texto-muted/70">
-                                {formatCOP(item.precio * item.cantidad)}
-                              </span>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                    </ul>
-
-                    {comanda.observaciones ? (
-                      <p className="mt-2 text-xs text-texto-muted/45">
-                        {comanda.observaciones}
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-            </div>
-
-            <div data-anim className="border-t border-borde-app/50 p-5">
-              <Link
-                href="/admin/caja"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-brand py-3.5 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-texto-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-950"
-              >
-                <Wallet className="h-5 w-5" /> Cobrar {formatCOP(mesa.total)}
-              </Link>
-            </div>
-          </>
-        ) : (
+      {(cerrar) => (
+        <>
+          {/* Cabecera */}
           <div
             data-anim
-            className="flex flex-col items-center gap-2 px-5 py-12 text-center"
+            className="flex items-start justify-between gap-3 border-b border-borde-app/50 p-5"
           >
-            <UtensilsCrossed className="h-8 w-8 text-texto-muted/35" />
-            <p className="font-display text-xl text-texto-app">Mesa disponible</p>
-            <p className="max-w-xs text-sm text-texto-muted/50">
-              Aún no hay comandas en esta mesa. El mesero puede tomar el primer
-              pedido desde su dispositivo.
-            </p>
+            <div className="min-w-0">
+              <p className="truncate font-display text-3xl leading-none text-texto-app">
+                {mesa.nombre}
+              </p>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span
+                  className={
+                    "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
+                    ESTILO_ESTADO[estado]
+                  }
+                >
+                  {TEXTO_ESTADO[estado]}
+                </span>
+                {minutos !== null ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-texto-muted/60">
+                    <Clock className="h-3.5 w-3.5" /> Lleva {minutos} min
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={cerrar}
+              aria-label="Cerrar"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-panel-app text-texto-muted/70 ring-1 ring-borde-app transition hover:bg-danger/15 hover:text-danger-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-        )}
-      </div>
-    </div>
+
+          {ocupada ? (
+            <>
+              <div
+                data-anim
+                className="grid grid-cols-3 gap-2 border-b border-borde-app/50 px-5 py-4"
+              >
+                <Dato etiqueta="Platos" valor={String(mesa.platos)} />
+                <Dato
+                  etiqueta="Comandas"
+                  valor={String(mesa.comandas.length)}
+                />
+                <Dato etiqueta="Total" valor={formatCOP(mesa.total)} acento />
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {mesa.comandas.map((comanda) => (
+                    <div
+                      key={comanda.id}
+                      data-anim
+                      className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-texto-app">
+                          Comanda #{comanda.id}
+                        </span>
+                        <span
+                          className={
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold " +
+                            (CHIP_COMANDA[comanda.estado] ??
+                              "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
+                          }
+                        >
+                          {TXT_COMANDA[comanda.estado] ?? comanda.estado}
+                        </span>
+                        {comanda.paraLlevar ? (
+                          <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
+                            <ShoppingBag className="h-3 w-3" /> Para llevar
+                          </span>
+                        ) : null}
+                        <span className="ml-auto flex items-center gap-1 text-[11px] text-texto-muted/45">
+                          <Clock className="h-3 w-3" /> {comanda.hora}
+                        </span>
+                      </div>
+
+                      <ul className="mt-2.5 space-y-1.5">
+                        {comanda.items.map((item, i) => {
+                          const Icono = ICONO_TIPO[item.tipo] ?? UtensilsCrossed;
+                          return (
+                            <li
+                              key={`${comanda.id}-${i}`}
+                              className="flex items-center gap-2.5 text-sm"
+                            >
+                              <span
+                                className={
+                                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg " +
+                                  (CLASE_TIPO[item.tipo] ??
+                                    "bg-panel-app text-texto-muted/60")
+                                }
+                              >
+                                <Icono className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="min-w-0 flex-1 font-bold text-texto-app">
+                                {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
+                                {item.nombre}
+                              </span>
+                              {item.precio > 0 ? (
+                                <span className="shrink-0 text-xs font-bold text-texto-muted/70">
+                                  {formatCOP(item.precio * item.cantidad)}
+                                </span>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+
+                      {comanda.observaciones ? (
+                        <p className="mt-2 text-xs text-texto-muted/45">
+                          {comanda.observaciones}
+                        </p>
+                      ) : null}
+                    </div>
+                  ))}
+              </div>
+
+              <div data-anim className="border-t border-borde-app/50 p-5">
+                <Link
+                  href="/admin/caja"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-brand py-3.5 font-display text-lg text-brown-950 transition hover:bg-orange-brand hover:text-texto-app focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brown-950"
+                >
+                  <Wallet className="h-5 w-5" /> Cobrar {formatCOP(mesa.total)}
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div
+              data-anim
+              className="flex flex-col items-center gap-2 px-5 py-12 text-center"
+            >
+              <UtensilsCrossed className="h-8 w-8 text-texto-muted/35" />
+              <p className="font-display text-xl text-texto-app">Mesa disponible</p>
+              <p className="max-w-xs text-sm text-texto-muted/50">
+                Aún no hay comandas en esta mesa. El mesero puede tomar el primer
+                pedido desde su dispositivo.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </ModalFlip>
   );
 }
 

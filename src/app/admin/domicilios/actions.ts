@@ -55,7 +55,7 @@ export async function crearDomicilio(
   const barrio = texto(datos.get("barrio"), 60) || null;
   const referencia = texto(datos.get("referencia"), 120) || null;
   // Los clientes fijos de la localidad se registran con el nombre solo
-  // ("un almuerzo para Martina"): el repartidor conoce la ruta de memoria.
+  // ("un almuerzo para Martina"): la ruta queda confirmada con el cliente.
   // Teléfono y dirección quedan OPCIONALES; si los escriben, que valgan.
   const horaEntrega = texto(datos.get("horaEntrega"), 40) || null;
 
@@ -186,13 +186,7 @@ export async function repetirUltimoDomicilio(
     ? await db.domicilio.findFirst({
         where: {
           telefono: origen.telefono,
-          estado: {
-            in: [
-              ESTADO_DOMICILIO.PENDIENTE,
-              ESTADO_DOMICILIO.ASIGNADO,
-              ESTADO_DOMICILIO.EN_CAMINO,
-            ],
-          },
+          estado: { in: ESTADOS_ACTIVOS_DOMICILIO },
           NOT: { id: origenId },
         },
         select: { cliente: true },
@@ -200,7 +194,7 @@ export async function repetirUltimoDomicilio(
     : null;
   if (enCurso) {
     return {
-      error: `${enCurso.cliente} ya tiene un domicilio en curso: asígnale domiciliario en el tablero en vez de repetirlo.`,
+      error: `${enCurso.cliente} ya tiene un domicilio pendiente de cobro: cóbralo o cáncelo en el tablero antes de repetirlo.`,
       ok: null,
     };
   }
@@ -410,7 +404,7 @@ export async function repetirUltimoDomicilio(
       pedidoId,
       cliente: origen.cliente,
       telefono: origen.telefono,
-      // El repartidor la conoce de memoria; queda registrada por si acaso
+      // Los datos como fueron esa vez: confirmados al repetir el pedido
       direccion: origen.direccion,
       barrio: origen.barrio,
       referencia: origen.referencia,
@@ -432,55 +426,6 @@ export async function repetirUltimoDomicilio(
   // al tablero de domicilios (el BotonImprimir admite el parámetro volver).
   redirect(`/ordenes/comanda/${pedidoId}?autoPrint=1&volver=/admin/domicilios`);
 }
-export async function asignarDomiciliario(
-  _previa: EstadoAccionDomicilio,
-  datos: FormData,
-): Promise<EstadoAccionDomicilio> {
-  try {
-    await exigirAdmin();
-  } catch {
-    return { error: "Solo el administrador puede asignar domicilios.", ok: null };
-  }
-
-  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
-  const domiciliarioId = Number.parseInt(String(datos.get("domiciliarioId") ?? ""), 10);
-  if (!Number.isInteger(domicilioId) || !Number.isInteger(domiciliarioId)) {
-    return { error: "Elige un domiciliario.", ok: null };
-  }
-
-  const repartidor = await db.usuario.findFirst({
-    where: { id: domiciliarioId, rol: "DOMICILIARIO", activo: true },
-    select: { nombre: true },
-  });
-  if (!repartidor) {
-    return { error: "Ese domiciliario no está disponible.", ok: null };
-  }
-
-  const domicilio = await db.domicilio.findUnique({
-    where: { id: domicilioId },
-    select: { estado: true },
-  });
-  if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
-  if (
-    domicilio.estado !== ESTADO_DOMICILIO.PENDIENTE &&
-    domicilio.estado !== ESTADO_DOMICILIO.ASIGNADO
-  ) {
-    return { error: "Ese domicilio ya no se puede reasignar.", ok: null };
-  }
-
-  await db.domicilio.update({
-    where: { id: domicilioId },
-    data: {
-      domiciliarioId,
-      estado: ESTADO_DOMICILIO.ASIGNADO,
-      asignadoAt: new Date(),
-    },
-  });
-
-  revalidarDomicilios();
-  return { error: null, ok: `Asignado a ${repartidor.nombre}.` };
-}
-
 /** Cancela un domicilio que aún no salió: devuelve las porciones al menú */
 export async function cancelarDomicilio(
   _previa: EstadoAccionDomicilio,
@@ -502,12 +447,9 @@ export async function cancelarDomicilio(
     include: { pedido: { include: { items: true } } },
   });
   if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
-  if (
-    domicilio.estado !== ESTADO_DOMICILIO.PENDIENTE &&
-    domicilio.estado !== ESTADO_DOMICILIO.ASIGNADO
-  ) {
+  if (domicilio.estado !== ESTADO_DOMICILIO.PENDIENTE) {
     return {
-      error: "Ese domicilio ya salió a la calle: no se puede cancelar.",
+      error: "Solo se cancela mientras sigue pendiente en el tablero.",
       ok: null,
     };
   }
@@ -589,114 +531,14 @@ export async function marcarListaDomicilio(
   return { error: null, ok: "Comanda lista para empaque: ya puede salir." };
 }
 
-/** El intento falló pero se reintenta con la misma comida: NO_ENTREGADO → ASIGNADO */
-export async function reintentarDomicilio(
-  _previa: EstadoAccionDomicilio,
-  datos: FormData,
-): Promise<EstadoAccionDomicilio> {
-  try {
-    await exigirAdmin();
-  } catch {
-    return { error: "Solo el administrador puede reintentar entregas.", ok: null };
-  }
-
-  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
-  if (!Number.isInteger(domicilioId)) {
-    return { error: "Domicilio inválido.", ok: null };
-  }
-
-  const domicilio = await db.domicilio.findUnique({
-    where: { id: domicilioId },
-    select: {
-      estado: true,
-      pedidoId: true,
-      pedido: { select: { estado: true } },
-    },
-  });
-  if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
-  if (domicilio.estado !== ESTADO_DOMICILIO.NO_ENTREGADO) {
-    return { error: "Solo los no entregados se pueden reintentar.", ok: null };
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.domicilio.update({
-      where: { id: domicilioId },
-      data: {
-        estado: ESTADO_DOMICILIO.ASIGNADO,
-        notaEntrega: null,
-        asignadoAt: new Date(),
-      },
-    });
-    // La comida no se desechará: la comanda vuelve a "lista" (ya estaba
-    // cocinada cuando falló la entrega)
-    if (domicilio.pedido.estado === ESTADO_PEDIDO.CANCELADO) {
-      await tx.pedido.update({
-        where: { id: domicilio.pedidoId },
-        data: { estado: ESTADO_PEDIDO.SERVIDO },
-      });
-    }
-  });
-
-  revalidarDomicilios();
-  return { error: null, ok: "Reintento listo: queda por salir con el mismo domiciliario." };
-}
-
 class ErrorDeCobroDomicilio extends Error {}
 
 /**
- * El domiciliario llegó con la plata y el admin la recibe: marca la entrega
- * por él (domicilio → ENTREGADO + hora) y deja la comanda POR_PAGAR para que
- * salga en la columna «Entregados» a la espera del cobro. No registra el
- * pago (eso es el botón «Cobrar»).
- */
-export async function marcarEntregadoAdmin(
-  _previa: EstadoAccionDomicilio,
-  datos: FormData,
-): Promise<EstadoAccionDomicilio> {
-  try {
-    await exigirAdmin();
-  } catch {
-    return { error: "Solo el administrador puede marcar entregas.", ok: null };
-  }
-
-  const domicilioId = Number.parseInt(String(datos.get("domicilioId") ?? ""), 10);
-  if (!Number.isInteger(domicilioId)) {
-    return { error: "Domicilio inválido.", ok: null };
-  }
-
-  const domicilio = await db.domicilio.findUnique({
-    where: { id: domicilioId },
-    select: { estado: true, pedidoId: true },
-  });
-  if (!domicilio) return { error: "Ese domicilio ya no existe.", ok: null };
-  if (!(ESTADOS_ACTIVOS_DOMICILIO as string[]).includes(domicilio.estado)) {
-    return { error: "Ese domicilio ya no está en curso.", ok: null };
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.domicilio.update({
-      where: { id: domicilioId },
-      data: {
-        estado: ESTADO_DOMICILIO.ENTREGADO,
-        entregadoAt: new Date(),
-      },
-    });
-    // La comanda queda POR_PAGAR (sigue activa): el dinero falta hasta el cobro
-    await tx.pedido.update({
-      where: { id: domicilio.pedidoId },
-      data: { estado: ESTADO_PEDIDO.POR_PAGAR },
-    });
-  });
-
-  revalidarDomicilios();
-  return { error: null, ok: "Entregado: queda pendiente por cobrar." };
-}
-
-/**
- * Cobro del domicilio desde el tablero: aquí aparece la factura (la página
- * /admin/domicilios/cobrar/[id]) y al confirmar se registra el pago con el
- * monto con el que pagó el cliente y sus vueltas (solo efectivo), la comanda
- * pasa a COBRADO y el sistema manda al recibo imprimible de la caja.
+ * Cobro del domicilio desde el panel de activos (el botón del modal): registra
+ * el pago con el dinero que entregó el cliente y sus vueltas (solo efectivo),
+ * la comanda pasa a COBRADO y el sistema manda a la factura imprimible del
+ * domicilio. La comanda de cocina NO vuelve a imprimirse: esa salió al crear
+ * el pedido (el flujo de empaque la marca lista desde Órdenes).
  */
 export async function cobrarDomicilio(
   _previa: EstadoAccionDomicilio,
@@ -750,13 +592,14 @@ export async function cobrarDomicilio(
         },
       });
       if (!domicilio) throw new ErrorDeCobroDomicilio("Ese domicilio ya no existe.");
-      if (domicilio.estado !== ESTADO_DOMICILIO.ENTREGADO) {
-        throw new ErrorDeCobroDomicilio(
-          "Solo se cobran los domicilios ya entregados.",
-        );
+      if (domicilio.estado === ESTADO_DOMICILIO.CANCELADO) {
+        throw new ErrorDeCobroDomicilio("Ese domicilio está cancelado.");
       }
       if (domicilio.cobradoMonto !== null) {
         throw new ErrorDeCobroDomicilio("Ese domicilio ya está cobrado.");
+      }
+      if (domicilio.pedido.estado === ESTADO_PEDIDO.COBRADO) {
+        throw new ErrorDeCobroDomicilio("Esa comanda ya está cobrada.");
       }
       if (domicilio.pedido.estado === ESTADO_PEDIDO.CANCELADO) {
         throw new ErrorDeCobroDomicilio("Ese pedido está cancelado.");
@@ -799,8 +642,8 @@ export async function cobrarDomicilio(
         where: { id: domicilio.pedidoId },
         data: { estado: ESTADO_PEDIDO.COBRADO },
       });
-      // Igual que la app del domiciliario: el monto cobrado queda en el
-      // domicilio para el tablero y los reportes
+      // El dinero quedó en caja: el domicilio sale del tablero de activos
+      // y sigue legible en el historial y los reportes
       await tx.domicilio.update({
         where: { id: domicilioId },
         data: { cobradoMonto: total, cobradoMetodo: metodo },
@@ -819,6 +662,7 @@ export async function cobrarDomicilio(
   }
 
   revalidarDomicilios();
-  // La factura queda en el recibo imprimible de la caja
-  redirect(`/admin/caja/recibo/${nuevoPagoId}`);
+  // La factura del pago queda lista para imprimir (80mm): comanda ya no, la
+  // impresión de cocina salió al crear el domicilio.
+  redirect(`/admin/domicilios/factura/${nuevoPagoId}`);
 }

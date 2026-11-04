@@ -3,13 +3,12 @@
 export const ROLES = {
   ADMIN: "ADMIN",
   MESERO: "MESERO",
-  DOMICILIARIO: "DOMICILIARIO",
 } as const;
 
 export type Rol = keyof typeof ROLES;
 
 export const ES_ROL_VALIDO = (v: string): v is Rol =>
-  v === "ADMIN" || v === "MESERO" || v === "DOMICILIARIO";
+  v === "ADMIN" || v === "MESERO";
 
 export const TIPO_PRODUCTO = {
   PROTEINA: "PROTEINA",
@@ -90,31 +89,30 @@ export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
 };
 
 export const ESTADO_DOMICILIO = {
+  // Registrado y esperando su cobro (estados vivos del tablero)
   PENDIENTE: "PENDIENTE",
-  ASIGNADO: "ASIGNADO",
-  EN_CAMINO: "EN_CAMINO",
+  // Histórico: la comida ya salió/entregó y faltaba el dinero. Ya no se
+  // escribe en el flujo nuevo (el cobro es el único paso siguiente), pero
+  // los registros viejos de la BD siguen mostrándose con él.
   ENTREGADO: "ENTREGADO",
-  NO_ENTREGADO: "NO_ENTREGADO",
   CANCELADO: "CANCELADO",
 } as const;
+// Los estados ASIGNADO / EN_CAMINO / NO_ENTREGADO del seguimiento de
+// domiciliarios se retiraron con ese rol; no quedan filas con ellos en la BD.
 
 export type EstadoDomicilio = keyof typeof ESTADO_DOMICILIO;
 
 /** Etiquetas legibles de los estados del domicilio */
 export const ESTADO_DOMICILIO_LABEL: Record<EstadoDomicilio, string> = {
-  PENDIENTE: "Pendiente de asignar",
-  ASIGNADO: "Asignado",
-  EN_CAMINO: "En camino",
+  PENDIENTE: "Pendiente de cobro",
   ENTREGADO: "Entregado",
-  NO_ENTREGADO: "No entregado",
   CANCELADO: "Cancelado",
 };
 
-/** Estados en los que el domicilio sigue vivo (no cerrado) */
+/** Estados en los que el domicilio sigue sin dinero: falta el cobro */
 export const ESTADOS_ACTIVOS_DOMICILIO: EstadoDomicilio[] = [
   ESTADO_DOMICILIO.PENDIENTE,
-  ESTADO_DOMICILIO.ASIGNADO,
-  ESTADO_DOMICILIO.EN_CAMINO,
+  ESTADO_DOMICILIO.ENTREGADO,
 ];
 
 /** Métodos de pago aceptados en caja */
@@ -132,10 +130,8 @@ export function destinoRol(rol: Rol): string {
       return "/admin";
     case "MESERO":
       return "/mesero";
-    case "DOMICILIARIO":
-      // La app del repartidor (/domicilios) se retiró: la entrega y el cobro
-      // se manejan desde el tablero del admin. Si una sesión vieja de domi
-      // queda viva, vuelve al login.
+    // Roles retirados (p. ej. la sesión vieja de un DOMICILIARIO): al login.
+    default:
       return "/login";
   }
 }

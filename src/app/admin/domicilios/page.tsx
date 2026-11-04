@@ -7,49 +7,57 @@ import { inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
   ESTADO_DOMICILIO,
-  ESTADOS_ACTIVOS_DOMICILIO,
+  ESTADO_PEDIDO,
   type EstadoDomicilio,
 } from "@/lib/roles";
 import { TableroDomicilios, type DomicilioVista } from "./tablero";
 
 export const metadata = { title: "Domicilios · El Buen Gusto" };
 
+/**
+ * El panel de domicilios ACTIVOS: son exactamente los domicilios a los que
+ * les falta su cobro (de hoy y de días anteriores: la plata no se olvida por
+ * haber pasado la noche). Al registrar el pago desaparecen del tablero y
+ * quedan en la caja (recibos), el historial del cliente y los reportes.
+ */
 export default async function PaginaDomicilios() {
-  const [domicilios, repartidores] = await Promise.all([
+  const [pendientes, cobrosDeHoy] = await Promise.all([
     db.domicilio.findMany({
       where: {
-        OR: [
-          { estado: { in: ESTADOS_ACTIVOS_DOMICILIO } },
-          { createdAt: { gte: inicioDeHoy() } },
-        ],
+        // Sin pago registrado, sin estar cancelado y con comanda viva:
+        // en cobradoMonto se guarda el total congelado del cobro.
+        cobradoMonto: null,
+        estado: { not: ESTADO_DOMICILIO.CANCELADO },
+        pedido: { estado: { not: ESTADO_PEDIDO.CANCELADO } },
       },
       include: {
         pedido: { include: { items: { include: { producto: true } } } },
-        domiciliario: true,
       },
-      orderBy: { createdAt: "desc" },
     }),
-    db.usuario.findMany({
-      where: { rol: "DOMICILIARIO", activo: true },
-      orderBy: { nombre: "asc" },
-      select: { id: true, nombre: true },
+    // El recaudo del día sale de los pagos ya registrados (la factura de
+    // cada domicilio es exactamente uno de esos pagos de la mesa virtual).
+    db.pago.findMany({
+      where: {
+        createdAt: { gte: inicioDeHoy() },
+        pedido: { mesa: { esDomicilio: true } },
+      },
+      select: { total: true, propina: true },
     }),
   ]);
 
-  const vistas: DomicilioVista[] = domicilios.map((d) => {
+  const vistas: DomicilioVista[] = pendientes.map((d) => {
     const items = d.pedido.items.filter((i) => i.cantidad > 0);
-    const total = items.reduce(
-      (suma, i) => suma + precioUnitarioItem(i) * i.cantidad,
-      0,
-    );
     const resumen =
       items
-        .map((i) => (i.cantidad > 1 ? `${i.cantidad}× ${i.producto.nombre}` : i.producto.nombre))
+        .map((i) =>
+          i.cantidad > 1 ? `${i.cantidad}× ${i.producto.nombre}` : i.producto.nombre,
+        )
         .join(" · ") || "Sin ítems";
     return {
       id: d.id,
       pedidoId: d.pedidoId,
-      estado: d.estado,
+      estado: d.estado as EstadoDomicilio,
+      /** Estado de la comanda: para saber si la cocina ya la tiene lista */
       pedidoEstado: d.pedido.estado,
       cliente: d.cliente,
       telefono: d.telefono,
@@ -57,84 +65,56 @@ export default async function PaginaDomicilios() {
       barrio: d.barrio,
       referencia: d.referencia,
       horaEntrega: d.horaEntrega,
+      /** La misma hora en minutos (para ordenar la fila por hora de entrega) */
       horaMin: d.horaEntregaMinutos,
       observaciones: d.pedido.observaciones,
-      notaEntrega: d.notaEntrega,
-      domiciliarioId: d.domiciliarioId,
-      cobradoMonto: d.cobradoMonto,
-      cobradoMetodo: d.cobradoMetodo,
-      entregadoEn: d.entregadoAt ? formatHora(d.entregadoAt) : null,
       creadoEn: formatHora(d.createdAt),
+      /** epoch de creación, para ordenar la cola por llegada (FIFO) */
       ordenTs: d.createdAt.getTime(),
-      total,
+      total: items.reduce(
+        (suma, i) => suma + precioUnitarioItem(i) * i.cantidad,
+        0,
+      ),
       resumen,
-      items: d.pedido.items.map((i) => ({
+      items: items.map((i) => ({
         id: i.id,
         cantidad: i.cantidad,
         grupo: i.grupo,
         tipo: i.tipo,
+        nombre: i.producto.nombre,
+        conSopa: i.conSopa,
         nota: i.nota,
-        producto: { nombre: i.producto.nombre },
+        /** Precio unitario fijado al ordenar (el de la comanda) */
+        precio: precioUnitarioItem(i),
       })),
     };
   });
 
-  // Cola por llegada: lo más viejo al frente (los pedidos tempranos salen
-  // salen primero). Los que dijeron "para las X" van primero entre sí por su
-  // hora: la cocina atiende la 12:00 antes que la 1 y media.
-  const porLlegada = (a: { ordenTs: number }, b: { ordenTs: number }) => a.ordenTs - b.ordenTs;
-
+  // Cola única: los que dijeron «para las X» van primero por su hora (la
+  // 12:00 antes que la 1 y media) y el resto por llegada; lo más viejo al
+  // frente porque es lo que primero toca empaque y cobrar.
+  const porLlegada = (
+    a: { ordenTs: number },
+    b: { ordenTs: number },
+  ) => a.ordenTs - b.ordenTs;
   const porHora = (
     a: { ordenTs: number; horaMin: number | null },
     b: { ordenTs: number; horaMin: number | null },
   ) => {
-    // Ambos con hora: gana el más temprano; uno solo con hora: ese primero
-    if (a.horaMin !== null && b.horaMin !== null) return a.horaMin - b.horaMin || a.ordenTs - b.ordenTs;
+    if (a.horaMin !== null && b.horaMin !== null)
+      return a.horaMin - b.horaMin || a.ordenTs - b.ordenTs;
     if (a.horaMin !== null) return -1;
     if (b.horaMin !== null) return 1;
     return porLlegada(a, b);
   };
-
-  const porAsignar = vistas
-    .filter((d) => d.estado === ESTADO_DOMICILIO.PENDIENTE)
-    .sort(porHora);
-  const enReparto = vistas
-    .filter(
-      (d) =>
-        d.estado === ESTADO_DOMICILIO.ASIGNADO ||
-        d.estado === ESTADO_DOMICILIO.EN_CAMINO,
-    )
-    .sort(porLlegada);
-  // Entregados del día: primero los que aún esperan su cobro
-  const entregados = vistas
-    .filter((d) => d.estado === ESTADO_DOMICILIO.ENTREGADO)
-    .sort((a, b) => {
-      const aCobrado = a.cobradoMonto !== null ? 1 : 0;
-      const bCobrado = b.cobradoMonto !== null ? 1 : 0;
-      return aCobrado - bCobrado || b.ordenTs - a.ordenTs;
-    });
-  const cerrados = vistas.filter(
-    (d) =>
-      d.estado === ESTADO_DOMICILIO.NO_ENTREGADO ||
-      d.estado === ESTADO_DOMICILIO.CANCELADO,
-  );
-
-  const estadosActivos = new Set<EstadoDomicilio>(ESTADOS_ACTIVOS_DOMICILIO);
-  const activos = vistas.filter((d) =>
-    estadosActivos.has(d.estado as EstadoDomicilio),
-  ).length;
-  const entregadosHoy = entregados.length;
-  const recaudadoHoy = entregados.reduce(
-    (suma, d) => suma + (d.cobradoMonto ?? 0),
-    0,
-  );
+  const cola = [...vistas].sort(porHora);
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <EncabezadoPagina
           titulo="Domicilios"
-          subtitulo="Auditoría del día: crea los pedidos, recibe el dinero del repartidor y cobra cada entrega"
+          subtitulo="Pedidos a domicilio pendientes de cobro: toca una ficha para revisar la comanda, cobrar e imprimir la factura"
         />
         <div className="flex flex-wrap items-center gap-2">
           <Link
@@ -149,32 +129,30 @@ export default async function PaginaDomicilios() {
       <div className="mb-8 flex flex-wrap gap-3">
         <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
           <Bike className="h-4 w-4 text-orange-brand" />
-          <span className="text-texto-muted/60">En curso</span>
-          <strong className="font-display text-lg text-texto-app">{activos}</strong>
+          <span className="text-texto-muted/60">Pendientes de cobro</span>
+          <strong className="font-display text-lg text-texto-app">
+            {cola.length}
+          </strong>
         </span>
         <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
           <CheckCircle2 className="h-4 w-4 text-success-text" />
-          <span className="text-texto-muted/60">Entregados hoy</span>
+          <span className="text-texto-muted/60">Cobrados hoy</span>
           <strong className="font-display text-lg text-texto-app">
-            {entregadosHoy}
+            {cobrosDeHoy.length}
           </strong>
         </span>
         <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
           <Banknote className="h-4 w-4 text-amber-brand" />
-          <span className="text-texto-muted/60">Recaudado</span>
+          <span className="text-texto-muted/60">Recaudado hoy</span>
           <strong className="font-display text-lg text-texto-app">
-            {formatCOP(recaudadoHoy)}
+            {formatCOP(
+              cobrosDeHoy.reduce((suma, p) => suma + p.total + p.propina, 0),
+            )}
           </strong>
         </span>
       </div>
 
-      <TableroDomicilios
-        porAsignar={porAsignar}
-        enReparto={enReparto}
-        entregados={entregados}
-        cerrados={cerrados}
-        repartidores={repartidores}
-      />
+      <TableroDomicilios pendientes={cola} />
     </>
   );
 }
