@@ -5,7 +5,6 @@ import {
   Salad,
   Soup,
   Star,
-  UtensilsCrossed,
   Wheat,
   type LucideIcon,
 } from "lucide-react";
@@ -53,15 +52,6 @@ export default async function PaginaProductos() {
     TIPO_PRODUCTO.BEBIDA,
     TIPO_PRODUCTO.ADICIONAL,
   ];
-  // Productos fuera de toda categoría vigente: su categoría propia fue
-  // borrada. No se pierden: aparecen aquí abajo para reactivarlos o borrarlos.
-  const tiposConocidos = new Set<string>([
-    ...ORDEN,
-    ...categorias.map((c) => c.nombre),
-  ]);
-  const huerfanos = productos
-    .filter((p) => !tiposConocidos.has(p.tipo))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   return (
     <>
@@ -165,39 +155,14 @@ export default async function PaginaProductos() {
             </section>
           );
         })}
-
-        {/* Huérfanos: quedaron sin categoría cuando se borró la suya */}
-        {huerfanos.length > 0 ? (
-          <section>
-            <h2 className="mb-3 flex items-center gap-2.5 font-display text-xl text-texto-app">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-texto-muted/60 ring-1 ring-borde-app">
-                <UtensilsCrossed className="h-5 w-5" />
-              </span>
-              Otros
-              <span className="text-sm font-normal text-texto-muted/45">
-                · Quedaron sin categoría
-              </span>
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {huerfanos.map((p) => (
-                <TarjetaProducto
-                  key={p.id}
-                  id={p.id}
-                  nombre={p.nombre}
-                  precio={p.precio}
-                  tipo={p.tipo}
-                  activo={p.activo}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
       </div>
 
       <p className="mt-8 flex items-center gap-2 text-sm text-texto-muted/45">
         <Plus className="h-4 w-4" />
-        Los productos eliminados no aparecen al armar el menú del día ni en la
-        app del mesero; se pueden reactivar con el botón verde de su tarjeta.
+        «Desactivar» es temporal: el producto sale del catálogo y del salón y
+        puedes reactivarlo. «Eliminar definitivamente» borra la fila de la
+        base de datos; las ventas del historial conservan su nombre y precios
+        congelados.
       </p>
       <p className="mt-2 text-xs text-texto-muted/35">
         El precio del almuerzo corriente lo fija la combinación (con/sin sopa ·
