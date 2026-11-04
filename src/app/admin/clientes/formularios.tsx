@@ -38,10 +38,64 @@ function Aviso({ estado }: { estado: EstadoAccionCliente }) {
   return null;
 }
 
+/** Ficha candidata cuando hay posible duplicado (se muestra para decidir) */
+function Coincidencias({
+  lista,
+  pendiente,
+}: {
+  lista: EstadoAccionCliente["coincidencias"];
+  pendiente: boolean;
+}) {
+  if (!lista || lista.length === 0) return null;
+  return (
+    <div
+      role="status"
+      className="mt-2.5 rounded-xl bg-info/10 px-3.5 py-3 text-sm ring-1 ring-info/20 sm:col-span-2"
+    >
+      <p className="font-bold text-info-text">Posibles coincidencias</p>
+      <p className="mt-0.5 text-texto-muted/70">
+        Revísalas antes de crear la ficha: puede que ya exista. Si es otra
+        persona (o comparten número), crea una ficha nueva.
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {lista.map((c) => (
+          <li
+            key={c.id}
+            className="rounded-lg bg-panel-app px-3 py-2 ring-1 ring-borde-app"
+          >
+            <span className="font-bold text-texto-app">
+              #{c.id} · {c.nombre}
+            </span>
+            {c.telefono ? (
+              <span className="text-texto-muted/70"> · {c.telefono}</span>
+            ) : null}
+            {c.direccion || c.barrio ? (
+              <span className="text-texto-muted/50"> · {[c.direccion, c.barrio].filter(Boolean).join(" · ")}</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <button
+          type="submit"
+          name="forzar"
+          value="1"
+          disabled={pendiente}
+          className="rounded-xl bg-panel-app px-3.5 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-amber-brand/20 disabled:opacity-50"
+        >
+          {pendiente ? "Guardando…" : "Es otra persona: crear ficha nueva"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Post para registrar un cliente (se abre con un toque) */
 export function FormularioNuevoCliente() {
   const [estado, accion, pendiente] = useActionState(crearCliente, INICIAL);
   const [abierto, setAbierto] = useState(false);
+  const mensaje =
+    estado.ok && !estado.coincidencias ? estado.ok : null;
 
   return (
     <section aria-label="Registrar cliente">
@@ -120,7 +174,17 @@ export function FormularioNuevoCliente() {
           >
             {pendiente ? "Guardando…" : "Guardar cliente"}
           </button>
-          <Aviso estado={estado} />
+          <Coincidencias lista={estado.coincidencias} pendiente={pendiente} />
+          {mensaje ? (
+            <p
+              aria-live="polite"
+              className="mt-2.5 rounded-xl bg-success/10 px-3.5 py-2.5 text-sm text-success-text ring-1 ring-success/20 sm:col-span-2"
+            >
+              {mensaje}
+            </p>
+          ) : (
+            <Aviso estado={{ error: estado.error, ok: null }} />
+          )}
         </form>
       ) : null}
     </section>

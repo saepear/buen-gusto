@@ -89,9 +89,15 @@ export default async function PaginaFichaCliente(
         <ArrowLeft className="h-4 w-4" /> Todos los clientes
       </Link>
 
-      <EncabezadoPagina titulo={cliente.nombre} subtitulo="Ficha del cliente: sus domicilios, apartados y fiados en un solo lugar" />
+      <EncabezadoPagina
+        titulo={cliente.nombre}
+        subtitulo={`Ficha #${cliente.id} · domicilios, apartados y fiados en un solo lugar`}
+      />
 
       <div className="mb-6 flex flex-wrap gap-2.5">
+        <span className="rounded-2xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-muted/70 ring-1 ring-borde-app">
+          Ficha #{cliente.id}
+        </span>
         <span className="rounded-2xl bg-success/10 px-4 py-2.5 text-sm font-bold text-success-text ring-1 ring-success/25">
           {cliente.domicilios.length}{" "}
           {cliente.domicilios.length === 1 ? "domicilio" : "domicilios"}

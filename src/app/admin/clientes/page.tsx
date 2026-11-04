@@ -3,7 +3,7 @@ import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/format";
-import { nombreCanonico, telefonoNormalizado } from "@/lib/clientes";
+import { buscarClientesPagina } from "@/lib/clientes";
 import { ESTADO_CUENTA } from "@/lib/roles";
 import {
   FormularioNuevoCliente,
@@ -12,30 +12,25 @@ import {
 
 export const metadata = { title: "Clientes · El Buen Gusto" };
 
+const POR_PAGINA = 24;
+
 export default async function PaginaClientes(
   props: PageProps<"/admin/clientes">,
 ) {
-  const { q } = await props.searchParams;
-  const filtro = typeof q === "string" ? q.trim().toLowerCase() : "";
-  const digitos = filtro.replace(/\D/g, "");
+  const { q, pagina } = await props.searchParams;
+  const filtro = typeof q === "string" ? q.trim() : "";
+  const nPagina = Math.max(
+    1,
+    Number.parseInt(typeof pagina === "string" ? pagina : "1", 10) || 1,
+  );
 
-  // Los teléfonos se comparan de dígito a dígito y los nombres sin
-  // acentos: es la única forma fiable de cruzarlos como los escribe la gente
-  const todos = await db.cliente.findMany({
-    orderBy: { updatedAt: "desc" },
-    take: 300,
-  });
-  const visibles =
-    filtro === ""
-      ? todos
-      : todos.filter(
-          (c) =>
-            c.nombre.toLowerCase().includes(filtro) ||
-            nombreCanonico(c.nombre).includes(filtro) ||
-            (digitos.length > 0 &&
-              telefonoNormalizado(c.telefono).includes(digitos)),
-        );
-
+  // Búsqueda EN la base (nombre sin acentos, teléfono en dígitos): sin límite
+  // de fichas y sin cargar la tabla entera en memoria
+  const { filas: visibles, total } = await buscarClientesPagina(
+    filtro,
+    nPagina,
+    POR_PAGINA,
+  );
   const ids = visibles.map((c) => c.id);
 
   const [porDomicilios, porApartados, porCuentas, sinVincular] =
@@ -80,10 +75,11 @@ export default async function PaginaClientes(
       },
     ] as const),
   );
-  const saldoTotalVisibles = visibles.reduce(
-    (s, c) => s + (deudaDe.get(c.id)?.saldo ?? 0),
+  const saldoTotalVisibles = [...deudaDe.values()].reduce(
+    (s, d) => s + Math.max(0, d.saldo),
     0,
   );
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
   return (
     <>
@@ -138,7 +134,7 @@ export default async function PaginaClientes(
           <p className="mt-2 max-w-md text-texto-muted/70">
             {filtro === ""
               ? "Regístralos aquí, o vuelve desde Domicilios y deja que «Vincular historial» cree las fichas solas."
-              : "Prueba con otra parte del nombre o los últimos dígitos del teléfono."}
+              : "Prueba con otra parte del nombre (sin acentos) o los últimos dígitos del teléfono."}
           </p>
         </div>
       ) : (
@@ -161,6 +157,9 @@ export default async function PaginaClientes(
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold leading-tight text-texto-app">
                       {c.nombre}
+                      <span className="ml-1.5 rounded-md bg-fondo-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
+                        #{c.id}
+                      </span>
                     </p>
                     <p className="text-[11px] text-texto-muted/50">
                       Cliente desde{" "}
@@ -213,10 +212,37 @@ export default async function PaginaClientes(
                   ) : null}
                 </div>
               </Link>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-}
+             );
+           })}
+         </div>
+       )}
+
+       {total > POR_PAGINA ? (
+         <nav
+           aria-label="Paginación de clientes"
+           className="mt-6 flex items-center justify-center gap-3 text-sm"
+         >
+           {nPagina > 1 ? (
+             <Link
+               href={`/admin/clientes?q=${encodeURIComponent(filtro)}&pagina=${nPagina - 1}`}
+               className="rounded-xl bg-panel-app px-4 py-2 font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+             >
+               ← Anteriores
+             </Link>
+           ) : null}
+           <span className="text-texto-muted/60">
+             {visibles.length} de {total} clientes · página {nPagina} de {totalPaginas}
+           </span>
+           {nPagina < totalPaginas ? (
+             <Link
+               href={`/admin/clientes?q=${encodeURIComponent(filtro)}&pagina=${nPagina + 1}`}
+               className="rounded-xl bg-panel-app px-4 py-2 font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+             >
+               Siguientes →
+             </Link>
+           ) : null}
+         </nav>
+       ) : null}
+     </>
+   );
+ }

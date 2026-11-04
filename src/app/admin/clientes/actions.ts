@@ -3,15 +3,23 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import {
-  buscarOcrearCliente,
-  nombreCanonico,
+  coincidenciasDeCliente,
+  crearClienteNuevo,
+  datosBusquedaCliente,
+  buscarClientesPagina,
   telefonoNormalizado,
   vincularHistorialDomicilios,
+  type ClienteResumen,
 } from "@/lib/clientes";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
-export type EstadoAccionCliente = { error: string | null; ok: string | null };
+export type EstadoAccionCliente = {
+  error: string | null;
+  ok: string | null;
+  coincidencias?: ClienteResumen[]; // posibles duplicados para revisar
+  clienteCreado?: ClienteResumen; // para la creación rápida desde Apartados
+};
 
 const texto = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 
@@ -20,7 +28,8 @@ function revalidar() {
   realtime.broadcast("update");
 }
 
-/** Registra un cliente. Si ya existe (teléfono o nombre), se reutiliza. */
+/** Registra un cliente. Si hay posibles duplicados los MUESTRA y pide una
+ *  decisión explícita: nunca reutiliza ni fusiona en silencio. */
 export async function crearCliente(
   _previa: EstadoAccionCliente,
   datos: FormData,
@@ -40,24 +49,42 @@ export async function crearCliente(
     return { error: "El teléfono no es válido (7 dígitos o más).", ok: null };
   }
 
-  const { yaExistia } = await buscarOcrearCliente({
+  const carga = {
     nombre,
     telefono,
     direccion: texto(datos.get("direccion"), 120),
     barrio: texto(datos.get("barrio"), 60) || null,
     observaciones: texto(datos.get("observaciones"), 300) || null,
-  });
-
-  revalidar();
-  return {
-    error: null,
-    ok: yaExistia
-      ? "Ya estaba guardado: reutilizamos esa ficha (sin duplicar)."
-      : "Cliente registrado.",
   };
+
+  // «Ignorar coincidencias y crear la ficha»: decisión tomada por el admin
+  // (número compartido entre cercanos, homónimo con otro celular, etc.)
+  if (texto(datos.get("forzar"), 1) === "1") {
+    const id = await crearClienteNuevo(carga);
+    revalidar();
+    const creado: ClienteResumen = { id, nombre, telefono: telefono, direccion: carga.direccion, barrio: carga.barrio, createdAt: new Date() };
+    return { error: null, ok: `Cliente registrado como ficha nueva #${id}.`, clienteCreado: creado };
+  }
+
+  const coincidencias = await coincidenciasDeCliente(carga);
+  if (coincidencias.length > 0) {
+    // Sin fusión automática: quedan listadas para que el admin revise las
+    // fichas y elija (usar una) o confirme que es otra persona.
+    return {
+      error: null,
+      ok: null,
+      coincidencias,
+    };
+  }
+
+  const id = await crearClienteNuevo(carga);
+  revalidar();
+  const creado: ClienteResumen = { id, nombre, telefono: telefono, direccion: carga.direccion, barrio: carga.barrio, createdAt: new Date() };
+  return { error: null, ok: `Cliente registrado (#${id}).`, clienteCreado: creado };
 }
 
-/** Edita los datos de un cliente existente */
+/** Edita los datos de un cliente existente. Aún así advierte si el teléfono
+ *  editado queda igual al de otra ficha (familias comparten el número). */
 export async function editarCliente(
   _previa: EstadoAccionCliente,
   datos: FormData,
@@ -89,11 +116,27 @@ export async function editarCliente(
       direccion: texto(datos.get("direccion"), 120),
       barrio: texto(datos.get("barrio"), 60) || null,
       observaciones: texto(datos.get("observaciones"), 300) || null,
+      ...datosBusquedaCliente({ nombre, telefono }),
     },
   });
 
   revalidar();
-  return { error: null, ok: "Datos del cliente actualizados." };
+
+  const tel = telefonoNormalizado(telefono);
+  const repetido =
+    tel.length >= 7
+      ? await db.cliente.count({
+          where: { telefonoBusqueda: tel, id: { not: id } },
+        })
+      : 0;
+
+  return {
+    error: null,
+    ok:
+      repetido > 0
+        ? "Datos actualizados. Ojo: ese teléfono también quedó en otra ficha (puede ser un número compartido)."
+        : "Datos del cliente actualizados.",
+  };
 }
 
 /**
@@ -127,22 +170,13 @@ export async function vincularHistorial(
   };
 }
 
-/** Búsqueda de clientes para escoger uno (apartados, cuentas por cobrar…) */
+/** Búsqueda paginada en BD (sin límite de fichas): para picker y listados. */
 export async function buscarClientes(term: string) {
-  const filtro = term.trim().toLowerCase();
-  const digitos = filtro.replace(/\D/g, "");
-  const todos = await db.cliente.findMany({
-    orderBy: { updatedAt: "desc" },
-    take: 300,
-    select: { id: true, nombre: true, telefono: true, direccion: true },
-  });
-  if (!filtro) return todos.slice(0, 12);
-  return todos
-    .filter(
-      (c) =>
-        c.nombre.toLowerCase().includes(filtro) ||
-        nombreCanonico(c.nombre).includes(filtro) ||
-        (digitos.length > 0 && telefonoNormalizado(c.telefono).includes(digitos)),
-    )
-    .slice(0, 12);
+  const { filas } = await buscarClientesPagina(term, 1, 12);
+  return filas.map((f) => ({
+    id: f.id,
+    nombre: f.nombre,
+    telefono: f.telefono,
+    direccion: f.direccion,
+  }));
 }

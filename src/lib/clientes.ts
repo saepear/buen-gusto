@@ -1,6 +1,7 @@
-// Unificación de clientes: evitar duplicados cruzando por teléfono (dígito a
-// dígito) y, para los que van sin teléfono, por nombre canónico (sin
-// acentos, minúsculas) — la misma regla con la que agrupa el POS de hoy.
+// Unificación de clientes: las reglas de duplicados SÍ se usan para mostrar
+// posibles coincidencias al administrador (tél norm., nombre canónico), pero
+// JAMÁS se fusiona en silencio. Dos personas con el mismo nombre son dos
+// fichas; la identidad se determina con la información conjunta.
 import { db } from "@/lib/db";
 
 /** «+57 320 456 7890» → "3204567890": solo los dígitos, para comparar teléfonos */
@@ -26,11 +27,81 @@ export type DatosClienteBase = {
   observaciones?: string | null;
 };
 
+/** Columnas de búsqueda normalizadas que escribe cualquier alta/edición */
+export function datosBusquedaCliente(datos: { nombre: string; telefono: string }) {
+  return {
+    nombreBusqueda: nombreCanonico(datos.nombre),
+    telefonoBusqueda: telefonoNormalizado(datos.telefono),
+  };
+}
+
+/** Ficha para listas y avisos de coincidencias */
+export type ClienteResumen = {
+  id: number;
+  nombre: string;
+  telefono: string;
+  direccion: string;
+  barrio: string | null;
+  createdAt: Date;
+};
+
+/**
+ * Posibles coincidencias con lo que el administrador está escribiendo:
+ * · Teléfono igual (7+ dígitos) → la señal fuerte (regla C).
+ * · Sin teléfono y nombre canónico idéntico → pista de revisión (regla B).
+ * Nunca se incluye como «coincidencia» a alguien con el mismo nombre pero
+ * otro teléfono (regla A: son personas distintas, el administrador decide).
+ */
+export async function coincidenciasDeCliente(
+  datos: DatosClienteBase,
+): Promise<ClienteResumen[]> {
+  const nombre = datos.nombre.trim();
+  const telefono = datos.telefono.trim();
+  const tel = telefonoNormalizado(telefono);
+
+  if (tel.length >= 7) {
+    return db.cliente.findMany({
+      where: { telefonoBusqueda: tel },
+      orderBy: { id: "desc" },
+      take: 6,
+      select: { id: true, nombre: true, telefono: true, direccion: true, barrio: true, createdAt: true },
+    });
+  }
+
+  const canon = nombreCanonico(nombre);
+  if (canon.length > 2) {
+    return db.cliente.findMany({
+      where: { nombreBusqueda: canon, telefonoBusqueda: "" },
+      orderBy: { id: "desc" },
+      take: 6,
+      select: { id: true, nombre: true, telefono: true, direccion: true, barrio: true, createdAt: true },
+    });
+  }
+  return [];
+}
+
+/** Crea una ficha NUEVA sin reusar nada (solo tras que el admin confirme que
+ *  que no es una de las coincidencias o que el número lo comparte alguien). */
+export async function crearClienteNuevo(datos: DatosClienteBase): Promise<number> {
+  const creado = await db.cliente.create({
+    data: {
+      nombre: datos.nombre.trim(),
+      telefono: datos.telefono.trim(),
+      direccion: (datos.direccion ?? "").trim(),
+      barrio: datos.barrio?.trim() || null,
+      observaciones: datos.observaciones?.trim() || null,
+      ...datosBusquedaCliente({ nombre: datos.nombre, telefono: datos.telefono }),
+    },
+  });
+  return creado.id;
+}
+
 /**
  * Encuentra el cliente guardado que corresponda (por teléfono normalizado;
  * los «solo el nombre» se cruzan por nombre canónico) o crea uno nuevo.
- * Sirve en creaciones de domicilio/apartado/cuenta: si ya existe, se
- * reutiliza su registro y NADIE escribe los datos de nuevo.
+ * Úsalo SOLO en operaciones automáticas internas (vinculación masiva del
+ * historial): el alta desde la UI muestra las coincidencias y pide una
+ * decisión en vez de reusar silenciosamente.
  */
 export async function buscarOcrearCliente(
   datos: DatosClienteBase,
@@ -40,43 +111,61 @@ export async function buscarOcrearCliente(
   const tel = telefonoNormalizado(telefono);
 
   if (tel.length >= 7) {
-    // Cruzar por teléfono: los teléfonos se guardan con el formato que
-    // escribió el usuario, la comparación es de dígitos
-    const candidatos = await db.cliente.findMany({
-      where: { telefono: { not: "" } },
-      take: 500,
+    const igual = await db.cliente.findFirst({
+      where: { telefonoBusqueda: tel },
       orderBy: { id: "desc" },
     });
-    const igual = candidatos.find(
-      (c) => telefonoNormalizado(c.telefono) === tel,
-    );
     if (igual) return { id: igual.id, yaExistia: true };
   } else {
-    // Sin teléfono: match suave por nombre canónico
     const canon = nombreCanonico(nombre);
     if (canon.length > 2) {
-      const candidatos = await db.cliente.findMany({
-        where: { telefono: "" },
-        take: 500,
+      const igual = await db.cliente.findFirst({
+        where: { nombreBusqueda: canon, telefonoBusqueda: "" },
         orderBy: { id: "desc" },
       });
-      const igual = candidatos.find(
-        (c) => nombreCanonico(c.nombre) === canon,
-      );
       if (igual) return { id: igual.id, yaExistia: true };
     }
   }
 
-  const creado = await db.cliente.create({
-    data: {
-      nombre,
-      telefono,
-      direccion: (datos.direccion ?? "").trim(),
-      barrio: datos.barrio?.trim() || null,
-      observaciones: datos.observaciones?.trim() || null,
-    },
-  });
-  return { id: creado.id, yaExistia: false };
+  const id = await crearClienteNuevo(datos);
+  return { id, yaExistia: false };
+}
+
+/** Búsqueda paginada en BD para picker/listados: nombré y teléfono parcial,
+ *  sin acentos, sin cargar toda la base. */
+export async function buscarClientesPagina(
+  term: string,
+  pagina = 1,
+  tamano = 12,
+): Promise<{ filas: ClienteResumen[]; total: number; pagina: number }> {
+  const crudo = term.trim();
+  const canon = nombreCanonico(crudo);
+  const digitos = telefonoNormalizado(crudo);
+
+  const donde =
+    digitos.length >= 3
+      ? {
+          OR: [
+            { telefonoBusqueda: { contains: digitos } },
+            ...(canon ? [{ nombreBusqueda: { contains: canon } }] : []),
+          ],
+        }
+      : canon
+        ? { nombreBusqueda: { contains: canon } }
+        : {};
+
+  const [total, filas] = await Promise.all([
+    db.cliente.count({ where: donde }),
+    db.cliente.findMany({
+      where: donde,
+      orderBy: { updatedAt: "desc" },
+      take: tamano,
+      skip: (Math.max(1, pagina) - 1) * tamano,
+      select: { id: true, nombre: true, telefono: true, direccion: true, barrio: true, createdAt: true },
+    }),
+  ]);
+
+  return { filas, total, pagina: Math.max(1, pagina) };
 }
 
 /** Resultado de la acción «Vincular historial», para mostrar qué pasó */
