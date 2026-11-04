@@ -21,6 +21,7 @@ import {
   FormularioNuevaCuenta,
 } from "@/app/admin/cuentas/formularios";
 import { FormularioEditarCliente } from "./editar";
+import { AccionesDuplicados } from "./acciones-ficha";
 
 export const metadata = { title: "Ficha cliente · El Buen Gusto" };
 
@@ -79,6 +80,14 @@ export default async function PaginaFichaCliente(
   const saldoFiado = cliente.cuentas
     .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
     .reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado), 0);
+
+  // Rastro de fusiones recibidas (auditoría de FusionCliente)
+  const fusionesRecibidas = await db.fusionCliente.findMany({
+    where: { destinoId: cliente.id },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: { hechoPor: { select: { nombre: true } } },
+  });
 
   return (
     <>
@@ -157,6 +166,50 @@ export default async function PaginaFichaCliente(
           />
         </div>
       </section>
+
+      {/* ════ Gestión de duplicados: fusionar y eliminar ════ */}
+      <AccionesDuplicados
+        clienteId={cliente.id}
+        nombre={cliente.nombre}
+        telefono={cliente.telefono}
+        tieneHistorial={
+          cliente.domicilios.length > 0 ||
+          cliente.apartados.length > 0 ||
+          cliente.cuentas.length > 0 ||
+          fusionesRecibidas.length > 0
+        }
+      />
+
+      {fusionesRecibidas.length > 0 ? (
+        <section
+          aria-label="Fusiones recibidas"
+          className="mb-10 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
+        >
+          <h2 className="mb-2 font-display text-lg text-texto-app">
+            Fichas fusionadas en esta
+          </h2>
+          <ul className="space-y-1.5 text-sm text-texto-muted/80">
+            {fusionesRecibidas.map((f) => (
+              <li key={f.id} className="flex flex-wrap items-center gap-x-2">
+                <span className="font-bold text-texto-app">
+                  #{f.origenId} · {f.origenNombre}
+                  {f.origenTelefono ? ` · ${f.origenTelefono}` : ""}
+                </span>
+                <span className="text-xs text-texto-muted/55">
+                  {f.domicilios} domicilios, {f.apartados} apartados y {f.cuentas}{" "}
+                  deuda(s) movidas(s) el{" "}
+                  {new Date(f.createdAt).toLocaleDateString("es-CO", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}{" "}
+                  por {f.hechoPor.nombre}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* ════ Fiados ════ */}
       <section className="mb-10">

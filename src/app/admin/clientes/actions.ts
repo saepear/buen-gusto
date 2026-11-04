@@ -7,6 +7,8 @@ import {
   crearClienteNuevo,
   datosBusquedaCliente,
   buscarClientesPagina,
+  fusionarClientes,
+  resumenDeFusion,
   telefonoNormalizado,
   vincularHistorialDomicilios,
   type ClienteResumen,
@@ -180,3 +182,99 @@ export async function buscarClientes(term: string) {
     direccion: f.direccion,
   }));
 }
+
+/** ── Eliminar una ficha SIN historial ──────────────────────────────────
+ *  El servidor vuelve a comprobar que no tenga nada asociado: si tiene
+ *  domicilios, apartados o deudas, bloquea el borrado (usar Fusionar). */
+export async function eliminarCliente(
+  _previa: EstadoAccionCliente,
+  datos: FormData,
+): Promise<EstadoAccionCliente> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return { error: "Solo el administrador gestiona clientes.", ok: null };
+  }
+
+  const id = Number.parseInt(String(datos.get("cliente") ?? ""), 10);
+  if (!Number.isInteger(id)) {
+    return { error: "Cliente inválido.", ok: null };
+  }
+
+  const cliente = await db.cliente.findUnique({
+    where: { id },
+    select: { nombre: true, telefono: true },
+  });
+  if (!cliente) {
+    return { error: "Esa ficha ya no existe.", ok: null };
+  }
+
+  const [domicilios, apartados, cuentas, recibidas] = await Promise.all([
+    db.domicilio.count({ where: { clienteId: id } }),
+    db.apartado.count({ where: { clienteId: id } }),
+    db.cuentaPorCobrar.count({ where: { clienteId: id } }),
+    db.fusionCliente.count({ where: { destinoId: id } }),
+  ]);
+  if (domicilios > 0 || apartados > 0 || cuentas > 0 || recibidas > 0) {
+    return {
+      error:
+        "Esa ficha tiene historial (domicilios, apartados, deudas o fusiones recibidas). No se elimina: usa «Fusionar con otro cliente» para no perder nada.",
+      ok: null,
+    };
+  }
+
+  await db.cliente.delete({ where: { id } });
+  revalidar();
+  return {
+    error: null,
+    ok: `Ficha #${id} de ${cliente.nombre} eliminada definitivamente.`,
+  };
+}
+
+/** ── Fusiones de clientes ────────────────────────────────────────────── */
+
+/** Resumen de una fusión pendiente (qué historial viaja al destino) */
+export async function prepararFusion(origenId: number, destinoId: number) {
+  try {
+    await exigirAdmin();
+  } catch {
+    return null;
+  }
+  return resumenDeFusion(origenId, destinoId);
+}
+
+/** Ejecuta la fusión: mueve todo el historial al destino y borra el origen
+ *  en una única transacción. Devuelve el estado para el form. */
+export async function fusionarClientesForm(
+  _previa: EstadoAccionCliente,
+  datos: FormData,
+): Promise<EstadoAccionCliente> {
+  let adminId = 0;
+  try {
+    adminId = (await exigirAdmin()).id;
+  } catch {
+    return { error: "Solo el administrador gestiona clientes.", ok: null };
+  }
+
+  const origenId = Number.parseInt(String(datos.get("origenId") ?? ""), 10);
+  const destinoId = Number.parseInt(String(datos.get("destinoId") ?? ""), 10);
+  if (!Number.isInteger(origenId) || !Number.isInteger(destinoId)) {
+    return { error: "Ficha origen o destino inválida.", ok: null };
+  }
+  if (origenId === destinoId) {
+    return { error: "El origen y el destino son la misma ficha.", ok: null };
+  }
+  // Doble confirmación explícita: el administrador debe escribir FUSION
+  // (es irreversible y no hay registro que la deshaga)
+  if (texto(datos.get("confirmar"), 10).toUpperCase() !== "FUSION") {
+    return { error: "Escribe FUSION en la casilla de confirmación para ejecutarla.", ok: null };
+  }
+
+  const resultado = await fusionarClientes(origenId, destinoId, adminId);
+  revalidar();
+  if (!resultado.ok) {
+    return { error: resultado.mensaje, ok: null };
+  }
+  return { error: null, ok: resultado.mensaje };
+}
+
