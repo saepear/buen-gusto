@@ -1,14 +1,16 @@
 import { CircleDollarSign, History, Plus, Search } from "lucide-react";
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatHora } from "@/lib/format";
-import { buscarClientes } from "@/app/admin/clientes/actions";
+import { nombreCanonico, telefonoNormalizado } from "@/lib/clientes";
 import { ESTADO_CUENTA, ESTADO_CUENTA_LABEL, type EstadoCuenta } from "@/lib/roles";
 import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
 import {
   FormularioAbono,
   FormularioAnularCuenta,
+  FormularioCondonarCuenta,
   FormularioNuevaCuenta,
 } from "./formularios";
 
@@ -18,75 +20,174 @@ const CHIP_ESTADO: Record<EstadoCuenta, string> = {
   PENDIENTE: "bg-danger/10 text-danger-text ring-1 ring-danger/25",
   PAGADA: "bg-success/10 text-success-text ring-1 ring-success/25",
   ANULADA: "bg-panel-app text-texto-muted/50 ring-1 ring-borde-app",
+  CONDONADA: "bg-warning/10 text-warning ring-1 ring-warning/25",
 };
+
+const POR_PAGINA = 20;
+
+/** Fecha «desde/hasta» de los filtros: cada una se valida por separado */
+function fechaDeFiltro(
+  crudo: unknown,
+  fin: boolean,
+): Date | null {
+  if (typeof crudo !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(crudo)) return null;
+  const [y, m, d] = crudo.split("-").map(Number);
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null;
+  const dt = new Date(y, m - 1, d);
+  if (fin) {
+    // Hasta incluye el día completo: corte la medianoche siguiente
+    dt.setDate(dt.getDate() + 1);
+  }
+  return dt;
+}
 
 export default async function PaginaCuentas(
   props: PageProps<"/admin/cuentas">,
 ) {
-  const { q, nuevo, estado, desde, hasta } = await props.searchParams;
+  const { q, telefono, concepto, estado, desde, hasta, pagina, nuevo } =
+    await props.searchParams;
+
+  // ── Validación de cada filtro por separado ──
   const filtro = typeof q === "string" ? q.trim() : "";
+  const filtroTelefono = typeof telefono === "string" ? telefono.trim() : "";
+  const filtroConcepto = typeof concepto === "string" ? concepto.trim() : "";
   const estadoFiltro =
     typeof estado === "string" && estado in ESTADO_CUENTA ? estado : "";
+  const desdeDt = fechaDeFiltro(desde, false);
+  const hastaDt = fechaDeFiltro(hasta, true);
+  const paginaN = Math.max(
+    1,
+    Number.parseInt(typeof pagina === "string" ? pagina : "1", 10) || 1,
+  );
 
-  const condiciones: {
-    createdAt: { gte: Date };
-    estado?: string;
-  } = { createdAt: { gte: new Date(2020, 0, 1) } };
-  if (typeof desde === "string" && /^\d{4}-\d{2}-\d{2}$/.test(desde)) {
-    const [y, m, d] = desde.split("-").map(Number);
-    condiciones.createdAt.gte = new Date(y, m - 1, d);
-    if (typeof hasta === "string" && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
-      const [yh, mh, dh] = hasta.split("-").map(Number);
-      const hastaDt = new Date(yh, mh - 1, dh);
-      hastaDt.setDate(hastaDt.getDate() + 1);
-      condiciones.createdAt = { gte: condiciones.createdAt.gte, lt: hastaDt } as { gte: Date; lt: Date };
+  const donde: Prisma.CuentaPorCobrarWhereInput = {};
+  if (estadoFiltro) donde.estado = estadoFiltro;
+  if (desdeDt || hastaDt) {
+    const createdAt: Prisma.DateTimeFilter = {};
+    if (desdeDt) createdAt.gte = desdeDt;
+    if (hastaDt) createdAt.lt = hastaDt; // «hasta» incluye ese día entero
+    donde.createdAt = createdAt;
+  }
+  if (filtroConcepto) donde.concepto = { contains: filtroConcepto };
+  if (filtroTelefono) {
+    const digitos = telefonoNormalizado(filtroTelefono);
+    if (digitos.length >= 3) {
+      donde.cliente = { telefonoBusqueda: { contains: digitos } };
     }
   }
-  if (estadoFiltro) condiciones.estado = estadoFiltro;
+  if (filtro) {
+    const canon = nombreCanonico(filtro);
+    const digitos = telefonoNormalizado(filtro);
+    // «#12» (o un número suelto) busca la ficha por su identificador
+    const ficha = /^#?\s*(\d{1,7})$/.exec(filtro);
+    const idFicha = ficha ? Number.parseInt(ficha[1], 10) : null;
+    const opcionesCliente: Prisma.ClienteWhereInput[] = [];
+    if (idFicha !== null) opcionesCliente.push({ id: idFicha });
+    if (digitos.length >= 3) {
+      opcionesCliente.push({ telefonoBusqueda: { contains: digitos } });
+    }
+    if (canon) opcionesCliente.push({ nombreBusqueda: { contains: canon } });
+    if (opcionesCliente.length > 0) {
+      donde.cliente = { OR: opcionesCliente };
+    }
+  }
 
-  const [cuentas, matches, pendientes] = await Promise.all([
+  const salto = (paginaN - 1) * POR_PAGINA;
+
+  const [cuentas, totalCuentas, bloqueResumen] = await Promise.all([
     db.cuentaPorCobrar.findMany({
-      where: condiciones,
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where: donde,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: POR_PAGINA,
+      skip: salto,
       include: {
         cliente: true,
         creadoPor: true,
         anuladaPor: true,
-        abonos: { orderBy: { createdAt: "desc" }, include: { registradoPor: true } },
+        condonadoPor: true,
+        abonos: {
+          orderBy: { createdAt: "desc" },
+          include: { registradoPor: true },
+        },
       },
     }),
-    filtro ? buscarClientes(filtro) : buscarClientes(""),
-    db.cuentaPorCobrar.findMany({
-      where: { estado: ESTADO_CUENTA.PENDIENTE },
-      include: { cliente: true },
-      orderBy: { createdAt: "desc" },
-      take: 200,
+    db.cuentaPorCobrar.count({ where: donde }),
+    db.cuentaPorCobrar.groupBy({
+      // Resumen global + «adeudado por cliente» con UNA agregación en la BD:
+      // deudas vivas (PENDIENTE) sumadas por cliente y por estado
+      by: ["clienteId", "estado"],
+      where: { ...donde, estado: ESTADO_CUENTA.PENDIENTE },
+      _sum: {
+        valorOriginal: true,
+        pagado: true,
+        saldoCondonado: true,
+      },
+      _count: { _all: true },
     }),
   ]);
 
-  // Total adeudado por cliente (todas las pendientes)
-  const porCliente = new Map<
+  // ── Resumen global (solo deudas VIVAS del filtro) ──
+  const porClientes = new Map<
     number,
-    { nombre: string; telefono: string; saldo: number; cuentas: number }
+    { id: number; nombre: string; telefono: string; saldo: number; cuentas: number }
   >();
-  for (const c of pendientes) {
-    const fila = porCliente.get(c.clienteId) ?? {
-      nombre: c.cliente.nombre,
-      telefono: c.cliente.telefono,
+  let totalPendiente = 0;
+  let cuentasPendientes = 0;
+  let totalOriginalVivo = 0;
+  let totalAbonadoVivo = 0;
+  for (const b of bloqueResumen) {
+    const saldo = Math.max(
+      0,
+      (b._sum.valorOriginal ?? 0) - (b._sum.pagado ?? 0) - (b._sum.saldoCondonado ?? 0),
+    );
+    totalOriginalVivo += b._sum.valorOriginal ?? 0;
+    totalAbonadoVivo += b._sum.pagado ?? 0;
+    cuentasPendientes += b._count._all;
+    totalPendiente += saldo;
+    const fila = porClientes.get(b.clienteId) ?? {
+      id: b.clienteId,
+      nombre: "",
+      telefono: "",
       saldo: 0,
       cuentas: 0,
     };
-    fila.saldo += c.valorOriginal - c.pagado;
-    fila.cuentas += 1;
-    porCliente.set(c.clienteId, fila);
+    fila.saldo += saldo;
+    fila.cuentas += b._count._all;
+    porClientes.set(b.clienteId, fila);
   }
-  const resumenClientes = [...porCliente.entries()].sort(
-    (a, b) => b[1].saldo - a[1].saldo,
-  );
-  const totalPendiente = resumenClientes.reduce((s, [, f]) => s + f.saldo, 0);
+  // Nombre y teléfono de los clientes con deuda viva (una sola consulta)
+  const idsConDeuda = [...porClientes.keys()];
+  if (idsConDeuda.length > 0) {
+    const fichas = await db.cliente.findMany({
+      where: { id: { in: idsConDeuda } },
+      select: { id: true, nombre: true, telefono: true },
+    });
+    for (const f of fichas) {
+      const fila = porClientes.get(f.id);
+      if (fila) {
+        fila.nombre = f.nombre;
+        fila.telefono = f.telefono;
+      }
+    }
+  }
+  const resumenClientes = [...porClientes.values()]
+    .filter((f) => f.nombre !== "")
+    .sort((a, b) => b.saldo - a.saldo);
+  const clientesConDeuda = resumenClientes.length;
 
   const mostrarNuevo = typeof nuevo === "string" && nuevo !== "";
+  const paginasTotales = Math.max(1, Math.ceil(totalCuentas / POR_PAGINA));
+
+  // Querystring de filtros para los enlaces de paginación (sin la página)
+  const qs = new URLSearchParams();
+  if (filtro) qs.set("q", filtro);
+  if (filtroTelefono) qs.set("telefono", filtroTelefono);
+  if (filtroConcepto) qs.set("concepto", filtroConcepto);
+  if (estadoFiltro) qs.set("estado", estadoFiltro);
+  if (typeof desde === "string" && desdeDt) qs.set("desde", desde);
+  if (typeof hasta === "string" && hastaDt) qs.set("hasta", hasta);
+  if (mostrarNuevo) qs.set("nuevo", nuevo as string);
+  const baseQs = qs.toString() ? `${qs.toString()}&` : "";
 
   return (
     <>
@@ -97,7 +198,7 @@ export default async function PaginaCuentas(
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
-          href={`/admin/cuentas${mostrarNuevo ? "" : `?nuevo=1${filtro ? `&q=${encodeURIComponent(filtro)}` : ""}`}`}
+          href={mostrarNuevo ? "/admin/cuentas" : `/admin/cuentas?nuevo=1`}
           className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
         >
           <Plus className="h-5 w-5" />
@@ -109,9 +210,7 @@ export default async function PaginaCuentas(
         >
           <CircleDollarSign className="h-4 w-4 text-danger-text" />
           <span className="text-danger-text">
-            <strong className="font-display">
-              {formatCOP(totalPendiente)}
-            </strong>{" "}
+            <strong className="font-display">{formatCOP(totalPendiente)}</strong>{" "}
             por cobrar en total
           </span>
         </span>
@@ -119,27 +218,42 @@ export default async function PaginaCuentas(
 
       {mostrarNuevo ? (
         <div className="mb-6">
-          <FormularioNuevaCuenta
-            clientes={matches.map((c) => ({
-              id: c.id,
-              etiqueta: c.telefono ? `${c.nombre} · ${c.telefono}` : c.nombre,
-            }))}
-          />
+          <FormularioNuevaCuenta />
         </div>
       ) : null}
 
-      {/* Filtros: cliente, estado, rango de fechas */}
+      {/* Filtros: cliente, teléfono, concepto, estado y fechas — cada uno
+          dentro de la misma búsqueda pero validado independientemente */}
       <form
         method="get"
         className="mb-6 flex flex-wrap items-end gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app"
       >
-        <label className="flex flex-1 min-w-56 items-center gap-2.5 rounded-xl bg-fondo-app px-3 py-2 ring-1 ring-borde-app focus-within:ring-amber-brand/60">
+        <label className="flex flex-1 min-w-52 items-center gap-2.5 rounded-xl bg-fondo-app px-3 py-2 ring-1 ring-borde-app focus-within:ring-amber-brand/60">
           <Search className="h-4 w-4 shrink-0 text-texto-muted/35" />
           <input
             type="search"
             name="q"
             defaultValue={filtro}
-            placeholder="Cliente por nombre o teléfono…"
+            placeholder="Cliente: nombre, teléfono… o #ficha"
+            className="w-full bg-transparent text-sm text-texto-app outline-none placeholder:text-texto-muted/30"
+          />
+        </label>
+        <label className="flex min-w-40 items-center gap-2 rounded-xl bg-fondo-app px-3 py-2 ring-1 ring-borde-app focus-within:ring-amber-brand/60">
+          <span className="text-xs text-texto-muted/40">Teléf.</span>
+          <input
+            name="telefono"
+            defaultValue={filtroTelefono}
+            inputMode="numeric"
+            placeholder="315…"
+            className="w-full bg-transparent text-sm text-texto-app outline-none placeholder:text-texto-muted/30"
+          />
+        </label>
+        <label className="flex min-w-48 items-center gap-2 rounded-xl bg-fondo-app px-3 py-2 ring-1 ring-borde-app focus-within:ring-amber-brand/60">
+          <span className="text-xs text-texto-muted/40">Concepto</span>
+          <input
+            name="concepto"
+            defaultValue={filtroConcepto}
+            placeholder="almuerzos…"
             className="w-full bg-transparent text-sm text-texto-app outline-none placeholder:text-texto-muted/30"
           />
         </label>
@@ -182,17 +296,57 @@ export default async function PaginaCuentas(
         </button>
       </form>
 
-      {/* Total adeudado por cliente */}
+      {/* Resumen global: agrega en BD sobre el filtro vigente. El «total por
+          cobrar» nunca puede quedar negativo (saldo real). */}
+      <section className="mb-8 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-texto-muted/50">
+            Deudas vigentes
+          </p>
+          <p className="mt-1 font-display text-xl text-texto-app">
+            {cuentasPendientes}{" "}
+            <span className="text-sm text-texto-muted/50">
+              de {totalCuentas} cuenta{totalCuentas === 1 ? "" : "s"}
+            </span>
+          </p>
+        </div>
+        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-texto-muted/50">
+            Clientes con deuda
+          </p>
+          <p className="mt-1 font-display text-xl text-texto-app">
+            {clientesConDeuda}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-texto-muted/50">
+            Esas deudas originales
+          </p>
+          <p className="mt-1 font-display text-xl text-texto-app">
+            {formatCOP(totalOriginalVivo)}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-texto-muted/50">
+            Abonado (dinero real)
+          </p>
+          <p className="mt-1 font-display text-xl text-success-text">
+            {formatCOP(totalAbonadoVivo)}
+          </p>
+        </div>
+      </section>
+
+      {/* Total adeudado por cliente (de las deudas vigentes del filtro) */}
       {resumenClientes.length > 0 ? (
         <section className="mb-8">
           <h2 className="mb-3 font-display text-xl text-texto-app">
             Adeudado por cliente
           </h2>
           <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            {resumenClientes.map(([clienteId, f]) => (
+            {resumenClientes.map((f) => (
               <Link
-                key={clienteId}
-                href={`/admin/clientes/${clienteId}`}
+                key={f.id}
+                href={`/admin/clientes/${f.id}`}
                 className="flex items-center justify-between gap-3 rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app transition hover:ring-danger/40"
               >
                 <div className="min-w-0">
@@ -213,13 +367,20 @@ export default async function PaginaCuentas(
         </section>
       ) : null}
 
-      {/* Historial / pendientes de cuentas */}
-      <h2 className="mb-3 font-display text-xl text-texto-app">
-        {estadoFiltro
-          ? ESTADO_CUENTA_LABEL[estadoFiltro as EstadoCuenta]
-          : "Cuentas"}{" "}
-        ({cuentas.length})
-      </h2>
+      {/* Historial de cuentas (paginado en la BD, 20 por página) */}
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h2 className="font-display text-xl text-texto-app">
+          {estadoFiltro
+            ? ESTADO_CUENTA_LABEL[estadoFiltro as EstadoCuenta]
+            : "Cuentas"}{" "}
+          ({totalCuentas})
+        </h2>
+        {paginasTotales > 1 ? (
+          <span className="text-xs font-bold text-texto-muted/60">
+            Página {paginaN} de {paginasTotales}
+          </span>
+        ) : null}
+      </div>
 
       {cuentas.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
@@ -237,14 +398,18 @@ export default async function PaginaCuentas(
           {cuentas.map((cuenta) => {
             const saldo = Math.max(
               0,
-              cuenta.valorOriginal - cuenta.pagado,
+              cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado,
             );
             return (
               <article
                 key={cuenta.id}
                 className={
                   "rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app " +
-                  (cuenta.estado === ESTADO_CUENTA.ANULADA ? "opacity-60" : "")
+                  (cuenta.estado === ESTADO_CUENTA.ANULADA
+                    ? "opacity-60"
+                    : cuenta.estado === ESTADO_CUENTA.CONDONADA
+                      ? "opacity-90"
+                      : "")
                 }
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -289,6 +454,14 @@ export default async function PaginaCuentas(
                       {formatCOP(cuenta.pagado)}
                     </strong>
                   </span>
+                  {cuenta.saldoCondonado > 0 ? (
+                    <span>
+                      Condonado:{" "}
+                      <strong className="text-warning">
+                        {formatCOP(cuenta.saldoCondonado)}
+                      </strong>
+                    </span>
+                  ) : null}
                   {cuenta.estado === ESTADO_CUENTA.PENDIENTE ? (
                     <span>
                       Saldo:{" "}
@@ -320,9 +493,7 @@ export default async function PaginaCuentas(
                           <strong className="text-success-text">
                             {formatCOP(a.monto)}
                           </strong>
-                          <span>
-                            {ETIQUETA_METODO[a.metodo] ?? a.metodo}
-                          </span>
+                          <span>{ETIQUETA_METODO[a.metodo] ?? a.metodo}</span>
                           <span className="text-texto-muted/45">
                             {claveDia(a.createdAt)} {formatHora(a.createdAt)}{" "}
                             · {a.registradoPor.nombre}
@@ -339,10 +510,28 @@ export default async function PaginaCuentas(
                 {cuenta.estado === ESTADO_CUENTA.PENDIENTE ? (
                   <div className="mt-3 border-t border-borde-app/60 pt-3">
                     <FormularioAbono cuentaId={cuenta.id} saldo={saldo} />
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                      <FormularioCondonarCuenta
+                        cuentaId={cuenta.id}
+                        valorOriginal={cuenta.valorOriginal}
+                        abonado={cuenta.pagado}
+                        saldo={saldo}
+                      />
                       <FormularioAnularCuenta cuentaId={cuenta.id} />
                     </div>
                   </div>
+                ) : null}
+
+                {cuenta.estado === ESTADO_CUENTA.CONDONADA ? (
+                  <p className="mt-2 rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning ring-1 ring-warning/20">
+                    Saldo condonado el{" "}
+                    {cuenta.condonadoAt ? `${claveDia(cuenta.condonadoAt)} ${formatHora(cuenta.condonadoAt)}` : "—"}
+                    {cuenta.condonadoPor ? ` por ${cuenta.condonadoPor.nombre}` : ""}
+                    {cuenta.condonadoMotivo ? ` · «${cuenta.condonadoMotivo}»` : ""}
+                    {cuenta.pagado > 0
+                      ? ` · los abonos recibidos (${formatCOP(cuenta.pagado)}) siguen siendo dinero de caja`
+                      : " · no fue ingreso de caja"}
+                  </p>
                 ) : null}
 
                 {cuenta.estado === ESTADO_CUENTA.ANULADA ? (
@@ -357,6 +546,30 @@ export default async function PaginaCuentas(
           })}
         </div>
       )}
+
+      {paginasTotales > 1 ? (
+        <nav
+          aria-label="Paginación de cuentas"
+          className="mt-5 flex items-center justify-center gap-2"
+        >
+          {paginaN > 1 ? (
+            <Link
+              href={`/admin/cuentas?${baseQs}pagina=${paginaN - 1}`}
+              className="rounded-xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+            >
+              ← Anteriores
+            </Link>
+          ) : null}
+          {paginaN < paginasTotales ? (
+            <Link
+              href={`/admin/cuentas?${baseQs}pagina=${paginaN + 1}`}
+              className="rounded-xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+            >
+              Siguientes →
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </>
   );
 }
