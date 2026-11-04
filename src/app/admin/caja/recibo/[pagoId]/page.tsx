@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_PEDIDO, ordenDeItem } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
@@ -106,7 +106,7 @@ export default async function PaginaRecibo(
                   <li key={item.id} className="flex gap-2 text-sm">
                     <span className="font-bold">{item.cantidad}×</span>
                     <span className="flex-1 font-bold uppercase">
-                      {item.producto.nombre}
+                      {nombreDeItem(item)}
                       {item.tipo === "PROTEINA" && item.conSopa === false
                         ? " (sin sopa)"
                         : ""}

@@ -20,7 +20,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADO_MESA } from "@/lib/roles";
@@ -243,7 +243,7 @@ export default async function PaginaMesa(
                           <Icono aria-hidden className="h-3.5 w-3.5" />
                         </span>
                         <span className="min-w-0 flex-1 truncate font-bold text-texto-app">
-                          {item.producto.nombre}
+                          {nombreDeItem(item)}
                           {item.cantidad > 1 ? ` ×${item.cantidad}` : ""}
                         </span>
                       </li>

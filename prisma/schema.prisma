@@ -31,6 +31,7 @@ model Usuario {
   gastosRegistrados   Gasto[]           @relation("GastoRegistradoPor")
   gastosAnulados      Gasto[]           @relation("GastoAnuladoPor")
   cuentasAnuladas     CuentaPorCobrar[] @relation("CuentaAnuladaPor")
+  cuentasCondonadas   CuentaPorCobrar[] @relation("CuentaCondonadaPor")
   fusionesHechas      FusionCliente[]   @relation("FusionesHechas")
 
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
@@ -117,8 +118,11 @@ model PedidoItem {
   id         Int      @id @default(autoincrement())
   pedidoId   Int
   pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  productoId Int
-  producto   Producto @relation(fields: [productoId], references: [id])
+  // null = el producto fue ELIMINADO definitivamente del catálogo: la foto
+  // productoNombre conserva el nombre de la venta y la línea no desaparece
+  productoId Int?
+  producto   Producto? @relation(fields: [productoId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  productoNombre String? // FOTO histórica del nombre del producto al momento de vender
   tipo       String // snapshot del tipo del producto al momento de ordenar
   cantidad   Int      @default(1)
   precio     Int? // precio por unidad fijado al ordenar (almuerzo, bebidas...); null = usa producto.precio
@@ -176,6 +180,8 @@ model CierreCaja {
   cxcCreadasValor        Int?
   cxcTotalPendiente      Int? // saldo por cobrar AL MOMENTO DEL CIERRE
   cxcSnapshot            String? // JSON: lista de pendientes al cierre (cliente/concepto/fecha/valor/abonado/saldo)
+  cxcCondonadasCantidad  Int? // deudas condonadas HOY (nuevo desde 2026-11-04)
+  cxcCondonadasValor     Int? // saldo perdonado hoy (NO es ingreso ni pago)
 }
 
 model Configuracion {
@@ -309,8 +315,9 @@ model ApartadoReserva {
   apartadoItem   ApartadoItem @relation(fields: [apartadoItemId], references: [id], onDelete: Cascade)
   menuDiaItemId  Int?
   menuDiaItem    MenuDiaItem? @relation(fields: [menuDiaItemId], references: [id])
-  productoId     Int
-  producto       Producto     @relation("ReservasDeProducto", fields: [productoId], references: [id])
+  productoId     Int?
+  producto       Producto?    @relation("ReservasDeProducto", fields: [productoId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  productoNombre String? // FOTO del nombre reservado (sobrevive a borrar el producto)
   cantidad       Int
 }
 
@@ -344,7 +351,15 @@ model CuentaPorCobrar {
   concepto      String // motivo/detalle («2 almuerzos del día»…)
   valorOriginal Int // COP de la deuda al momento de crearla
   pagado        Int       @default(0) // suma de los abonos (saldo = original − pagado)
-  estado        String    @default("PENDIENTE") // PENDIENTE | PAGADA | ANULADA
+  estado        String    @default("PENDIENTE") // PENDIENTE | PAGADA | ANULADA | CONDONADA
+  // Condonación del saldo restante: el restaurante perdona lo que falta. La
+  // condonación NO es dinero recibido; los abonos previos siguen siendo
+  // ingresos de caja. Saldo final = original − pagado − saldoCondonado = 0.
+  saldoCondonado Int       @default(0)
+  condonadoById  Int?
+  condonadoPor   Usuario?  @relation("CuentaCondonadaPor", fields: [condonadoById], references: [id])
+  condonadoAt    DateTime?
+  condonadoMotivo String?
   pedidoId      Int? // origen opcional (pedido, que puede ser de domicilio)
   createdById   Int
   creadoPor     Usuario   @relation("CuentaCreadaPor", fields: [createdById], references: [id])

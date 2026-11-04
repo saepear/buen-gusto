@@ -3,7 +3,7 @@ import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenMesasPorNombre } from "@/lib/mesas";
 import { ordenDeItem } from "@/lib/roles";
 import { TableroMesas, type MesaDetalle } from "./tablero";
@@ -60,7 +60,7 @@ export default async function PaginaMesas() {
         items: [...pedido.items]
           .sort((a, b) => ordenDeItem(a.tipo) - ordenDeItem(b.tipo) || a.id - b.id)
           .map((item) => ({
-          nombre: item.producto.nombre,
+          nombre: nombreDeItem(item),
           cantidad: item.cantidad,
           tipo: item.tipo,
           conSopa: item.conSopa,

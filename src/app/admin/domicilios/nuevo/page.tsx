@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { menuDeHoy } from "@/lib/pedido";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ESTADO_DOMICILIO, ESTADO_PEDIDO } from "@/lib/roles";
 import { FormularioPedido } from "@/app/mesero/mesa/[mesaId]/nuevo/formulario-pedido";
 import { crearDomicilio } from "../actions";
@@ -52,16 +52,16 @@ function clientesFijosDe(ultimosDomicilios: DomicilioConPedido[]): ClienteFijo[]
       const extrasNombres = items
         .filter((it) => it.tipo === "BEBIDA" || it.tipo === "ADICIONAL")
         .map((it) =>
-          it.cantidad > 1 ? `${it.cantidad}× ${it.producto.nombre}` : it.producto.nombre,
+          it.cantidad > 1 ? `${it.cantidad}× ${nombreDeItem(it)}` : nombreDeItem(it),
         )
         .join(" · ");
       const resumen = proteina
-        ? `${proteina.producto.nombre} (${proteina.conSopa ? "con sopa" : "bandeja"})${
+        ? `${nombreDeItem(proteina)} (${proteina.conSopa ? "con sopa" : "bandeja"})${
             extrasNombres ? ` · ${extrasNombres}` : ""
           }`
         : items
             .map((it) =>
-              it.cantidad > 1 ? `${it.cantidad}× ${it.producto.nombre}` : it.producto.nombre,
+              it.cantidad > 1 ? `${it.cantidad}× ${nombreDeItem(it)}` : nombreDeItem(it),
             )
             .join(" · ");
       const total = items.reduce(

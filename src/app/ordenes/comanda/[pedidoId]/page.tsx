@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
+import { nombreDeItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 import { requerirRolDe } from "@/lib/session";
 import { BotonImprimir } from "./boton-imprimir";
@@ -101,7 +102,7 @@ export default async function PaginaComanda(
                   <li key={item.id} className="flex flex-col">
                     <span className="font-black uppercase">
                       {item.cantidad > 1 ? `${item.cantidad}× ` : ""}
-                      {item.producto.nombre}
+                      {nombreDeItem(item)}
                     </span>
                     {item.nota && (
                       <span className="text-[11px] font-bold italic text-brown-800/80 ml-4">

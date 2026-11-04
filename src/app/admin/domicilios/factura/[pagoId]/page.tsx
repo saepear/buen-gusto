@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requerirRol } from "@/lib/session";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { FacturaDomicilio } from "@/components/factura-domicilio";
 import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
@@ -63,8 +64,8 @@ export default async function PaginaFacturaDomicilio(
               precio: item.precio,
               nota: item.nota,
               producto: {
-                nombre: item.producto.nombre,
-                precio: item.producto.precio,
+                nombre: nombreDeItem(item),
+                precio: precioUnitarioItem(item),
               },
             })),
           }}

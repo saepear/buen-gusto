@@ -162,6 +162,9 @@ export const ESTADO_CUENTA = {
   PENDIENTE: "PENDIENTE",
   PAGADA: "PAGADA",
   ANULADA: "ANULADA",
+  // El restaurante perdonó el saldo restante (con o sin abonos): los abonos
+  // siguen siendo dinero recibido, la condonación NO lo es.
+  CONDONADA: "CONDONADA",
 } as const;
 
 export type EstadoCuenta = keyof typeof ESTADO_CUENTA;
@@ -170,6 +173,7 @@ export const ESTADO_CUENTA_LABEL: Record<EstadoCuenta, string> = {
   PENDIENTE: "Por cobrar",
   PAGADA: "Pagada",
   ANULADA: "Anulada",
+  CONDONADA: "Condonada",
 };
 
 export const CATEGORIA_GASTO = {

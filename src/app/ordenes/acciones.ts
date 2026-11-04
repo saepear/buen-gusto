@@ -78,6 +78,9 @@ export async function cancelarComanda(datos: FormData): Promise<void> {
     const fecha = claveDia(pedido.createdAt);
     for (const item of pedido.items) {
       if (!["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(item.tipo)) continue;
+      // productoId null = producto eliminado: sus MenuDiaItems ya no existen y
+      // no hay porciones que devolver
+      if (item.productoId === null) continue;
       await tx.$executeRaw`
         UPDATE MenuDiaItem
         SET vendidos = MAX(vendidos - ${item.cantidad}, 0)

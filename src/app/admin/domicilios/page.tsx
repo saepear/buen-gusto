@@ -4,7 +4,7 @@ import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatCOP, formatHora } from "@/lib/format";
 import { inicioDeHoy } from "@/lib/pedido";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import {
   ESTADO_DOMICILIO,
   ESTADO_PEDIDO,
@@ -50,7 +50,7 @@ export default async function PaginaDomicilios() {
     const resumen =
       items
         .map((i) =>
-          i.cantidad > 1 ? `${i.cantidad}× ${i.producto.nombre}` : i.producto.nombre,
+          i.cantidad > 1 ? `${i.cantidad}× ${nombreDeItem(i)}` : nombreDeItem(i),
         )
         .join(" · ") || "Sin ítems";
     return {
@@ -81,7 +81,7 @@ export default async function PaginaDomicilios() {
         cantidad: i.cantidad,
         grupo: i.grupo,
         tipo: i.tipo,
-        nombre: i.producto.nombre,
+        nombre: nombreDeItem(i),
         conSopa: i.conSopa,
         nota: i.nota,
         /** Precio unitario fijado al ordenar (el de la comanda) */

@@ -106,8 +106,9 @@ export async function menuDeFechaApartado(
   const componentes = menu.items
     .filter(
       (item) =>
-        item.producto.activo &&
-        item.visible &&
+        item.producto && // guard defensivo: los MenuDiaItems de un producto
+        item.producto.activo && // borrado desaparecen con él, pero el menú
+        item.visible && // de una fecha vieja puede aún tener huérfanos
         (TIPOS_PLATO_MENU as readonly string[]).includes(item.producto.tipo),
     )
     .map((item) => ({
@@ -236,6 +237,7 @@ type FilaCongelada = {
   reservasPorcion: {
     menuDiaItemId: number;
     productoId: number;
+    productoNombre: string;
     cantidad: number;
   }[];
 };
@@ -434,7 +436,7 @@ export async function crearApartado(
       }
     >();
     for (const item of menu.items) {
-      if (!item.producto.activo || !item.visible) continue;
+      if (!item.producto || !item.producto.activo || !item.visible) continue;
       if (!(TIPOS_PLATO_MENU as readonly string[]).includes(item.producto.tipo))
         continue;
       componentes.set(item.productoId, {
@@ -546,6 +548,7 @@ export async function crearApartado(
         {
           menuDiaItemId: proteina.itemId,
           productoId: prep.proteinaProductoId,
+          productoNombre: proteina.nombre,
           cantidad: prep.cantidad,
         },
       ];
@@ -557,6 +560,7 @@ export async function crearApartado(
         porcionesReservadas.push({
           menuDiaItemId: si.itemId,
           productoId: sopa.productoId,
+          productoNombre: sopa.nombre,
           cantidad: prep.cantidad,
         });
       }
@@ -571,6 +575,7 @@ export async function crearApartado(
         porcionesReservadas.push({
           menuDiaItemId: c.itemId,
           productoId: p.productoId,
+          productoNombre: p.nombre,
           cantidad: prep.cantidad,
         });
       }
@@ -585,6 +590,7 @@ export async function crearApartado(
         porcionesReservadas.push({
           menuDiaItemId: c.itemId,
           productoId: e.productoId,
+          productoNombre: e.nombre,
           cantidad: prep.cantidad,
         });
       }
@@ -724,7 +730,7 @@ export async function crearApartado(
           const yaTomadas = porItemTomadas.get(itemId) ?? 0;
           if (item.vendidos + yaTomadas + cantidadPedida > item.stockPorciones) {
             throw new ErrorDeApartado(
-              `No alcanzan las porciones de ${item.producto.nombre}: quedan ` +
+              `No alcanzan las porciones de ${item.producto?.nombre ?? "un producto del menú"}: quedan ` +
                 `${item.stockPorciones - item.vendidos - yaTomadas} y el apartado ` +
                 `pide ${cantidadPedida}. Ajusta el stock en Menú del día o quita alguna.`,
             );
@@ -766,6 +772,7 @@ export async function crearApartado(
               apartadoItemId: item.id,
               menuDiaItemId: r.menuDiaItemId,
               productoId: r.productoId,
+              productoNombre: r.productoNombre,
               cantidad: r.cantidad,
             })),
           });
@@ -936,7 +943,7 @@ export async function entregarApartado(
   >();
   if (menuHoy) {
     for (const item of menuHoy.items) {
-      if (!item.producto.activo || !item.visible) continue;
+      if (!item.producto || !item.producto.activo || !item.visible) continue;
       productosDeHoy.set(item.productoId, {
         itemId: item.id,
         tipo: item.producto.tipo,
@@ -951,7 +958,7 @@ export async function entregarApartado(
   // Por id de ítem del menú (las reservas apuntan por ahí, no por producto)
   const nombreDelMenuItem = new Map<number, string>();
   for (const item of menuHoy?.items ?? []) {
-    nombreDelMenuItem.set(item.id, item.producto.nombre);
+    if (item.producto) nombreDelMenuItem.set(item.id, item.producto.nombre);
   }
 
   // Lo que consume: las porciones RESERVADAS por el apartado (el ledger se
@@ -1073,6 +1080,8 @@ export async function entregarApartado(
       // los extras compartidos viajan en el grupo 0.
       const filasPedido: {
         productoId: number;
+        /** FOTO del nombre: la línea sobrevive al borrado del producto */
+        productoNombre: string;
         tipo: string;
         cantidad: number;
         precio: number | null;
@@ -1105,6 +1114,7 @@ export async function entregarApartado(
           grupo += 1;
           filasPedido.push({
             productoId: item.productoId,
+            productoNombre: item.nombre, // congelado al apartar
             tipo: "PROTEINA",
             cantidad: 1,
             precio: precioPlatoCongelado, // congelado al apartar (sin adicionales)
@@ -1114,15 +1124,16 @@ export async function entregarApartado(
           });
           if (item.conSopa === true) {
             // La sopa congelada exacta o la Sopa del día de la entrega
-            const sopaEntrega =
+            const sopaEntrega: { productoId: number; nombre: string } | null =
               detalle?.sopa
-                ? detalle.sopa.productoId
+                ? { productoId: detalle.sopa.productoId, nombre: detalle.sopa.nombre }
                 : sopaDeHoy
-                  ? sopaDeHoy[0]
+                  ? { productoId: sopaDeHoy[0], nombre: sopaDeHoy[1].nombre }
                   : null;
             if (sopaEntrega) {
               filasPedido.push({
-                productoId: sopaEntrega,
+                productoId: sopaEntrega.productoId,
+                productoNombre: sopaEntrega.nombre,
                 tipo: "SOPA",
                 cantidad: 1,
                 precio: 0,
@@ -1137,6 +1148,7 @@ export async function entregarApartado(
             for (const p of detalle.principios) {
               filasPedido.push({
                 productoId: p.productoId,
+                productoNombre: p.nombre,
                 tipo: "PRINCIPIO",
                 cantidad: 1,
                 precio: 0,
@@ -1148,6 +1160,7 @@ export async function entregarApartado(
             for (const e of detalle.ensaladas) {
               filasPedido.push({
                 productoId: e.productoId,
+                productoNombre: e.nombre,
                 tipo: "ENSALADA",
                 cantidad: 1,
                 precio: 0,
@@ -1159,6 +1172,7 @@ export async function entregarApartado(
             for (const a of detalle.adicionales) {
               filasPedido.push({
                 productoId: a.productoId,
+                productoNombre: a.nombre,
                 tipo: "ADICIONAL",
                 cantidad: a.cantidad,
                 precio: a.precioUnidad,
@@ -1182,6 +1196,7 @@ export async function entregarApartado(
         }
         filasPedido.push({
           productoId: item.productoId,
+          productoNombre: item.nombre, // congelado al apartar
           tipo: item.tipo,
           cantidad: item.cantidad,
           precio: item.precio,
@@ -1198,6 +1213,7 @@ export async function entregarApartado(
         data: filasPedido.map((f) => ({
           pedidoId: pedido.id,
           productoId: f.productoId,
+          productoNombre: f.productoNombre,
           tipo: f.tipo,
           cantidad: f.cantidad,
           precio: f.precio,

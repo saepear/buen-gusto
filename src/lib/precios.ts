@@ -55,10 +55,25 @@ export function precioEspecialDelDia(
 
 /**
  * Precio por unidad de una línea de comanda: el fijado al ordenar
- * (proteína del día, extras) o el del catálogo para lo antiguo.
+ * (proteína del día, extras) o el del catálogo para lo antiguo. Si el
+ * producto fue ELIMINADO del catálogo (producto null) solo queda el precio
+ * congelado; el relleno histórico lo escribió para las filas viejas.
  */
 export function precioUnitarioItem(
-  item: { precio: number | null; producto: { precio: number } },
+  item: { precio: number | null; producto: { precio: number } | null },
 ): number {
-  return item.precio ?? item.producto.precio;
+  if (item.precio !== null) return item.precio;
+  return item.producto?.precio ?? 0;
+}
+
+/**
+ * Nombre de una línea de comanda que sobrevive al borrado del producto:
+ * el nombre vivo si el producto sigue existiendo, si no la foto histórica
+ * tomada al ordenar (productoNombre); «(eliminado)» solo para filas viejas
+ * sin ninguna de las dos (no debería existir tras el relleno).
+ */
+export function nombreDeItem(
+  item: { producto: { nombre: string } | null; productoNombre?: string | null },
+): string {
+  return item.producto?.nombre ?? item.productoNombre ?? "(producto eliminado)";
 }

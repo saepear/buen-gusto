@@ -63,7 +63,10 @@ export async function menuDeHoy(): Promise<ItemMenuHoy[]> {
   // por apartados pendientes de ESTA fecha
   const reservadas = await reservasPorMenuItem(menu.items.map((i) => i.id));
   return menu.items
-    .filter((item) => item.producto.activo && item.visible)
+    // Los MenuDiaItems de un producto eliminado se borran con él, así que
+    // producto nunca debería ser null; el guard defiende el menú vivo en el
+    // ínterin (y contra datos remotos fuera de la app).
+    .filter((item) => item.producto && item.producto.activo && item.visible)
     .map((item) => ({
       itemId: item.id,
       productoId: item.productoId,
@@ -296,6 +299,8 @@ export async function crearPedido(opciones: {
   // para poder separarlos en la comanda impresa como "PEDIDO 1", "PEDIDO 2".
   const filas: {
     productoId: number;
+    /** FOTO del nombre al ordenar: la línea sobrevive al borrado del producto */
+    productoNombre: string;
     tipo: string;
     cantidad: number;
     conSopa: boolean | null;
@@ -355,6 +360,7 @@ export async function crearPedido(opciones: {
       cobrar(proteina, 1);
       filas.push({
         productoId: proteina.productoId,
+        productoNombre: proteina.nombre,
         tipo: proteina.tipo,
         conSopa: linea.conSopa,
         cantidad: 1,
@@ -380,6 +386,7 @@ export async function crearPedido(opciones: {
         cobrar(s, 1);
         filas.push({
           productoId: s.productoId,
+          productoNombre: s.nombre,
           tipo: s.tipo,
           conSopa: null,
           cantidad: 1,
@@ -399,6 +406,7 @@ export async function crearPedido(opciones: {
         cobrar(p, 1);
         filas.push({
           productoId: p.productoId,
+          productoNombre: p.nombre,
           tipo: p.tipo,
           conSopa: null,
           cantidad: 1,
@@ -418,6 +426,7 @@ export async function crearPedido(opciones: {
         cobrar(e, 1);
         filas.push({
           productoId: e.productoId,
+          productoNombre: e.nombre,
           tipo: e.tipo,
           conSopa: null,
           cantidad: 1,
@@ -441,6 +450,7 @@ export async function crearPedido(opciones: {
         cobrar(x, 1);
         filas.push({
           productoId: x.productoId,
+          productoNombre: x.nombre,
           tipo: x.tipo,
           conSopa: null,
           cantidad: 1,
@@ -460,6 +470,7 @@ export async function crearPedido(opciones: {
         const a = porProductoAdicional.get(productoId)!;
         filas.push({
           productoId: a.id,
+          productoNombre: a.nombre,
           tipo: a.tipo,
           conSopa: null,
           cantidad: unidades,
@@ -492,6 +503,7 @@ export async function crearPedido(opciones: {
     const p = catalogoExtras.find((x) => x.id === productoId)!;
     filas.push({
       productoId: p.id,
+      productoNombre: p.nombre,
       tipo: p.tipo,
       conSopa: null,
       cantidad: 1,
@@ -537,6 +549,7 @@ export async function crearPedido(opciones: {
       data: filas.map((l) => ({
         pedidoId: pedido.id,
         productoId: l.productoId,
+        productoNombre: l.productoNombre,
         tipo: l.tipo,
         cantidad: l.cantidad,
         precio: l.precio,

@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
@@ -109,7 +109,7 @@ export default async function PaginaCaja(
         paraLlevar: pedido.paraLlevar,
         observaciones: pedido.observaciones,
         items: pedido.items.map((item) => ({
-          nombre: item.producto.nombre,
+          nombre: nombreDeItem(item),
           cantidad: item.cantidad,
           sinSopa: item.tipo === "PROTEINA" && item.conSopa === false,
           precio: precioUnitarioItem(item),
@@ -145,7 +145,7 @@ export default async function PaginaCaja(
         conSopa: item.conSopa,
         precio: item.precio,
         nota: item.nota,
-        producto: { nombre: item.producto.nombre, precio: item.producto.precio },
+        producto: { nombre: nombreDeItem(item), precio: precioUnitarioItem(item) },
       })),
     };
     const totalDomicilio = domicilioCobro.pedido.items.reduce(

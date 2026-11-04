@@ -14,7 +14,7 @@ import {
 } from "@/lib/pedido";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { buscarOcrearCliente } from "@/lib/clientes";
-import { precioUnitarioItem } from "@/lib/precios";
+import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
   ESTADO_DOMICILIO,
@@ -213,10 +213,16 @@ export async function repetirUltimoDomicilio(
   const grupos = new Map<
     string,
     { productoId: number; nombre: string; conSopa: boolean; cantidad: number; origenes: Set<number> }
-  >();
-  for (const it of origen.pedido.items.filter(
-    (fila) => fila.tipo === "PROTEINA" && fila.conSopa !== null,
+  >();  for (const it of origen.pedido.items.filter(
+    (fila) =>
+      fila.tipo === "PROTEINA" &&
+      fila.conSopa !== null &&
+      // null = la proteína original se borró del catálogo: ese plato no se
+      // puede repetir (los demás platos del pedido sí)
+      fila.productoId !== null,
   )) {
+    // por seguridad de tipos: fila.productoId != null tras el filtro
+    if (it.productoId === null) continue;
     const clave = `${it.productoId}|${it.conSopa ? "c" : "b"}`;
     const grupo = grupos.get(clave);
     if (grupo) {
@@ -225,7 +231,7 @@ export async function repetirUltimoDomicilio(
     } else {
       grupos.set(clave, {
         productoId: it.productoId,
-        nombre: it.producto.nombre,
+        nombre: nombreDeItem(it),
         conSopa: it.conSopa === true,
         cantidad: it.cantidad,
         origenes: new Set([it.grupo]),
@@ -306,8 +312,10 @@ export async function repetirUltimoDomicilio(
   };
   const filasDe = (tipo: string) =>
     origen.pedido.items
-      .filter((it) => it.tipo === tipo)
-      .map((it) => ({ productoId: it.productoId, cantidad: it.cantidad }));
+      .filter((it) => it.tipo === tipo && it.productoId !== null)
+      .flatMap((it) =>
+        it.productoId === null ? [] : [{ productoId: it.productoId, cantidad: it.cantidad }],
+      );
 
   repartir("PRINCIPIO", "principios", filasDe("PRINCIPIO"));
   repartir("ENSALADA", "ensaladas", filasDe("ENSALADA"));
@@ -329,8 +337,11 @@ export async function repetirUltimoDomicilio(
   const idsExtras = [
     ...new Set(
       origen.pedido.items
-        .filter((it) => it.tipo === "BEBIDA" || it.tipo === "ADICIONAL")
-        .map((it) => it.productoId),
+        .filter(
+          (it) =>
+            (it.tipo === "BEBIDA" || it.tipo === "ADICIONAL") && it.productoId !== null,
+        )
+        .flatMap((it) => (it.productoId === null ? [] : [it.productoId])),
     ),
   ];
   const vigentes = idsExtras.length
@@ -348,13 +359,26 @@ export async function repetirUltimoDomicilio(
       )
     : new Set<number>();
   const extras = origen.pedido.items
-    .filter((it) => it.tipo === "BEBIDA" && vigentes.has(it.productoId))
-    .flatMap((it) => Array.from({ length: it.cantidad }, () => it.productoId));
+    .filter(
+      (it) =>
+        it.tipo === "BEBIDA" && it.productoId !== null && vigentes.has(it.productoId),
+    )
+    .flatMap((it) => {
+      // Narrowing local: dentro del callback TS no conserva el !== null
+      if (it.productoId === null) return [];
+      const productoId = it.productoId;
+      return Array.from({ length: it.cantidad }, () => productoId);
+    });
 
   // Los adicionales con grupo de plato vuelven al plato que los llevaba;
   // sin plato de origen (pedido antiguo en grupo 0) caen en extras como siempre
   for (const it of origen.pedido.items) {
-    if (it.tipo !== "ADICIONAL" || !vigentes.has(it.productoId)) continue;
+    if (
+      it.tipo !== "ADICIONAL" ||
+      it.productoId === null ||
+      !vigentes.has(it.productoId)
+    )
+      continue;
     const linea = lineaPorGrupoOrigen.get(it.grupo);
     for (let i = 0; i < it.cantidad; i++) {
       if (linea) linea.adicionales = [...(linea.adicionales ?? []), it.productoId];
@@ -470,6 +494,8 @@ export async function cancelarDomicilio(
     const fecha = claveDia(domicilio.pedido.createdAt);
     for (const item of domicilio.pedido.items) {
       if (!["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(item.tipo)) continue;
+      // productoId null = producto eliminado: no hay porciones que devolver
+      if (item.productoId === null) continue;
       await tx.$executeRaw`
         UPDATE MenuDiaItem
         SET vendidos = MAX(vendidos - ${item.cantidad}, 0)
