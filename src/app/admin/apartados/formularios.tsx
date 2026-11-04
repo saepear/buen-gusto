@@ -17,8 +17,10 @@ import {
   buscarClientesApartado,
   crearApartado,
   crearClienteRapido,
+  menuDeFechaApartado,
   type CargaApartado,
   type ClienteRapidoResultado,
+  type ComponenteMenuApartado,
   type EstadoAccionApartado,
 } from "./actions";
 
@@ -27,13 +29,6 @@ const INICIAL: EstadoAccionApartado = { error: null, ok: null };
 const CAMPO =
   "w-full rounded-xl border-0 bg-fondo-app px-3 py-2.5 text-sm text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/35 focus:ring-amber-brand/60";
 const ETIQUETA = "text-xs font-bold tracking-wide text-texto-muted/60";
-
-export type ProteinaHoy = {
-  productoId: number;
-  nombre: string;
-  /** Precio ESPECIAL del día de la proteína (0 = rige el almuerzo corriente) */
-  precioBase: number;
-};
 
 export type ExtraDelCatalogo = {
   productoId: number;
@@ -44,9 +39,17 @@ export type ExtraDelCatalogo = {
 
 export type ClienteOpcion = { id: number; nombre: string; telefono: string };
 
+/** Un plan de almuerzo armado con el menú DE SU FECHA de entrega */
 type Linea = {
   conSopa: boolean;
   proteinaProductoId: number;
+  /** Principios y ensaladas incluidos (ids de Producto del menú de esa fecha) */
+  principios: number[];
+  ensaladas: number[];
+  /** Sopa exacta escogida; null = la sopa del día del menú de entrega */
+  sopa: number | null;
+  /** Adicionales del catálogo DENTRO del plato: productoId → unidades */
+  adicionales: Record<number, number>;
   cantidad: number;
   nota: string;
 };
@@ -56,9 +59,20 @@ type Otro = { nombre: string; precio: string; cantidad: number; nota: string };
 const nuevaLinea = (proteinaProductoId: number): Linea => ({
   conSopa: true,
   proteinaProductoId,
+  principios: [],
+  ensaladas: [],
+  sopa: null,
+  adicionales: {},
   cantidad: 1,
   nota: "",
 });
+
+/** Píldora de elección (sopa, principios, ensaladas) */
+const CHIP = (elegido: boolean) =>
+  "rounded-xl px-2.5 py-1.5 text-xs font-bold ring-1 transition " +
+  (elegido
+    ? "bg-amber-brand text-brown-950 ring-amber-brand"
+    : "bg-panel-app text-texto-app ring-borde-app hover:ring-amber-brand/50");
 
 function Stepper({
   cantidad,
@@ -99,15 +113,19 @@ function Stepper({
 }
 
 /**
- * Constructor de un apartado: precios congelados al apartar (los termina de
- * fijar el SERVIDOR contra el menú de hoy; aquí solo se muestran).
+ * Constructor de un apartado: los platos se arman con el menú DE LA FECHA DE
+ * ENTREGA (nunca «hoy» en silencio) y los precios los congela el SERVIDOR al
+ * guardar; aquí solo se muestran.
  */
 export function FormularioApartado({
-  proteinas,
+  menu: menuSemilla,
+  fechaHoy,
   extras,
   clientes: clientesIniciales,
 }: {
-  proteinas: ProteinaHoy[];
+  /** Componentes del menú de la fecha por defecto (hoy); null = ese día no hay */
+  menu: ComponenteMenuApartado[] | null;
+  fechaHoy: string;
   extras: ExtraDelCatalogo[];
   clientes: ClienteOpcion[];
 }) {
@@ -125,6 +143,20 @@ export function FormularioApartado({
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [extrasCant, setExtrasCant] = useState<Record<number, number>>({});
   const [otros, setOtros] = useState<Otro[]>([]);
+
+  // Menú DE LA FECHA DE ENTREGA (nunca «hoy» en silencio): se siembra con el
+  // de hoy y se recarga al cambiar la fecha
+  const [menuFecha, setMenuFecha] = useState<{
+    fecha: string;
+    existe: boolean;
+    componentes: ComponenteMenuApartado[];
+  }>({
+    fecha: fechaHoy,
+    existe: menuSemilla !== null,
+    componentes: menuSemilla ?? [],
+  });
+  const [cargandoMenu, setCargandoMenu] = useState(false);
+  const [avisoMenu, setAvisoMenu] = useState<string | null>(null);
 
   // Panel «registrar cliente nuevo» (sin abrir otra página ni perder el pedido)
   const [panelCrear, setPanelCrear] = useState(false);
@@ -215,16 +247,92 @@ export function FormularioApartado({
     .slice(0, 30);
   const clienteElegido = clientes.find((c) => c.id === clienteId);
 
-  const precioProteina = (p: ProteinaHoy, conSopa: boolean) =>
-    p.precioBase > 0
-      ? precioEspecialDelDia(p.precioBase, conSopa, true)
-      : precioAlmuerzo(conSopa, true);
+  // ── Menú de la fecha de entrega: hoy por defecto; al cambiar la fecha se
+  // consulta el menú DE ESE DÍA (y los planes armados se quitan: hubo
+  // otro menú). Sin menú esa fecha → aviso y solo extras/narrados.
+  const fechaCargada = useRef(fechaHoy);
+  useEffect(() => {
+    const efectiva =
+      fechaEntrega === "" || fechaEntrega === fechaHoy ? fechaHoy : fechaEntrega;
+    if (efectiva === fechaCargada.current || !/^\d{4}-\d{2}-\d{2}$/.test(efectiva)) {
+      return;
+    }
+    fechaCargada.current = efectiva;
+    if (lineas.length > 0) {
+      // Los planes eran del menú de otra fecha: se quitan y se rearman
+      setLineas([]);
+      setAvisoMenu(
+        `Cambió la fecha de entrega: vuelve a armar los almuerzos con el menú del ${efectiva}.`,
+      );
+    } else {
+      setAvisoMenu(null);
+    }
+    // De vuelta a hoy: la semilla de la página es el menú de hoy
+    if (efectiva === fechaHoy) {
+      setMenuFecha({
+        fecha: fechaHoy,
+        existe: menuSemilla !== null,
+        componentes: menuSemilla ?? [],
+      });
+      setCargandoMenu(false);
+      return;
+    }
+    setCargandoMenu(true);
+    let vivo = true;
+    const t = setTimeout(async () => {
+      const m = await menuDeFechaApartado(efectiva);
+      if (!vivo) return;
+      setCargandoMenu(false);
+      setMenuFecha({
+        fecha: m.fecha,
+        existe: m.existeMenu,
+        componentes: m.componentes,
+      });
+      if (!m.existeMenu) {
+        setAvisoMenu(
+          `Para el ${m.fecha} todavía no hay menú: solo se puede apartar bebidas y lo narrado a mano.`,
+        );
+      }
+    }, 200);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fechaEntrega, fechaHoy, menuSemilla]);
+
+  // ── Componentes del menú de esa fecha
+  const porProductoDelMenu = new Map(
+    menuFecha.componentes.map((c) => [c.productoId, c] as const),
+  );
+  const proteinasMenu = menuFecha.componentes.filter((c) => c.tipo === "PROTEINA");
+  const principiosMenu = menuFecha.componentes.filter((c) => c.tipo === "PRINCIPIO");
+  const ensaladasMenu = menuFecha.componentes.filter((c) => c.tipo === "ENSALADA");
+  const sopasMenu = menuFecha.componentes.filter((c) => c.tipo === "SOPA");
+  const adicionalesCatalogo = extras.filter((e) => e.tipo === "ADICIONAL");
+  const extrasPorProducto = new Map(extras.map((e) => [e.productoId, e] as const));
+
+  /** Precio congelado de UNA unidad del plan: proteína (el especial del día
+   *  de ESA FECHA manda, si no el almuerzo corriente para llevar) más los
+   *  adicionales que van dentro del plato. */
+  const precioPlato = (l: Linea) => {
+    const prot = porProductoDelMenu.get(l.proteinaProductoId);
+    const base =
+      prot && prot.precioPropio > 0
+        ? precioEspecialDelDia(prot.precioPropio, l.conSopa, true)
+        : precioAlmuerzo(l.conSopa, true);
+    const adicion = Object.entries(l.adicionales).reduce(
+      (suma, [id, n]) =>
+        suma + (extrasPorProducto.get(Number(id))?.precio ?? 0) * n,
+      0,
+    );
+    return base + adicion;
+  };
 
   const total = useMemo(() => {
     let t = 0;
     for (const l of lineas) {
-      const p = proteinas.find((x) => x.productoId === l.proteinaProductoId);
-      if (p) t += precioProteina(p, l.conSopa) * l.cantidad;
+      t += precioPlato(l) * l.cantidad;
     }
     for (const e of extras) {
       t += e.precio * (extrasCant[e.productoId] ?? 0);
@@ -233,7 +341,8 @@ export function FormularioApartado({
       t += Number(o.precio.replace(/[^0-9]/g, "") || 0) * o.cantidad;
     }
     return t;
-  }, [lineas, extrasCant, otros, proteinas, extras]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineas, extrasCant, otros, extras, menuFecha]);
 
   // El apartado se despachó bien: limpiar el constructor para el siguiente
   const okPrevio = useRef<string | null>(null);
@@ -244,12 +353,17 @@ export function FormularioApartado({
       setOtros([]);
       setObservaciones("");
       setHoraEntrega("");
+      setAvisoMenu(null);
     }
     if (estado.ok) okPrevio.current = estado.ok;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado.ok]);
 
+  const hayExtras = Object.values(extrasCant).some((n) => n > 0);
   const puedeEnviar =
-    clienteId !== null && total > 0 && (lineas.length > 0 || otros.length > 0);
+    clienteId !== null &&
+    total > 0 &&
+    (lineas.length > 0 || otros.length > 0 || hayExtras);
 
   const carga: CargaApartado = {
     clienteId: clienteId ?? 0,
@@ -258,6 +372,12 @@ export function FormularioApartado({
     lineas: lineas.map((l) => ({
       conSopa: l.conSopa,
       proteinaProductoId: l.proteinaProductoId,
+      principiosProductoIds: l.principios,
+      ensaladasProductoIds: l.ensaladas,
+      sopaProductoId: l.conSopa ? l.sopa : undefined,
+      adicionalesProductoIds: Object.entries(l.adicionales).flatMap(([id, n]) =>
+        Array.from({ length: n }, () => Number(id)),
+      ),
       cantidad: l.cantidad,
       nota: l.nota.trim() || undefined,
     })),
@@ -526,15 +646,51 @@ export function FormularioApartado({
         )}
       </section>
 
-      {/* Almuerzos del menú de hoy */}
+      {/* Aviso del cambio de menú por fecha */}
+      {avisoMenu ? (
+        <p
+          aria-live="polite"
+          className="rounded-xl bg-warning/10 px-4 py-3 text-sm font-bold text-amber-brand ring-1 ring-warning/30"
+        >
+          {avisoMenu}
+        </p>
+      ) : null}
+
+      {/* Almuerzos del menú DE LA FECHA DE ENTREGA */}
       <section className="rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
-        <h2 className="mb-3 font-display text-lg text-texto-app">
-          Almuerzos del menú de hoy
-        </h2>
-        {proteinas.length === 0 ? (
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-lg text-texto-app">
+            Almuerzos del menú{" "}
+            {menuFecha.fecha === fechaHoy ? "de hoy" : `del ${menuFecha.fecha}`}
+          </h2>
+          <p className="text-xs text-texto-muted/50">
+            {cargandoMenu
+              ? "Buscando el menú de esa fecha…"
+              : fechaEntrega === "" || fechaEntrega === fechaHoy
+                ? "Sin fecha de entrega = hoy"
+                : "El precio se congela con el menú de esa fecha"}
+          </p>
+        </div>
+
+        {cargandoMenu ? (
+          <p className="rounded-xl bg-panel-app p-3 text-sm text-texto-muted/60">
+            Buscando el menú…
+          </p>
+        ) : !menuFecha.existe ? (
+          <div className="rounded-xl bg-warning/10 p-3.5 ring-1 ring-warning/30">
+            <p className="text-sm font-bold text-amber-brand">
+              El {menuFecha.fecha} todavía no tiene menú apartado
+            </p>
+            <p className="mt-1 text-sm text-texto-muted/70">
+              Aquí solo se puede apartar bebidas y lo narrado a mano. Cuando el
+              menú de ese día esté registrado, elegilo de nuevo y arma los
+              almuerzos con sus precios.
+            </p>
+          </div>
+        ) : proteinasMenu.length === 0 ? (
           <p className="rounded-xl bg-panel-app p-3 text-sm text-warning-text">
-            El menú de hoy no tiene proteínas. Solo se puede apartar lo narrado
-            a mano (abajo).
+            El menú no tiene proteínas: no hay almuerzos completos para apartar.
+            Se puede apartar bebidas y lo narrado a mano (abajo).
           </p>
         ) : (
           <>
@@ -550,10 +706,10 @@ export function FormularioApartado({
             </div>
             <ul className="space-y-2.5">
               {lineas.map((l, i) => {
-                const p = proteinas.find(
-                  (x) => x.productoId === l.proteinaProductoId,
-                );
-                const precioLinea = p ? precioProteina(p, l.conSopa) * l.cantidad : 0;
+                const guarda = (cambios: Partial<Linea>) =>
+                  setLineas(
+                    lineas.map((x, j) => (j === i ? { ...x, ...cambios } : x)),
+                  );
                 return (
                   <li
                     key={i}
@@ -563,18 +719,12 @@ export function FormularioApartado({
                       <select
                         value={l.proteinaProductoId}
                         onChange={(e) =>
-                          setLineas(
-                            lineas.map((x, j) =>
-                              j === i
-                                ? { ...x, proteinaProductoId: Number(e.target.value) }
-                                : x,
-                            ),
-                          )
+                          guarda({ proteinaProductoId: Number(e.target.value) })
                         }
                         aria-label={`Proteína del plan ${i + 1}`}
                         className="rounded-xl bg-fondo-app px-2.5 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app"
                       >
-                        {proteinas.map((pr) => (
+                        {proteinasMenu.map((pr) => (
                           <option key={pr.productoId} value={pr.productoId}>
                             {pr.nombre}
                           </option>
@@ -583,13 +733,7 @@ export function FormularioApartado({
                       <span className="inline-flex overflow-hidden rounded-xl ring-1 ring-borde-app">
                         <button
                           type="button"
-                          onClick={() =>
-                            setLineas(
-                              lineas.map((x, j) =>
-                                j === i ? { ...x, conSopa: true } : x,
-                              ),
-                            )
-                          }
+                          onClick={() => guarda({ conSopa: true })}
                           className={
                             "px-3 py-2 text-xs font-bold transition " +
                             (l.conSopa
@@ -602,11 +746,7 @@ export function FormularioApartado({
                         <button
                           type="button"
                           onClick={() =>
-                            setLineas(
-                              lineas.map((x, j) =>
-                                j === i ? { ...x, conSopa: false } : x,
-                              ),
-                            )
+                            guarda({ conSopa: false, sopa: null })
                           }
                           className={
                             "px-3 py-2 text-xs font-bold transition " +
@@ -618,39 +758,194 @@ export function FormularioApartado({
                           Bandeja
                         </button>
                       </span>
-                      <Stepper
-                        cantidad={l.cantidad}
-                        set={(n) =>
-                          setLineas(
-                            lineas.map((x, j) =>
-                              j === i ? { ...x, cantidad: n } : x,
-                            ),
-                          )
-                        }
-                      />
+                      <Stepper cantidad={l.cantidad} set={(n) => guarda({ cantidad: n })} />
                       <strong className="font-display text-md text-texto-app">
-                        {formatCOP(precioLinea)}
+                        {formatCOP(precioPlato(l) * l.cantidad)}
                       </strong>
                       <button
                         type="button"
-                        onClick={() =>
-                          setLineas(lineas.filter((_, j) => j !== i))
-                        }
+                        onClick={() => setLineas(lineas.filter((_, j) => j !== i))}
                         aria-label={`Quitar plan ${i + 1}`}
                         className="ml-auto rounded-xl bg-panel-app p-1.5 text-danger-text/70 ring-1 ring-borde-app transition hover:text-danger-text"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
+
+                    {/* Sopa exacta del menú (o «sopa del día») */}
+                    {l.conSopa ? (
+                      sopasMenu.length > 0 ? (
+                        <div className="mt-2.5">
+                          <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
+                            SOPA
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => guarda({ sopa: null })}
+                              className={CHIP(l.sopa === null)}
+                            >
+                              Sopa del día
+                            </button>
+                            {sopasMenu.map((s) => (
+                              <button
+                                key={s.productoId}
+                                type="button"
+                                onClick={() => guarda({ sopa: s.productoId })}
+                                className={CHIP(l.sopa === s.productoId)}
+                              >
+                                {s.nombre}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-texto-muted/55">
+                          El menú de esa fecha no trae sopa: se llevará la sopa
+                          del día de la entrega.
+                        </p>
+                      )
+                    ) : null}
+
+                    {/* Principios incluidos */}
+                    <div className="mt-2">
+                      <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
+                        PRINCIPIOS (incluidos)
+                      </p>
+                      {principiosMenu.length === 0 ? (
+                        <p className="text-xs text-texto-muted/55">
+                          El menú de esa fecha no tiene principios.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {principiosMenu.map((p) => {
+                            const elegido = l.principios.includes(p.productoId);
+                            return (
+                              <button
+                                key={p.productoId}
+                                type="button"
+                                onClick={() =>
+                                  guarda({
+                                    principios: elegido
+                                      ? l.principios.filter(
+                                          (x) => x !== p.productoId,
+                                        )
+                                      : [...l.principios, p.productoId],
+                                  })
+                                }
+                                className={CHIP(elegido)}
+                              >
+                                {p.nombre}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Ensaladas incluidas */}
+                    <div className="mt-2">
+                      <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
+                        ENSALADAS (incluidas)
+                      </p>
+                      {ensaladasMenu.length === 0 ? (
+                        <p className="text-xs text-texto-muted/55">
+                          El menú de esa fecha no tiene ensaladas.
+                        </p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {ensaladasMenu.map((e) => {
+                            const elegido = l.ensaladas.includes(e.productoId);
+                            return (
+                              <button
+                                key={e.productoId}
+                                type="button"
+                                onClick={() =>
+                                  guarda({
+                                    ensaladas: elegido
+                                      ? l.ensaladas.filter(
+                                          (x) => x !== e.productoId,
+                                        )
+                                      : [...l.ensaladas, e.productoId],
+                                  })
+                                }
+                                className={CHIP(elegido)}
+                              >
+                                {e.nombre}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Adicionales DENTRO del plato (se cobran aparte) */}
+                    {adicionalesCatalogo.length > 0 ? (
+                      <div className="mt-2">
+                        <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
+                          ADICIONALES EN EL PLATO (se cobran aparte)
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {adicionalesCatalogo.map((e) => {
+                            const n = l.adicionales[e.productoId] ?? 0;
+                            return (
+                              <span
+                                key={e.productoId}
+                                className={
+                                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold ring-1 transition " +
+                                  (n > 0
+                                    ? "bg-amber-brand/15 text-amber-brand ring-amber-brand/40"
+                                    : "bg-panel-app text-texto-app ring-borde-app")
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  aria-label={`Quitar un ${e.nombre} del plan ${i + 1}`}
+                                  onClick={() =>
+                                    guarda({
+                                      adicionales: {
+                                        ...l.adicionales,
+                                        [e.productoId]: Math.max(0, n - 1),
+                                      },
+                                    })
+                                  }
+                                  className="opacity-60 transition hover:opacity-100"
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                {e.nombre}
+                                {n > 0 ? (
+                                  <b className="text-amber-brand">×{n}</b>
+                                ) : (
+                                  <span className="opacity-70">
+                                    {formatCOP(e.precio)}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  aria-label={`Agregar un ${e.nombre} al plan ${i + 1}`}
+                                  onClick={() =>
+                                    guarda({
+                                      adicionales: {
+                                        ...l.adicionales,
+                                        [e.productoId]: n + 1,
+                                      },
+                                    })
+                                  }
+                                  className="opacity-60 transition hover:opacity-100"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <input
                       value={l.nota}
-                      onChange={(e) =>
-                        setLineas(
-                          lineas.map((x, j) =>
-                            j === i ? { ...x, nota: e.target.value } : x,
-                          ),
-                        )
-                      }
+                      onChange={(e) => guarda({ nota: e.target.value })}
                       maxLength={60}
                       placeholder="Nota para cocina (ej: sin cebolla)…"
                       className={CAMPO + " mt-2 text-xs"}
@@ -669,10 +964,10 @@ export function FormularioApartado({
               onClick={() =>
                 setLineas([
                   ...lineas,
-                  nuevaLinea(proteinas[0]?.productoId ?? 0),
+                  nuevaLinea(proteinasMenu[0].productoId),
                 ])
               }
-              disabled={proteinas.length === 0}
+              disabled={proteinasMenu.length === 0}
               className="mt-3 flex items-center gap-2 rounded-xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover disabled:opacity-40"
             >
               <Plus className="h-4 w-4 text-amber-brand" /> Añadir almuerzo

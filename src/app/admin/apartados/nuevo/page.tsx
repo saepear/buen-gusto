@@ -3,6 +3,7 @@ import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { inicioDeHoy } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
+import type { ComponenteMenuApartado } from "../actions";
 import { FormularioApartado } from "../formularios";
 
 export const metadata = { title: "Nuevo apartado · El Buen Gusto" };
@@ -30,15 +31,28 @@ export default async function PaginaNuevoApartado() {
     }),
   ]);
 
-  const proteinas = (menu?.items ?? [])
-    .filter((i) => i.producto.activo && i.visible && i.producto.tipo === "PROTEINA")
+  // El menú completo de hoy (no solo proteínas): cada componente del plato se
+  // arma aquí al abrir y se recarga por fecha con menuDeFechaApartado
+  const menuHoy: ComponenteMenuApartado[] = (menu?.items ?? [])
+    .filter(
+      (i) =>
+        i.producto.activo &&
+        i.visible &&
+        ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(i.producto.tipo),
+    )
     .map((i) => ({
+      itemId: i.id,
       productoId: i.productoId,
       nombre: i.producto.nombre,
+      tipo: i.producto.tipo,
       // Precio especial de HOY (asados del domingo…) o el propio del catálogo;
       // 0 = rige el precio del almuerzo corriente para llevar
-      precioBase:
+      precioPropio:
         i.precioEspecial ?? (i.producto.precio > 0 ? i.producto.precio : 0),
+      disponibles:
+        i.stockPorciones === null
+          ? null
+          : Math.max(0, i.stockPorciones - i.vendidos),
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
@@ -55,7 +69,8 @@ export default async function PaginaNuevoApartado() {
         subtitulo="Reserva lo que el cliente pedirá después: el precio queda congelado al apartar"
       />
       <FormularioApartado
-        proteinas={proteinas}
+        menu={menu ? menuHoy : null}
+        fechaHoy={fechaHoy}
         extras={catalogoExtras.map((p) => ({
           productoId: p.id,
           nombre: p.nombre,

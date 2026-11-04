@@ -22,6 +22,53 @@ const CHIP_ESTADO: Record<EstadoApartado, string> = {
   CANCELADO: "bg-panel-app text-texto-muted/50 ring-1 ring-borde-app",
 };
 
+/** Resumen del plato congelado a partir del JSON de ApartadoItem.detalle:
+ *  «Arroz, ensalada, Sopa de hoy, Huevo ×2». Vacío si no hay/está corrupto. */
+function resumenDetallePlato(crudo: string | null): string {
+  if (!crudo) return "";
+  let d: unknown;
+  try {
+    d = JSON.parse(crudo);
+  } catch {
+    return "";
+  }
+  if (!d || typeof d !== "object") return "";
+  const raiz = d as {
+    conSopa?: unknown;
+    principios?: unknown;
+    ensaladas?: unknown;
+    sopa?: { nombre?: unknown } | null;
+    adicionales?: { nombre?: unknown; cantidad?: unknown }[];
+  };
+  const nombres = (lista: unknown): string[] =>
+    Array.isArray(lista)
+      ? lista.flatMap((x) => {
+          const nombre = x && typeof x === "object" ? (x as { nombre?: unknown }).nombre : null;
+          return typeof nombre === "string" ? [nombre] : [];
+        })
+      : [];
+  const comps = [
+    ...nombres(raiz.principios),
+    ...nombres(raiz.ensaladas),
+    raiz.sopa && typeof raiz.sopa === "object" && typeof raiz.sopa.nombre === "string"
+      ? raiz.sopa.nombre
+      : raiz.conSopa === true
+        ? "sopa del día"
+        : "",
+    ...(Array.isArray(raiz.adicionales)
+      ? raiz.adicionales.flatMap((a) => {
+          if (!a || typeof a.nombre !== "string") return [];
+          return [
+            typeof a.cantidad === "number" && a.cantidad > 1
+              ? `${a.nombre} ×${a.cantidad}`
+              : a.nombre,
+          ];
+        })
+      : []),
+  ].filter(Boolean);
+  return comps.length ? ` · ${comps.join(", ")}` : "";
+}
+
 export default async function PaginaApartados() {
   await requerirRol("ADMIN");
   const hoy = inicioDeHoy();
@@ -151,14 +198,14 @@ export default async function PaginaApartados() {
                         {it.cantidad > 1 ? `${it.cantidad}× ` : ""}
                         {it.nombre}
                       </span>
-                      {it.tipo === "ALMUEZO" ? (
+                      {it.tipo === "ALMUERZO" || it.tipo === "ALMUEZO" ? (
                         <span className="text-texto-muted/55">
                           {it.conSopa === true
                             ? " (completo)"
                             : it.conSopa === false
                               ? " (bandeja)"
                               : ""}
-                          {it.productoId ? "" : ""}
+                          {resumenDetallePlato(it.detalle)}
                         </span>
                       ) : null}
                       <span className="text-texto-muted/50">

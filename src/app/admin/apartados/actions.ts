@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, claveDia } from "@/lib/format";
 import { minutosDeHora } from "@/lib/hora";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_APARTADO } from "@/lib/roles";
@@ -28,7 +28,16 @@ const ITEM_OTRO_MAX = 60;
 
 export type LineaAlmuerzoApartado = {
   conSopa: boolean;
+  /** Proteína del menú DE LA FECHA DE ENTREGA (id de Producto) */
   proteinaProductoId: number;
+  /** Principios del menú de esa fecha (ids de Producto; incluidos en el plato) */
+  principiosProductoIds?: number[];
+  /** Ensaladas del menú de esa fecha (ids de Producto; incluidas en el plato) */
+  ensaladasProductoIds?: number[];
+  /** Sopa escogida del menú (id de Producto); null/omitido = la sopa del día */
+  sopaProductoId?: number | null;
+  /** Adicionales del catálogo DENTRO del plato: un id por unidad pedida */
+  adicionalesProductoIds?: number[];
   cantidad: number;
   nota?: string;
 };
@@ -52,13 +61,155 @@ export type CargaApartado = {
   observaciones?: string;
 };
 
-function revalidar() {
-  revalidatePath("/admin", "layout");
-  revalidatePath("/ordenes", "layout");
-  realtime.broadcast("update");
+/** Un componente del menú DE UNA FECHA, listo para armar platos */
+export type ComponenteMenuApartado = {
+  /** id del MenuDiaItem de esa fecha (informativo: para reservas Fase 5) */
+  itemId: number;
+  productoId: number;
+  nombre: string;
+  tipo: string; // PROTEINA | PRINCIPIO | ENSALADA | SOPA
+  /** Precio especial de esa fecha (0 = rige el almuerzo corriente) */
+  precioPropio: number;
+  /** Porciones libres ahora mismo; null = ilimitado (informativo en Fase 4) */
+  disponibles: number | null;
+};
+
+export type MenuDeFechaApartado = {
+  fecha: string;
+  /** false: ese día no tiene menú apartado → solo extras y lo narrado */
+  existeMenu: boolean;
+  componentes: ComponenteMenuApartado[];
+};
+
+const TIPOS_PLATO_MENU = ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"] as const;
+
+export async function menuDeFechaApartado(
+  fechaCruda: string,
+): Promise<MenuDeFechaApartado> {
+  const cruda = String(fechaCruda ?? "");
+  // Sin fecha o inválida → hoy (el «sin fecha» del constructor es hoy)
+  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(cruda) ? cruda : claveDia(new Date());
+  try {
+    await exigirAdmin();
+  } catch {
+    return { fecha, existeMenu: false, componentes: [] };
+  }
+  const menu = await db.menuDia.findUnique({
+    where: { fecha },
+    include: { items: { include: { producto: true } } },
+  });
+  if (!menu) return { fecha, existeMenu: false, componentes: [] };
+  const componentes = menu.items
+    .filter(
+      (item) =>
+        item.producto.activo &&
+        item.visible &&
+        (TIPOS_PLATO_MENU as readonly string[]).includes(item.producto.tipo),
+    )
+    .map((item) => ({
+      itemId: item.id,
+      productoId: item.productoId,
+      nombre: item.producto.nombre,
+      tipo: item.producto.tipo,
+      precioPropio:
+        item.precioEspecial ?? (item.producto.precio > 0 ? item.producto.precio : 0),
+      disponibles:
+        item.stockPorciones === null
+          ? null
+          : Math.max(0, item.stockPorciones - item.vendidos),
+    }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return { fecha, existeMenu: true, componentes };
 }
 
-// ─── Crear ──────────────────────────────────────────────────────────────────
+// ─── Plato congelado (el JSON que revive el plato al entregar) ────────────────
+
+type PlatoReferencia = { productoId: number; nombre: string };
+
+/** Snapshot inmutable de UN almuerzo apartado: nombre/id de cada componente
+ *  congelados al apartar. La sopa solo va si la eligieron exacta; null +
+ *  conSopa = «la sopa del día» del menú del día de entrega. Los principios y
+ *  ensaladas son porciones incluidas (no se cobran); los adicionales sí. */
+type DetallePlato = {
+  conSopa: boolean;
+  proteina: PlatoReferencia;
+  principios: PlatoReferencia[];
+  ensaladas: PlatoReferencia[];
+  sopa: PlatoReferencia | null;
+  adicionales: {
+    productoId: number;
+    nombre: string;
+    cantidad: number;
+    precioUnidad: number;
+  }[];
+};
+
+const ES_ID = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v > 0;
+
+/** Lista de ids de producto bien formada (o [] si no vino nada) */
+function listaDeIds(bruto: unknown, max: number): number[] | null {
+  if (bruto === undefined || bruto === null) return [];
+  if (!Array.isArray(bruto) || bruto.length > max) return null;
+  const ids: number[] = [];
+  for (const x of bruto) {
+    if (!ES_ID(x)) return null;
+    ids.push(x);
+  }
+  return ids;
+}
+
+/** Relee el JSON guardado en ApartadoItem.detalle sin confiar ciegamente en él:
+ *  algo malformado devuelve null y la entrega usa el respaldo de siempre. */
+function leerDetallePlato(crudo: unknown): DetallePlato | null {
+  if (!crudo || typeof crudo !== "object") return null;
+  const d = crudo as Record<string, unknown>;
+  if (typeof d.conSopa !== "boolean") return null;
+  const referencia = (x: unknown): PlatoReferencia | null => {
+    if (!x || typeof x !== "object") return null;
+    const r = x as Record<string, unknown>;
+    if (!ES_ID(r.productoId)) return null;
+    const nombre = String(r.nombre ?? "").trim();
+    return nombre ? { productoId: r.productoId, nombre } : null;
+  };
+  const proteina = referencia(d.proteina);
+  if (!proteina) return null;
+  const lista = (v: unknown): PlatoReferencia[] => {
+    if (!Array.isArray(v)) return [];
+    const salida: PlatoReferencia[] = [];
+    for (const x of v) {
+      const r = referencia(x);
+      if (r) salida.push(r);
+    }
+    return salida;
+  };
+  const adicionales: DetallePlato["adicionales"] = [];
+  if (Array.isArray(d.adicionales)) {
+    for (const x of d.adicionales) {
+      if (!x || typeof x !== "object") continue;
+      const a = x as Record<string, unknown>;
+      if (!ES_ID(a.productoId)) continue;
+      const cantidad = Number(a.cantidad);
+      const precioUnidad = Number(a.precioUnidad);
+      if (!Number.isInteger(cantidad) || cantidad < 1) continue;
+      if (!Number.isInteger(precioUnidad) || precioUnidad < 0) continue;
+      adicionales.push({
+        productoId: a.productoId,
+        nombre: String(a.nombre ?? "").trim() || "Adicional",
+        cantidad,
+        precioUnidad,
+      });
+    }
+  }
+  return {
+    conSopa: d.conSopa,
+    proteina: d.proteina as PlatoReferencia,
+    principios: lista(d.principios),
+    ensaladas: lista(d.ensaladas),
+    sopa: referencia(d.sopa),
+    adicionales,
+  };
+}
 
 /** Valores congelados de UNA línea, calculados en el servidor */
 type FilaCongelada = {
@@ -69,9 +220,17 @@ type FilaCongelada = {
   precio: number;
   conSopa: boolean | null;
   nota: string | null;
-  /** menú de hoy (itemid) si la proteína es del menú, para avisar stock en la entrega */
-  proteinaDeHoy: number | null;
+  /** DetallePlato en JSON si la fila es un almuerzo completo; null en lo demás */
+  detalle: string | null;
 };
+
+function revalidar() {
+  revalidatePath("/admin", "layout");
+  revalidatePath("/ordenes", "layout");
+  realtime.broadcast("update");
+}
+
+// ─── Crear ──────────────────────────────────────────────────────────────────
 
 /**
  * Registra un apartado: el TOTAL queda congelado al apartar con los precios
@@ -124,105 +283,278 @@ export async function crearApartado(
   const horaEntrega = String(carga.horaEntrega ?? "").trim().slice(0, 30) || null;
   const horaMin = horaEntrega ? minutosDeHora(horaEntrega) : null;
 
-  // ── Lineas de almuerzo: precios congelados desde el menú de HOY
+  // ── Preproceso las líneas: defiendo cada campo antes de tocar la base
   const lineas = Array.isArray(carga.lineas) ? carga.lineas.slice(0, 30) : [];
   const extras = Array.isArray(carga.extras) ? carga.extras.slice(0, 50) : [];
   const otros = Array.isArray(carga.otros) ? carga.otros.slice(0, 20) : [];
 
-  if (lineas.length === 0 && otros.length === 0) {
+  if (lineas.length === 0 && extras.length === 0 && otros.length === 0) {
     return { error: "Aparta al menos un almuerzo o un ítem.", ok: null };
   }
 
-  // El menú de hoy: sin él no sobra apartar almuerzos del menú (pero sí ítems narrados)
-  const fecha = new Date();
-  const fechaHoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
-  const menu = await db.menuDia.findUnique({
-    where: { fecha: fechaHoy },
-    include: { items: { include: { producto: true } } },
-  });
-
-  const porProducto = new Map<number, { id: number; nombre: string; precios: number }>();
-  if (menu) {
-    for (const item of menu.items) {
-      if (!item.producto.activo || !item.visible || item.producto.tipo !== "PROTEINA") continue;
-      porProducto.set(item.productoId, {
-        id: item.id,
-        nombre: item.producto.nombre,
-        precios:
-          item.precioEspecial ??
-          (item.producto.precio > 0 ? item.producto.precio : 0),
-      });
-    }
-  }
-
-  const filas: FilaCongelada[] = [];
-
+  const preparadas: {
+    conSopa: boolean;
+    proteinaProductoId: number;
+    cantidad: number;
+    principios: number[];
+    ensaladas: number[];
+    sopaProductoId: number | null;
+    adicionales: number[];
+    nota: string | null;
+  }[] = [];
   for (const linea of lineas) {
-    const proteina = porProducto.get(Number(linea.proteinaProductoId));
-    if (!proteina) {
-      return {
-        error: "Una proteína ya no está en el menú de hoy. Recarga la página.",
-        ok: null,
-      };
+    const conSopa =
+      typeof linea.conSopa === "boolean" ? linea.conSopa : null;
+    if (conSopa === null) {
+      return { error: "Aclara si el almuerzo lleva sopa o no.", ok: null };
+    }
+    const proteinaProductoId = Number(linea.proteinaProductoId);
+    if (!ES_ID(proteinaProductoId)) {
+      return { error: "Escoge la proteína de cada almuerzo.", ok: null };
     }
     const cantidad = Number(linea.cantidad);
     if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAX) {
       return { error: "La cantidad no es válida (1 a 50).", ok: null };
     }
-    if (typeof linea.conSopa !== "boolean") {
-      return { error: "Aclara si el almuerzo lleva sopa o no.", ok: null };
+    const principios = listaDeIds(linea.principiosProductoIds, 10);
+    if (!principios) {
+      return {
+        error: "Uno de los principios no es válido. Recarga la página.",
+        ok: null,
+      };
     }
-    // Congelar el precio AHORA: especial del día (asados de domingo…) o
-    // almuerzo corriente para llevar (completo $14.500 · bandeja $13.000)
-    const precio =
-      proteina.precios > 0
-        ? precioEspecialDelDia(proteina.precios, linea.conSopa, PARA_LLEVAR)
-        : precioAlmuerzo(linea.conSopa, PARA_LLEVAR);
-    filas.push({
-      productoId: linea.proteinaProductoId,
-      nombre: proteina.nombre,
-      tipo: "ALMUEZO",
-      cantidad,
-      precio,
-      conSopa: linea.conSopa,
-      nota: String(linea.nota ?? "").trim().slice(0, ITEM_OTRO_MAX) || null,
-      proteinaDeHoy: proteina.id,
-    });
-  }
-
-  // ── Extras (bebidas/adicionales del catálogo)
-  if (extras.length > 0) {
-    const catalogo = await db.producto.findMany({
-      where: {
-        id: { in: [...new Set(extras.map((e) => Number(e.productoId)))] },
-        activo: true,
-        tipo: { in: ["BEBIDA", "ADICIONAL"] },
-        precio: { gt: 0 },
-      },
-    });
-    for (const e of extras) {
-      const p = catalogo.find((x) => x.id === Number(e.productoId));
-      if (!p) {
+    const ensaladas = listaDeIds(linea.ensaladasProductoIds, 10);
+    if (!ensaladas) {
+      return {
+        error: "Una de las ensaladas no es válida. Recarga la página.",
+        ok: null,
+      };
+    }
+    let sopaProductoId: number | null = null;
+    if (conSopa && linea.sopaProductoId !== undefined && linea.sopaProductoId !== null) {
+      const sid = Number(linea.sopaProductoId);
+      if (!ES_ID(sid)) {
         return {
-          error: "Una bebida o adicional ya no está disponible. Recarga.",
+          error: "Esa sopa no es válida. Recarga la página.",
           ok: null,
         };
       }
-      const cantidad = Number(e.cantidad);
-      if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAX) {
-        return { error: "La cantidad de «" + p.nombre + "» no es válida.", ok: null };
-      }
-      filas.push({
-        productoId: p.id,
-        nombre: p.nombre,
-        tipo: p.tipo,
-        cantidad,
-        precio: p.precio,
-        conSopa: null,
-        nota: null,
-        proteinaDeHoy: null,
+      sopaProductoId = sid;
+    }
+    const adicionales = listaDeIds(linea.adicionalesProductoIds, CANTIDAD_MAX);
+    if (!adicionales) {
+      return {
+        error: "Uno de los adicionales del plato no es válido. Recarga la página.",
+        ok: null,
+      };
+    }
+    preparadas.push({
+      conSopa,
+      proteinaProductoId,
+      cantidad,
+      principios,
+      ensaladas,
+      sopaProductoId,
+      adicionales,
+      nota: String(linea.nota ?? "").trim().slice(0, ITEM_OTRO_MAX) || null,
+    });
+  }
+
+  // ── Catálogo de bebidas/adicionales (extras compartidos Y adicionales
+  // dentro del plato), de una sola consulta
+  const idsCatalogo = new Set<number>();
+  for (const p of preparadas) for (const id of p.adicionales) idsCatalogo.add(id);
+  for (const e of extras) {
+    const id = Number(e.productoId);
+    if (ES_ID(id)) idsCatalogo.add(id);
+  }
+  const catalogo =
+    idsCatalogo.size > 0
+      ? await db.producto.findMany({
+          where: {
+            id: { in: [...idsCatalogo] },
+            activo: true,
+            tipo: { in: ["BEBIDA", "ADICIONAL"] },
+            precio: { gt: 0 },
+          },
+        })
+      : [];
+  if (catalogo.length !== idsCatalogo.size) {
+    return {
+      error: "Una bebida o adicional ya no está disponible. Recarga.",
+      ok: null,
+    };
+  }
+  const porProductoCatalogo = new Map(catalogo.map((p) => [p.id, p] as const));
+
+  const filas: FilaCongelada[] = [];
+
+  // ── Congelar los platos contra el menú DE LA FECHA DE ENTREGA. Nunca «hoy»
+  // en silencio: el cliente apartó para ese día y así se le respeta el precio.
+  if (preparadas.length > 0) {
+    const fechaDelMenu = fechaEntrega ?? claveDia(new Date());
+    const menu = await db.menuDia.findUnique({
+      where: { fecha: fechaDelMenu },
+      include: { items: { include: { producto: true } } },
+    });
+    if (!menu) {
+      return {
+        error: `Para el ${fechaDelMenu} todavía no hay menú. Elige otra fecha o aparta solo bebidas y lo narrado a mano.`,
+        ok: null,
+      };
+    }
+
+    // Componentes del menú de esa fecha por id de producto
+    const componentes = new Map<
+      number,
+      { tipo: string; nombre: string; precioPropio: number }
+    >();
+    for (const item of menu.items) {
+      if (!item.producto.activo || !item.visible) continue;
+      if (!(TIPOS_PLATO_MENU as readonly string[]).includes(item.producto.tipo))
+        continue;
+      componentes.set(item.productoId, {
+        tipo: item.producto.tipo,
+        nombre: item.producto.nombre,
+        precioPropio:
+          item.precioEspecial ?? (item.producto.precio > 0 ? item.producto.precio : 0),
       });
     }
+
+    for (const prep of preparadas) {
+      const proteina = componentes.get(prep.proteinaProductoId);
+      if (!proteina || proteina.tipo !== "PROTEINA") {
+        return {
+          error:
+            "Un plato ya no está en el menú de esa fecha. Recarga la página y vuelve a armar los almuerzos.",
+          ok: null,
+        };
+      }
+
+      // Principios y ensaladas: porciones incluidas del plato (sin precio).
+      // Los ids repetidos se defienden con Set para no duplicar filas.
+      const principios: PlatoReferencia[] = [];
+      const vistosP = new Set<number>();
+      for (const id of prep.principios) {
+        if (vistosP.has(id)) continue;
+        const c = componentes.get(id);
+        if (!c || c.tipo !== "PRINCIPIO") {
+          return {
+            error:
+              "Un principio ya no está en el menú de esa fecha. Recarga la página.",
+            ok: null,
+          };
+        }
+        vistosP.add(id);
+        principios.push({ productoId: id, nombre: c.nombre });
+      }
+      const ensaladas: PlatoReferencia[] = [];
+      const vistosE = new Set<number>();
+      for (const id of prep.ensaladas) {
+        if (vistosE.has(id)) continue;
+        const c = componentes.get(id);
+        if (!c || c.tipo !== "ENSALADA") {
+          return {
+            error:
+              "Una ensalada ya no está en el menú de esa fecha. Recarga la página.",
+            ok: null,
+          };
+        }
+        vistosE.add(id);
+        ensaladas.push({ productoId: id, nombre: c.nombre });
+      }
+
+      // Sopa exacta si la eligieron; null = «sopa del día» al entregar
+      let sopa: PlatoReferencia | null = null;
+      if (prep.sopaProductoId !== null) {
+        const s = componentes.get(prep.sopaProductoId);
+        if (!s || s.tipo !== "SOPA") {
+          return {
+            error:
+              "Esa sopa ya no está en el menú de esa fecha. Recarga la página.",
+            ok: null,
+          };
+        }
+        sopa = { productoId: prep.sopaProductoId, nombre: s.nombre };
+      }
+      if (prep.conSopa === false) sopa = null;
+
+      // Adicionales DENTRO del plato: se cobran con su precio de catálogo,
+      // congelado también al apartar
+      const conteo = new Map<number, number>();
+      for (const id of prep.adicionales) conteo.set(id, (conteo.get(id) ?? 0) + 1);
+      const adicionalesDetalle: DetallePlato["adicionales"] = [];
+      let sumaAdicionales = 0;
+      for (const [id, unidades] of conteo) {
+        const p = porProductoCatalogo.get(id);
+        if (!p || p.tipo !== "ADICIONAL") {
+          return {
+            error: "Un adicional ya no está disponible. Recarga.",
+            ok: null,
+          };
+        }
+        sumaAdicionales += p.precio * unidades;
+        adicionalesDetalle.push({
+          productoId: id,
+          nombre: p.nombre,
+          cantidad: unidades,
+          precioUnidad: p.precio,
+        });
+      }
+
+      // Congelar el precio AHORA: especial del día (asados de domingo…) o
+      // almuerzo corriente para llevar (completo $14.500 · bandeja $13.000),
+      // más los adicionales del plato
+      const precio =
+        sumaAdicionales +
+        (proteina.precioPropio > 0
+          ? precioEspecialDelDia(proteina.precioPropio, prep.conSopa, PARA_LLEVAR)
+          : precioAlmuerzo(prep.conSopa, PARA_LLEVAR));
+
+      const detalle: DetallePlato = {
+        conSopa: prep.conSopa,
+        proteina: { productoId: prep.proteinaProductoId, nombre: proteina.nombre },
+        principios,
+        ensaladas,
+        sopa,
+        adicionales: adicionalesDetalle,
+      };
+      filas.push({
+        productoId: prep.proteinaProductoId,
+        nombre: proteina.nombre,
+        tipo: "ALMUERZO",
+        cantidad: prep.cantidad,
+        precio,
+        conSopa: prep.conSopa,
+        nota: prep.nota,
+        detalle: JSON.stringify(detalle),
+      });
+    }
+  }
+
+  // ── Extras compartidos (bebidas/adicionales de todo el apartado)
+  for (const e of extras) {
+    const p = porProductoCatalogo.get(Number(e.productoId));
+    if (!p) {
+      return {
+        error: "Una bebida o adicional ya no está disponible. Recarga.",
+        ok: null,
+      };
+    }
+    const cantidad = Number(e.cantidad);
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > CANTIDAD_MAX) {
+      return { error: "La cantidad de «" + p.nombre + "» no es válida.", ok: null };
+    }
+    filas.push({
+      productoId: p.id,
+      nombre: p.nombre,
+      tipo: p.tipo,
+      cantidad,
+      precio: p.precio,
+      conSopa: null,
+      nota: null,
+      detalle: null,
+    });
   }
 
   // ── Ítems narrados a mano (no vienen del catálogo)
@@ -247,7 +579,7 @@ export async function crearApartado(
       precio,
       conSopa: null,
       nota: String(o.nota ?? "").trim().slice(0, ITEM_OTRO_MAX) || null,
-      proteinaDeHoy: null,
+      detalle: null,
     });
   }
 
@@ -287,6 +619,7 @@ export async function crearApartado(
           precio: f.precio,
           conSopa: f.conSopa,
           nota: f.nota,
+          detalle: f.detalle,
         })),
       });
       return apartado.id;
@@ -403,10 +736,14 @@ export async function entregarApartado(
     .sort((a, b) => a[1].nombre.localeCompare(b[1].nombre));
   const sopaDeHoy = sopasDeHoy[0] ?? null;
 
-  // Lo que consume del menú de HOY: proteína y sopa de cada almuerzo
+  // Lo que consume del menú de HOY: la proteína y la sopa de cada almuerzo
+  // (los demás componentes son porciones incluidas; las reservas reales de
+  // stock por apartado llegan en su fase)
   const consumo = new Map<number, { nombre: string; cantidad: number }>();
   for (const item of apartado.items) {
-    if (item.tipo !== "ALMUEZO") continue;
+    // «ALMUEZO» = filas viejas guardadas antes del renombre
+    const esAlmuerzo = item.tipo === "ALMUERZO" || item.tipo === "ALMUEZO";
+    if (!esAlmuerzo) continue;
     const hoy = item.productoId ? productosDeHoy.get(item.productoId) : null;
     if (hoy) {
       const previa = consumo.get(hoy.itemId);
@@ -472,8 +809,9 @@ export async function entregarApartado(
         },
       });
 
-      // Comandas: cada almuerzo es un grupo con la proteína y su sopa;
-      // extras compartidos viajan en el grupo 0 con el precio congelado.
+      // Comandas: cada almuerzo es un grupo completo (proteína que cobra el
+      // plato con su precio congelado, su sopa y sus porciones incluidas);
+      // los extras compartidos viajan en el grupo 0.
       const filasPedido: {
         productoId: number;
         tipo: string;
@@ -481,36 +819,108 @@ export async function entregarApartado(
         precio: number | null;
         conSopa: boolean | null;
         grupo: number;
+        nota: string | null;
       }[] = [];
       let grupo = 0;
 
       for (const item of apartado.items) {
-        if (item.tipo !== "ALMUEZO" || !item.productoId) continue;
+        // «ALMUEZO» = filas viejas guardadas antes del renombre
+        const esAlmuerzo = item.tipo === "ALMUERZO" || item.tipo === "ALMUEZO";
+        if (!esAlmuerzo || !item.productoId) continue;
+        let detalle: DetallePlato | null = null;
+        if (item.detalle) {
+          try {
+            detalle = leerDetallePlato(JSON.parse(item.detalle));
+          } catch {
+            detalle = null;
+          }
+        }
+        // El precio congelado del apartado INCLUYE los adicionales del plato:
+        // la fila de la proteína imprime el plato solo, y cada adicional
+        // viaja en su propia fila (igual que en las comandas del mesero)
+        const sumaAdicionales = detalle
+          ? detalle.adicionales.reduce((s, a) => s + a.precioUnidad * a.cantidad, 0)
+          : 0;
+        const precioPlatoCongelado = Math.max(0, item.precio - sumaAdicionales);
         for (let i = 0; i < item.cantidad; i++) {
           grupo += 1;
           filasPedido.push({
             productoId: item.productoId,
             tipo: "PROTEINA",
             cantidad: 1,
-            precio: item.precio, // congelado al apartar
+            precio: precioPlatoCongelado, // congelado al apartar (sin adicionales)
             conSopa: item.conSopa,
             grupo,
+            nota: item.nota, // nota de cocina congelada con el apartado
           });
-          if (item.conSopa === true && sopaDeHoy) {
-            filasPedido.push({
-              productoId: sopaDeHoy[0],
-              tipo: "SOPA",
-              cantidad: 1,
-              precio: 0,
-              conSopa: null,
-              grupo,
-            });
+          if (item.conSopa === true) {
+            // La sopa congelada exacta o la Sopa del día de la entrega
+            const sopaEntrega =
+              detalle?.sopa
+                ? detalle.sopa.productoId
+                : sopaDeHoy
+                  ? sopaDeHoy[0]
+                  : null;
+            if (sopaEntrega) {
+              filasPedido.push({
+                productoId: sopaEntrega,
+                tipo: "SOPA",
+                cantidad: 1,
+                precio: 0,
+                conSopa: null,
+                grupo,
+                nota: null,
+              });
+            }
+          }
+          // Porciones incluidas y adicionales congelados, dentro del «PEDIDO n»
+          if (detalle) {
+            for (const p of detalle.principios) {
+              filasPedido.push({
+                productoId: p.productoId,
+                tipo: "PRINCIPIO",
+                cantidad: 1,
+                precio: 0,
+                conSopa: null,
+                grupo,
+                nota: null,
+              });
+            }
+            for (const e of detalle.ensaladas) {
+              filasPedido.push({
+                productoId: e.productoId,
+                tipo: "ENSALADA",
+                cantidad: 1,
+                precio: 0,
+                conSopa: null,
+                grupo,
+                nota: null,
+              });
+            }
+            for (const a of detalle.adicionales) {
+              filasPedido.push({
+                productoId: a.productoId,
+                tipo: "ADICIONAL",
+                cantidad: a.cantidad,
+                precio: a.precioUnidad,
+                conSopa: null,
+                grupo,
+                nota: null,
+              });
+            }
           }
         }
       }
 
       for (const item of apartado.items) {
-        if (!item.productoId || item.tipo === "ALMUEZO" || item.tipo === "OTRO") continue;
+        if (!item.productoId) continue;
+        if (
+          item.tipo === "ALMUEZO" ||
+          item.tipo === "ALMUERZO" ||
+          item.tipo === "OTRO"
+        ) {
+          continue;
+        }
         filasPedido.push({
           productoId: item.productoId,
           tipo: item.tipo,
@@ -518,6 +928,7 @@ export async function entregarApartado(
           precio: item.precio,
           conSopa: null,
           grupo: 0,
+          nota: null,
         });
       }
 
@@ -533,6 +944,7 @@ export async function entregarApartado(
           precio: f.precio,
           conSopa: f.conSopa,
           grupo: f.grupo,
+          nota: f.nota,
         })),
       });
 
