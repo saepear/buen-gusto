@@ -24,12 +24,14 @@ model Usuario {
   domicilios Domicilio[]  @relation("Domiciliario")
 
   // Módulos financieros (quién hizo qué)
-  apartadosCreados  Apartado[]        @relation("ApartadoCreadoPor")
-  cuentasCreadas    CuentaPorCobrar[] @relation("CuentaCreadaPor")
-  abonosRegistrados AbonoCuenta[]     @relation("AbonoRegistradoPor")
-  gastosRegistrados Gasto[]           @relation("GastoRegistradoPor")
-  gastosAnulados    Gasto[]           @relation("GastoAnuladoPor")
-  cuentasAnuladas   CuentaPorCobrar[] @relation("CuentaAnuladaPor")
+  apartadosCreados    Apartado[]        @relation("ApartadoCreadoPor")
+  apartadosCancelados Apartado[]        @relation("ApartadoCanceladoPor")
+  cuentasCreadas      CuentaPorCobrar[] @relation("CuentaCreadaPor")
+  abonosRegistrados   AbonoCuenta[]     @relation("AbonoRegistradoPor")
+  gastosRegistrados   Gasto[]           @relation("GastoRegistradoPor")
+  gastosAnulados      Gasto[]           @relation("GastoAnuladoPor")
+  cuentasAnuladas     CuentaPorCobrar[] @relation("CuentaAnuladaPor")
+  fusionesHechas      FusionCliente[]   @relation("FusionesHechas")
 
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
 }
@@ -42,9 +44,10 @@ model Producto {
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  menuItems     MenuDiaItem[]
-  pedidoItems   PedidoItem[]
-  apartadoItems ApartadoItem[]
+  menuItems        MenuDiaItem[]
+  pedidoItems      PedidoItem[]
+  apartadoItems    ApartadoItem[]
+  reservasApartado ApartadoReserva[] @relation("ReservasDeProducto")
 }
 
 // Menú del día: que comidas se ofrecen HOY (proteínas, principios, sopas)
@@ -74,6 +77,8 @@ model MenuDiaItem {
   // null = hoy rige el precio normal (con sopa $13.000 · bandeja $12.000,
   // o el precio propio del producto si lo tiene).
   precioEspecial Int?
+
+  reservasApartado ApartadoReserva[] // porciones comprometidas por apartados pendientes
 
   @@unique([menuDiaId, productoId])
 }
@@ -216,18 +221,24 @@ model Domicilio {
 // o mismo nombre en minúscula para los que van sin teléfono), que es como
 // agrupa el historial de domicilios.
 model Cliente {
-  id            Int      @id @default(autoincrement())
-  nombre        String
-  telefono      String   @default("") // puede ir vacío (clientes «solo el nombre»)
-  direccion     String   @default("")
-  barrio        String?
-  observaciones String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  nombre           String
+  telefono         String   @default("") // puede ir vacío (clientes «solo el nombre»)
+  direccion        String   @default("")
+  barrio           String?
+  observaciones    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  // Versiones normalizadas para búsqueda en BD (sin límite de 300):
+  // nombre sin acentos/espacios simples y teléfono en solo dígitos,
+  // actualizadas al crear/editar/fusionar.
+  nombreBusqueda   String   @default("")
+  telefonoBusqueda String   @default("")
 
-  domicilios Domicilio[]
-  apartados  Apartado[]
-  cuentas    CuentaPorCobrar[]
+  domicilios          Domicilio[]
+  apartados           Apartado[]
+  cuentas             CuentaPorCobrar[]
+  fusionesComoDestino FusionCliente[]   @relation("FusionesComoDestino")
 }
 
 // ════════ Módulo de apartados ════════
@@ -253,10 +264,16 @@ model Apartado {
   createdById        Int
   creadoPor          Usuario          @relation("ApartadoCreadoPor", fields: [createdById], references: [id])
   entregadoAt        DateTime?
+  // Auditoría de cancelación (quién/cuándo/por qué; el motivo es opcional)
+  canceladoById      Int?
+  canceladoPor       Usuario?         @relation("ApartadoCanceladoPor", fields: [canceladoById], references: [id])
+  canceladoAt        DateTime?
+  canceladoMotivo    String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  items ApartadoItem[]
+  items    ApartadoItem[]
+  reservas ApartadoReserva[] // porciones reservadas mientras está PENDIENTE
 }
 
 // Línea de un apartado: nombre/precio CONGELADOS (el menú de aquel día puede
@@ -268,11 +285,52 @@ model ApartadoItem {
   productoId Int? // null = ítem narrado a mano que no está en el catálogo
   producto   Producto? @relation(fields: [productoId], references: [id])
   nombre     String
-  tipo       String // snapshot del tipo (PROTEINA, BEBIDA, ADICIONAL, OTRO)
+  tipo       String // snapshot del tipo (ALMUERZO, PROTEINA, BEBIDA, ADICIONAL, OTRO)
   cantidad   Int       @default(1)
   precio     Int       @default(0) // COP por unidad, congelado al apartar
   conSopa    Boolean? // solo en almuerzos: para rearmar el plato al entregar
   nota       String? // «sin cebolla», «toalla aparte»…
+  detalle    String? // JSON del almuerzo completo (sopa, principios, ensaladas, adicionales con sus ids/nombres congelados); legacy = null
+
+  reservas ApartadoReserva[]
+}
+
+// Un apartado PENDIENTE compromete porciones del menú de su fecha de entrega:
+// un renglón por cada componentes con stock (proteína, principios, ensalada y
+// sopa de cada almuerzo). Al entregar se convierten en consumo real (vendidos),
+// al cancelar/editar se liberan. La disponibilidad del menú es
+// stock − vendidos − reservados. Si borran el ítem del menú, la reserva pierde
+// su objetivo (menuDiaItemId null) y la entrega vuelve a verificar el men vivo.
+model ApartadoReserva {
+  id             Int          @id @default(autoincrement())
+  apartadoId     Int
+  apartado       Apartado     @relation(fields: [apartadoId], references: [id], onDelete: Cascade)
+  apartadoItemId Int
+  apartadoItem   ApartadoItem @relation(fields: [apartadoItemId], references: [id], onDelete: Cascade)
+  menuDiaItemId  Int?
+  menuDiaItem    MenuDiaItem? @relation(fields: [menuDiaItemId], references: [id])
+  productoId     Int
+  producto       Producto     @relation("ReservasDeProducto", fields: [productoId], references: [id])
+  cantidad       Int
+}
+
+// Auditoría de fusiones de clientes: los datos del origen quedan copiados aquí
+// porque la ficha origen se elimina físicamente. No toca importes ni caja: solo
+// reasigna domicilios/apartados/cuentas al cliente destino.
+model FusionCliente {
+  id             Int      @id @default(autoincrement())
+  origenId       Int // id de la ficha eliminada (sin FK: ya no existe)
+  origenNombre   String
+  origenTelefono String
+  destinoId      Int
+  destino        Cliente  @relation("FusionesComoDestino", fields: [destinoId], references: [id])
+  domicilios     Int      @default(0) // movidos
+  apartados      Int      @default(0)
+  cuentas        Int      @default(0)
+  saldoMovido    Int      @default(0) // saldo pendiente que viajó (informativo)
+  createdById    Int
+  hechoPor       Usuario  @relation("FusionesHechas", fields: [createdById], references: [id])
+  createdAt      DateTime @default(now())
 }
 
 // ════════ Cuentas por cobrar (fiados) ════════
