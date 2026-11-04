@@ -3,7 +3,7 @@ import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { inicioDeHoy } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
-import type { ComponenteMenuApartado } from "../actions";
+import { menuDeFechaApartado } from "../actions";
 import { FormularioApartado } from "../formularios";
 
 export const metadata = { title: "Nuevo apartado · El Buen Gusto" };
@@ -13,11 +13,10 @@ export default async function PaginaNuevoApartado() {
   const hoy = inicioDeHoy();
   const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 
-  const [menu, catalogoExtras, clientes] = await Promise.all([
-    db.menuDia.findUnique({
-      where: { fecha: fechaHoy },
-      include: { items: { include: { producto: true } } },
-    }),
+  // La semilla de HOY pasa por la MISMA acción que recarga al cambiar la
+  // fecha: un solo punto de disponibilidad (stock − vendidos − reservados)
+  const [semilla, catalogoExtras, clientes] = await Promise.all([
+    menuDeFechaApartado(fechaHoy),
     db.producto.findMany({
       where: { activo: true, tipo: { in: ["BEBIDA", "ADICIONAL"] }, precio: { gt: 0 } },
       orderBy: { nombre: "asc" },
@@ -30,31 +29,6 @@ export default async function PaginaNuevoApartado() {
       select: { id: true, nombre: true, telefono: true },
     }),
   ]);
-
-  // El menú completo de hoy (no solo proteínas): cada componente del plato se
-  // arma aquí al abrir y se recarga por fecha con menuDeFechaApartado
-  const menuHoy: ComponenteMenuApartado[] = (menu?.items ?? [])
-    .filter(
-      (i) =>
-        i.producto.activo &&
-        i.visible &&
-        ["PROTEINA", "PRINCIPIO", "ENSALADA", "SOPA"].includes(i.producto.tipo),
-    )
-    .map((i) => ({
-      itemId: i.id,
-      productoId: i.productoId,
-      nombre: i.producto.nombre,
-      tipo: i.producto.tipo,
-      // Precio especial de HOY (asados del domingo…) o el propio del catálogo;
-      // 0 = rige el precio del almuerzo corriente para llevar
-      precioPropio:
-        i.precioEspecial ?? (i.producto.precio > 0 ? i.producto.precio : 0),
-      disponibles:
-        i.stockPorciones === null
-          ? null
-          : Math.max(0, i.stockPorciones - i.vendidos),
-    }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre));
 
   return (
     <>
@@ -69,7 +43,7 @@ export default async function PaginaNuevoApartado() {
         subtitulo="Reserva lo que el cliente pedirá después: el precio queda congelado al apartar"
       />
       <FormularioApartado
-        menu={menu ? menuHoy : null}
+        menu={semilla.existeMenu ? semilla.componentes : null}
         fechaHoy={fechaHoy}
         extras={catalogoExtras.map((p) => ({
           productoId: p.id,

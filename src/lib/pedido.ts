@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { claveDia } from "@/lib/format";
 import { PRECIO_ICOPOR, precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
-import { ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
+import { ESTADO_APARTADO, ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
 
 /** Pedidos que dejan la mesa ocupada (los demás son históricos) */
 export const ESTADOS_ACTIVOS_PEDIDO: EstadoPedido[] = [
@@ -31,6 +31,26 @@ export type ItemMenuHoy = {
   vendidos: number;
 };
 
+/** Porciones comprometidas por apartados PENDIENTES de una fecha, agregadas
+ *  por MenuDiaItem. La disponibilidad del menú es stock − vendidos − ESTO:
+ *  lo apartado ya está "vendido" y el mesero no puede armarlo de nuevo. */
+export async function reservasPorMenuItem(
+  ids: number[],
+): Promise<Map<number, number>> {
+  if (ids.length === 0) return new Map();
+  const filas = await db.apartadoReserva.groupBy({
+    by: ["menuDiaItemId"],
+    _sum: { cantidad: true },
+    where: {
+      menuDiaItemId: { in: ids },
+      apartado: { estado: ESTADO_APARTADO.PENDIENTE },
+    },
+  });
+  return new Map(
+    filas.map((f) => [f.menuDiaItemId as number, f._sum.cantidad ?? 0]),
+  );
+}
+
 /** El menú vigente de HOY por tipo, listo para armar pedidos */
 export async function menuDeHoy(): Promise<ItemMenuHoy[]> {
   const fecha = claveDia(new Date());
@@ -39,6 +59,9 @@ export async function menuDeHoy(): Promise<ItemMenuHoy[]> {
     include: { items: { include: { producto: true } } },
   });
   if (!menu) return [];
+  // El punto ÚNICO de disponibilidad: stock − vendidos − porciones reservadas
+  // por apartados pendientes de ESTA fecha
+  const reservadas = await reservasPorMenuItem(menu.items.map((i) => i.id));
   return menu.items
     .filter((item) => item.producto.activo && item.visible)
     .map((item) => ({
@@ -55,7 +78,12 @@ export async function menuDeHoy(): Promise<ItemMenuHoy[]> {
       disponibles:
         item.stockPorciones === null
           ? null
-          : Math.max(0, item.stockPorciones - item.vendidos),
+          : Math.max(
+              0,
+              item.stockPorciones -
+                item.vendidos -
+                (reservadas.get(item.id) ?? 0),
+            ),
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 }

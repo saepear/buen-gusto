@@ -227,7 +227,7 @@ export default async function PaginaApartados() {
                 ) : null}
 
                 <div className="mt-auto">
-                  <AccionesEntregaApartado apartadoId={a.id} />
+                  <AccionesEntregaApartado apartadoId={a.id} total={a.total} />
                 </div>
               </article>
             );

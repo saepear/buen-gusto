@@ -8,6 +8,7 @@ import { minutosDeHora } from "@/lib/hora";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_APARTADO } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
+import { reservasPorMenuItem } from "@/lib/pedido";
 import { realtime } from "@/lib/realtime";
 import { buscarClientesPagina, coincidenciasDeCliente, crearClienteNuevo, telefonoNormalizado, type ClienteResumen } from "@/lib/clientes";
 
@@ -99,6 +100,9 @@ export async function menuDeFechaApartado(
     include: { items: { include: { producto: true } } },
   });
   if (!menu) return { fecha, existeMenu: false, componentes: [] };
+  // Disponibilidad real: stock − vendidos − lo que ya reservaron otros
+  // apartados pendientes de ESTA fecha
+  const reservadas = await reservasPorMenuItem(menu.items.map((i) => i.id));
   const componentes = menu.items
     .filter(
       (item) =>
@@ -116,7 +120,12 @@ export async function menuDeFechaApartado(
       disponibles:
         item.stockPorciones === null
           ? null
-          : Math.max(0, item.stockPorciones - item.vendidos),
+          : Math.max(
+              0,
+              item.stockPorciones -
+                item.vendidos -
+                (reservadas.get(item.id) ?? 0),
+            ),
     }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
   return { fecha, existeMenu: true, componentes };
@@ -222,6 +231,13 @@ type FilaCongelada = {
   nota: string | null;
   /** DetallePlato en JSON si la fila es un almuerzo completo; null en lo demás */
   detalle: string | null;
+  /** Porciones del menú DE ESA FECHA que reserva mientras está pendiente
+   *  (proteína, sopa exacta, principios y ensaladas), × cantidad de platos */
+  reservasPorcion: {
+    menuDiaItemId: number;
+    productoId: number;
+    cantidad: number;
+  }[];
 };
 
 function revalidar() {
@@ -404,16 +420,27 @@ export async function crearApartado(
       };
     }
 
-    // Componentes del menú de esa fecha por id de producto
+    // Componentes del menú de esa fecha por id de producto (con su ítem del
+    // menú: para reservar porciones y avisar stock)
     const componentes = new Map<
       number,
-      { tipo: string; nombre: string; precioPropio: number }
+      {
+        itemId: number;
+        stockPorciones: number | null;
+        vendidos: number;
+        tipo: string;
+        nombre: string;
+        precioPropio: number;
+      }
     >();
     for (const item of menu.items) {
       if (!item.producto.activo || !item.visible) continue;
       if (!(TIPOS_PLATO_MENU as readonly string[]).includes(item.producto.tipo))
         continue;
       componentes.set(item.productoId, {
+        itemId: item.id,
+        stockPorciones: item.stockPorciones,
+        vendidos: item.vendidos,
         tipo: item.producto.tipo,
         nombre: item.producto.nombre,
         precioPropio:
@@ -511,6 +538,57 @@ export async function crearApartado(
           ? precioEspecialDelDia(proteina.precioPropio, prep.conSopa, PARA_LLEVAR)
           : precioAlmuerzo(prep.conSopa, PARA_LLEVAR));
 
+      // Porciones del menú de esa fecha que este apartado reserva mientras
+      // esté pendiente (proteína, sopa exacta si la eligieron, principios y
+      // ensaladas), cada una × cuántos platos pidió. «Sopa del día» no se
+      // reserva: se cuadra con la sopa del menú el día de la entrega.
+      const porcionesReservadas: FilaCongelada["reservasPorcion"] = [
+        {
+          menuDiaItemId: proteina.itemId,
+          productoId: prep.proteinaProductoId,
+          cantidad: prep.cantidad,
+        },
+      ];
+      if (sopa && prep.conSopa) {
+        const si = componentes.get(sopa.productoId);
+        if (!si) {
+          return { error: "Esa sopa ya no está. Recarga la página.", ok: null };
+        }
+        porcionesReservadas.push({
+          menuDiaItemId: si.itemId,
+          productoId: sopa.productoId,
+          cantidad: prep.cantidad,
+        });
+      }
+      for (const p of principios) {
+        const c = componentes.get(p.productoId);
+        if (!c) {
+          return {
+            error: "Un principio ya no está en el menú. Recarga la página.",
+            ok: null,
+          };
+        }
+        porcionesReservadas.push({
+          menuDiaItemId: c.itemId,
+          productoId: p.productoId,
+          cantidad: prep.cantidad,
+        });
+      }
+      for (const e of ensaladas) {
+        const c = componentes.get(e.productoId);
+        if (!c) {
+          return {
+            error: "Una ensalada ya no está en el menú. Recarga la página.",
+            ok: null,
+          };
+        }
+        porcionesReservadas.push({
+          menuDiaItemId: c.itemId,
+          productoId: e.productoId,
+          cantidad: prep.cantidad,
+        });
+      }
+
       const detalle: DetallePlato = {
         conSopa: prep.conSopa,
         proteina: { productoId: prep.proteinaProductoId, nombre: proteina.nombre },
@@ -528,6 +606,7 @@ export async function crearApartado(
         conSopa: prep.conSopa,
         nota: prep.nota,
         detalle: JSON.stringify(detalle),
+        reservasPorcion: porcionesReservadas,
       });
     }
   }
@@ -554,6 +633,7 @@ export async function crearApartado(
       conSopa: null,
       nota: null,
       detalle: null,
+      reservasPorcion: [],
     });
   }
 
@@ -580,6 +660,7 @@ export async function crearApartado(
       conSopa: null,
       nota: String(o.nota ?? "").trim().slice(0, ITEM_OTRO_MAX) || null,
       detalle: null,
+      reservasPorcion: [],
     });
   }
 
@@ -597,6 +678,60 @@ export async function crearApartado(
   let nuevoId: number;
   try {
     nuevoId = await db.$transaction(async (tx) => {
+      // ── Las porciones que pediría este apartado, agregadas por ítem del menú
+      const porItemPlan = new Map<number, number>();
+      for (const f of filas) {
+        for (const r of f.reservasPorcion) {
+          porItemPlan.set(
+            r.menuDiaItemId,
+            (porItemPlan.get(r.menuDiaItemId) ?? 0) + r.cantidad,
+          );
+        }
+      }
+      if (porItemPlan.size > 0) {
+        // Verificación DENTRO de la transacción: dos admins apartando a la
+        // misma hora no pueden sobrecomprometer el mismo stock
+        const ids = [...porItemPlan.keys()];
+        const itemsDeMenu = await tx.menuDiaItem.findMany({
+          where: { id: { in: ids } },
+          select: {
+            id: true,
+            stockPorciones: true,
+            vendidos: true,
+            producto: { select: { nombre: true } },
+          },
+        });
+        if (itemsDeMenu.length !== ids.length) {
+          throw new ErrorDeApartado(
+            "El menú de esa fecha cambió mientras apartabas: recarga y vuelve a armar los almuerzos.",
+          );
+        }
+        const tomadas = await tx.apartadoReserva.groupBy({
+          by: ["menuDiaItemId"],
+          _sum: { cantidad: true },
+          where: {
+            menuDiaItemId: { in: ids },
+            apartado: { estado: ESTADO_APARTADO.PENDIENTE },
+          },
+        });
+        const porItemTomadas = new Map(
+          tomadas.map((t) => [t.menuDiaItemId as number, t._sum.cantidad ?? 0]),
+        );
+        for (const [itemId, cantidadPedida] of porItemPlan) {
+          const item = itemsDeMenu.find((x) => x.id === itemId);
+          if (!item) continue; // defiende el length !== ids.length de arriba
+          if (item.stockPorciones === null) continue; // porciones ilimitadas
+          const yaTomadas = porItemTomadas.get(itemId) ?? 0;
+          if (item.vendidos + yaTomadas + cantidadPedida > item.stockPorciones) {
+            throw new ErrorDeApartado(
+              `No alcanzan las porciones de ${item.producto.nombre}: quedan ` +
+                `${item.stockPorciones - item.vendidos - yaTomadas} y el apartado ` +
+                `pide ${cantidadPedida}. Ajusta el stock en Menú del día o quita alguna.`,
+            );
+          }
+        }
+      }
+
       const apartado = await tx.apartado.create({
         data: {
           clienteId,
@@ -609,22 +744,39 @@ export async function crearApartado(
           createdById: adminId,
         },
       });
-      await tx.apartadoItem.createMany({
-        data: filas.map((f) => ({
-          apartadoId: apartado.id,
-          productoId: f.productoId,
-          nombre: f.nombre,
-          tipo: f.tipo,
-          cantidad: f.cantidad,
-          precio: f.precio,
-          conSopa: f.conSopa,
-          nota: f.nota,
-          detalle: f.detalle,
-        })),
-      });
+      // Ítems uno a uno: cada reserva necesita el id de su propio ítem
+      for (const f of filas) {
+        const item = await tx.apartadoItem.create({
+          data: {
+            apartadoId: apartado.id,
+            productoId: f.productoId,
+            nombre: f.nombre,
+            tipo: f.tipo,
+            cantidad: f.cantidad,
+            precio: f.precio,
+            conSopa: f.conSopa,
+            nota: f.nota,
+            detalle: f.detalle,
+          },
+        });
+        if (f.reservasPorcion.length > 0) {
+          await tx.apartadoReserva.createMany({
+            data: f.reservasPorcion.map((r) => ({
+              apartadoId: apartado.id,
+              apartadoItemId: item.id,
+              menuDiaItemId: r.menuDiaItemId,
+              productoId: r.productoId,
+              cantidad: r.cantidad,
+            })),
+          });
+        }
+      }
       return apartado.id;
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof ErrorDeApartado) {
+      return { error: e.message, ok: null };
+    }
     return { error: "No se pudo guardar el apartado. Intenta otra vez.", ok: null };
   }
 
@@ -637,13 +789,16 @@ export async function crearApartado(
 
 // ─── Cancelar ───────────────────────────────────────────────────────────────
 
-/** Cancela un apartado pendiente (sin tocar stock ni caja) */
+/** Cancela un apartado pendiente: libera las porciones reservadas (stock) y
+ *  queda anulado con trazabilidad (no se borra el registro). */
 export async function cancelarApartado(
   _previa: EstadoAccionApartado,
   datos: FormData,
 ): Promise<EstadoAccionApartado> {
+  let adminId: number;
   try {
-    await exigirAdmin();
+    const sesion = await exigirAdmin();
+    adminId = sesion.id;
   } catch {
     return { error: "Solo el administrador cancela apartados.", ok: null };
   }
@@ -659,12 +814,32 @@ export async function cancelarApartado(
   if (apartado.estado !== ESTADO_APARTADO.PENDIENTE) {
     return { error: "Solo se cancelan los apartados que no se han entregado.", ok: null };
   }
-  await db.apartado.update({
-    where: { id: apartadoId },
-    data: { estado: ESTADO_APARTADO.CANCELADO },
-  });
+  try {
+    // El guard de estado DENTRO de la transacción hace idempotente la
+    // cancelación: si la entrega ganó la carrera primero, nadie pierde stock.
+    await db.$transaction(async (tx) => {
+      const guardia = await tx.apartado.updateMany({
+        where: { id: apartadoId, estado: ESTADO_APARTADO.PENDIENTE },
+        data: {
+          estado: ESTADO_APARTADO.CANCELADO,
+          canceladoById: adminId,
+          canceladoAt: new Date(),
+        },
+      });
+      if (guardia.count !== 1) {
+        throw new ErrorDeApartado("Ese apartado ya se entregó: no se puede cancelar.");
+      }
+      // Libera las porciones que tenía reservadas en su fecha de entrega
+      await tx.apartadoReserva.deleteMany({ where: { apartadoId } });
+    });
+  } catch (e) {
+    if (e instanceof ErrorDeApartado) {
+      return { error: e.message, ok: null };
+    }
+    return { error: "No se pudo cancelar el apartado. Intenta otra vez.", ok: null };
+  }
   revalidar();
-  return { error: null, ok: "Apartado cancelado." };
+  return { error: null, ok: "Apartado cancelado: las porciones quedaron libres." };
 }
 
 // ─── Entregar (cobrado o fiado) ──────────────────────────────────────────────
@@ -672,9 +847,10 @@ export async function cancelarApartado(
 /**
  * Entrega un apartado: nace la comanda (cocina la ve en Órdenes, la mesa
  * queda LIBRE para que la caja no la muestre), los precios CONGELADOS del
- * apartado viajan tal cual y el stock solo se descuenta si la proteína está
- * en el menú del día de entrega. Con metodo = cobro (sale el recibo), sin
- * método queda fiado (nace la deuda «Apartado #N»).
+ * apartado viajan tal cual y las porciones RESERVADAS se convierten en
+ * consumo real (vendidos) — el ledger se libera. Con método termina en cobro
+ * con propina y vueltas (como Domicilios) y recibo; sin método queda fiado
+ * (nace la deuda «Apartado #N»).
  */
 export async function entregarApartado(
   _previa: EstadoAccionApartado,
@@ -697,9 +873,33 @@ export async function entregarApartado(
     return { error: "Elige el método con que paga.", ok: null };
   }
 
+  // Cobro COMO DOMICILIOS: propina por preset y billete con el que paga;
+  // las vueltas las calcula el servidor (nada de celulares en la caja)
+  let propina = 0;
+  let montoPagado: number | null = null;
+  let vueltas: number | null = null;
+  if (!fiado) {
+    propina = Number.parseInt(
+      String(datos.get("propina") ?? "").replace(/[^0-9]/g, "") || "0",
+      10,
+    );
+    if (!Number.isInteger(propina) || propina < 0 || propina > 1_000_000) {
+      return { error: "La propina ingresada no es válida.", ok: null };
+    }
+    // «¿Con cuánto paga?» solo tiene sentido en efectivo; tarjeta y
+    // transferencia se cobran al centavo (exacto, sin vueltas)
+    const crudoPagado = String(datos.get("montoPagado") ?? "").replace(/[^0-9]/g, "");
+    if (crudoPagado !== "") {
+      montoPagado = Number.parseInt(crudoPagado, 10);
+      if (!Number.isInteger(montoPagado) || montoPagado <= 0) {
+        return { error: "El monto recibido no es válido.", ok: null };
+      }
+    }
+  }
+
   const apartado = await db.apartado.findUnique({
     where: { id: apartadoId },
-    include: { items: true, cliente: true },
+    include: { items: true, cliente: true, reservas: true },
   });
   if (!apartado) return { error: "Ese apartado ya no existe.", ok: null };
   if (apartado.estado !== ESTADO_APARTADO.PENDIENTE) {
@@ -708,6 +908,19 @@ export async function entregarApartado(
   if (apartado.items.every((i) => i.cantidad < 1)) {
     return { error: "El apartado no tiene ítems con entrega.", ok: null };
   }
+  if (
+    montoPagado !== null &&
+    montoPagado < apartado.total + propina
+  ) {
+    return {
+      error:
+        `No alcanza: el cliente entregó ${formatCOP(montoPagado)} y la cuenta ` +
+        `es ${formatCOP(apartado.total + propina)}.`,
+      ok: null,
+    };
+  }
+  vueltas =
+    montoPagado !== null ? montoPagado - apartado.total - propina : null;
 
   // Menú del día de entrega (hoy, al ejecutarse la entrega)
   const fechaHoy = new Date();
@@ -735,29 +948,71 @@ export async function entregarApartado(
     .filter(([, v]) => v.tipo === "SOPA")
     .sort((a, b) => a[1].nombre.localeCompare(b[1].nombre));
   const sopaDeHoy = sopasDeHoy[0] ?? null;
+  // Por id de ítem del menú (las reservas apuntan por ahí, no por producto)
+  const nombreDelMenuItem = new Map<number, string>();
+  for (const item of menuHoy?.items ?? []) {
+    nombreDelMenuItem.set(item.id, item.producto.nombre);
+  }
 
-  // Lo que consume del menú de HOY: la proteína y la sopa de cada almuerzo
-  // (los demás componentes son porciones incluidas; las reservas reales de
-  // stock por apartado llegan en su fase)
+  // Lo que consume: las porciones RESERVADAS por el apartado (el ledger se
+  // convierte en consumo real al entregar), más la sopa del día de los platos
+  // que la dejaron decidir. Los apartados viejos (sin reservas) siguen el
+  // respaldo de siempre: proteína y sopa del menú de HOY.
+  const vaConReservas = apartado.reservas.length > 0;
   const consumo = new Map<number, { nombre: string; cantidad: number }>();
-  for (const item of apartado.items) {
-    // «ALMUEZO» = filas viejas guardadas antes del renombre
-    const esAlmuerzo = item.tipo === "ALMUERZO" || item.tipo === "ALMUEZO";
-    if (!esAlmuerzo) continue;
-    const hoy = item.productoId ? productosDeHoy.get(item.productoId) : null;
-    if (hoy) {
-      const previa = consumo.get(hoy.itemId);
-      consumo.set(hoy.itemId, {
-        nombre: hoy.nombre,
-        cantidad: (previa?.cantidad ?? 0) + item.cantidad,
+  if (vaConReservas) {
+    for (const r of apartado.reservas) {
+      if (!r.menuDiaItemId) continue; // le borraron el ítem del menú: nada que aguantar
+      const previa = consumo.get(r.menuDiaItemId);
+      consumo.set(r.menuDiaItemId, {
+        nombre:
+          nombreDelMenuItem.get(r.menuDiaItemId) ??
+          previa?.nombre ??
+          "un componente del menú",
+        cantidad: (previa?.cantidad ?? 0) + r.cantidad,
       });
     }
-    if (item.conSopa === true && sopaDeHoy) {
+    // Sopa del día de los platos que no la eligieron exacta
+    for (const item of apartado.items) {
+      const esAlmuerzo = item.tipo === "ALMUERZO" || item.tipo === "ALMUEZO";
+      if (!esAlmuerzo || item.conSopa !== true) continue;
+      if (item.detalle) {
+        try {
+          if (leerDetallePlato(JSON.parse(item.detalle))?.sopa) continue;
+        } catch {
+          // detalle roto: cae al fallback legacy abajo
+        }
+      }
+      if (!sopaDeHoy) continue;
       const previa = consumo.get(sopaDeHoy[1].itemId);
       consumo.set(sopaDeHoy[1].itemId, {
         nombre: sopaDeHoy[1].nombre,
         cantidad: (previa?.cantidad ?? 0) + item.cantidad,
       });
+    }
+  } else {
+    // Respaldo para apartados guardados antes de las reservas: lo que consume
+    // del menú de HOY es la proteína y la sopa de cada almuerzo
+    for (const item of apartado.items) {
+      // «ALMUEZO» = filas viejas guardadas antes del renombre
+      if (!item.tipo || (item.tipo !== "ALMUEZO" && item.tipo !== "ALMUERZO")) {
+        continue;
+      }
+      const hoy = item.productoId ? productosDeHoy.get(item.productoId) : null;
+      if (hoy) {
+        const previa = consumo.get(hoy.itemId);
+        consumo.set(hoy.itemId, {
+          nombre: hoy.nombre,
+          cantidad: (previa?.cantidad ?? 0) + item.cantidad,
+        });
+      }
+      if (item.conSopa === true && sopaDeHoy) {
+        const previa = consumo.get(sopaDeHoy[1].itemId);
+        consumo.set(sopaDeHoy[1].itemId, {
+          nombre: sopaDeHoy[1].nombre,
+          cantidad: (previa?.cantidad ?? 0) + item.cantidad,
+        });
+      }
     }
   }
 
@@ -798,6 +1053,10 @@ export async function entregarApartado(
           );
         }
       }
+
+      // Las reservas SE CONVIRTIERON en consumo real: salen del ledger. Si la
+      // transacción falla (guardo abajo), el rollback las devuelve.
+      await tx.apartadoReserva.deleteMany({ where: { apartadoId: apartado.id } });
 
       const pedido = await tx.pedido.create({
         data: {
@@ -964,8 +1223,10 @@ export async function entregarApartado(
             createdById: adminId,
           },
         });
-        await tx.apartado.update({
-          where: { id: apartado.id },
+        // Guard idempotente DENTRO de la transacción: si otra pantalla entret
+        // o canceló primero, la cuenta nace ya no y el rollback deshace todo
+        const guardia = await tx.apartado.updateMany({
+          where: { id: apartado.id, estado: ESTADO_APARTADO.PENDIENTE },
           data: {
             estado: ESTADO_APARTADO.ENTREGADO,
             pedidoId: pedido.id,
@@ -973,6 +1234,11 @@ export async function entregarApartado(
             entregadoAt: new Date(),
           },
         });
+        if (guardia.count !== 1) {
+          throw new ErrorDeApartado(
+            "Ese apartado acaba de entregarse o cancelarse en otra pantalla.",
+          );
+        }
         return null;
       }
 
@@ -980,22 +1246,29 @@ export async function entregarApartado(
         data: {
           pedidoId: pedido.id,
           total: apartado.total,
-          propina: 0,
+          propina,
           metodo: crudoMetodo,
+          montoPagado,
+          vueltas,
         },
       });
       await tx.pedido.update({
         where: { id: pedido.id },
         data: { estado: "COBRADO" },
       });
-      await tx.apartado.update({
-        where: { id: apartado.id },
+      const guardia = await tx.apartado.updateMany({
+        where: { id: apartado.id, estado: ESTADO_APARTADO.PENDIENTE },
         data: {
           estado: ESTADO_APARTADO.ENTREGADO,
           pedidoId: pedido.id,
           entregadoAt: new Date(),
         },
       });
+      if (guardia.count !== 1) {
+        throw new ErrorDeApartado(
+          "Ese apartado acaba de entregarse o cancelarse en otra pantalla.",
+        );
+      }
       return pago.id;
     });
   } catch (e) {

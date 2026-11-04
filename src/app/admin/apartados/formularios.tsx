@@ -727,6 +727,9 @@ export function FormularioApartado({
                         {proteinasMenu.map((pr) => (
                           <option key={pr.productoId} value={pr.productoId}>
                             {pr.nombre}
+                            {pr.disponibles !== null && pr.disponibles <= 8
+                              ? ` · quedan ${pr.disponibles}`
+                              : ""}
                           </option>
                         ))}
                       </select>
@@ -795,6 +798,9 @@ export function FormularioApartado({
                                 className={CHIP(l.sopa === s.productoId)}
                               >
                                 {s.nombre}
+                                {s.disponibles !== null && s.disponibles <= 8
+                                  ? ` · ${s.disponibles}`
+                                  : ""}
                               </button>
                             ))}
                           </div>
@@ -836,6 +842,9 @@ export function FormularioApartado({
                                 className={CHIP(elegido)}
                               >
                                 {p.nombre}
+                                {p.disponibles !== null && p.disponibles <= 8
+                                  ? ` · ${p.disponibles}`
+                                  : ""}
                               </button>
                             );
                           })}
@@ -872,6 +881,9 @@ export function FormularioApartado({
                                 className={CHIP(elegido)}
                               >
                                 {e.nombre}
+                                {e.disponibles !== null && e.disponibles <= 8
+                                  ? ` · ${e.disponibles}`
+                                  : ""}
                               </button>
                             );
                           })}
