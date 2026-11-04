@@ -28,6 +28,7 @@
 # Bases de datos locales (datos reales del restaurante nunca van al repo)
 /prisma/dev.db
 /prisma/*.db
+/prisma/*.bak*
 *.sqlite
 *.sqlite3
 
