@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { nombreCanonico } from "@/lib/clientes";
 import {
   CLAVE_CATEGORIAS,
   getCategoriasPersonalizadas,
@@ -41,12 +42,17 @@ export async function crearProducto(
   if (!Number.isInteger(precio) || precio < 0 || precio > 9_999_999)
     return { error: "El precio debe ser entero en COP (0 = incluido en el almuerzo)." };
 
+  // Duplicados: el catálogo no es grande; se compara canonizado en JS
+  // (SQLite no soporta comparación sin acentos en el índice).
+  const nombres = await db.producto.findMany({ select: { nombre: true } });
+  const canon = nombreCanonico(nombre);
+  if (nombres.some((p) => nombreCanonico(p.nombre) === canon)) {
+    return { error: `Ya existe un producto llamado «${nombre}».` };
+  }
+
   try {
     await db.producto.create({ data: { nombre, tipo, precio } });
-  } catch (e: unknown) {
-    if (String(e).includes("Unique")) {
-      return { error: `Ya existe un producto llamado «${nombre}».` };
-    }
+  } catch {
     return { error: "No se pudo crear el producto." };
   }
 
@@ -73,6 +79,16 @@ export async function editarProducto(
   if (nombre.length < 2) return { error: "Nombra el producto (mínimo 2 letras)." };
   if (!Number.isInteger(precio) || precio < 0 || precio > 9_999_999)
     return { error: "El precio debe ser entero en COP." };
+
+  // rename a un nombre ya usado por OTRO producto
+  const otros = await db.producto.findMany({
+    where: { id: { not: id } },
+    select: { nombre: true },
+  });
+  const canon = nombreCanonico(nombre);
+  if (otros.some((p) => nombreCanonico(p.nombre) === canon)) {
+    return { error: `Ya existe otro producto llamado «${nombre}».` };
+  }
 
   try {
     await db.producto.update({ where: { id }, data: { nombre, precio } });

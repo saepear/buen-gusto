@@ -176,7 +176,8 @@ async function main() {
   await db.$disconnect();
 }
 
-await main().catch(async (e) => {
+// Sin top-level await: tsx compila este archivo como CommonJS
+main().catch(async (e) => {
   console.error("Retrofit FALLÓ:", e);
   await db.$disconnect();
   process.exit(1);
