@@ -112,11 +112,19 @@ export default async function PaginaCuentas(
       },
     }),
     db.cuentaPorCobrar.count({ where: donde }),
+    // El resumen siempre mira deudas VIVAS. Si el filtro exige otro estado
+    // (pagada/anulada/condonada) no hay saldo por cobrar dentro de él: el
+    // bloque vacío deja «$0 por cobrar» (antes el estado del filtro se
+    // pisaba y contaba pendientes ajenos al filtro).
     db.cuentaPorCobrar.groupBy({
-      // Resumen global + «adeudado por cliente» con UNA agregación en la BD:
-      // deudas vivas (PENDIENTE) sumadas por cliente y por estado
       by: ["clienteId", "estado"],
-      where: { ...donde, estado: ESTADO_CUENTA.PENDIENTE },
+      where: {
+        ...donde,
+        estado:
+          estadoFiltro && estadoFiltro !== ESTADO_CUENTA.PENDIENTE
+            ? "ESTADO_SIN_PENDIENTE" // opción imposible: el bloque queda vacío
+            : ESTADO_CUENTA.PENDIENTE,
+      },
       _sum: {
         valorOriginal: true,
         pagado: true,
@@ -482,7 +490,7 @@ export default async function PaginaCuentas(
                     <summary className="cursor-pointer text-xs font-bold text-texto-muted/60 transition hover:text-texto-app">
                       {cuenta.abonos.length}{" "}
                       {cuenta.abonos.length === 1 ? "abono" : "abonos"}{" "}
-                      registrados
+                      {cuenta.abonos.length === 1 ? "registrado" : "registrados"}
                     </summary>
                     <ul className="mt-2 space-y-1.5">
                       {cuenta.abonos.map((a) => (
