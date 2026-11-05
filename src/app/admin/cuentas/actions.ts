@@ -275,6 +275,26 @@ export async function registrarAbono(
       }
       const nuevoSaldo = saldo - monto;
 
+      // Antes de crear el abono se valida que el histórico de abonos sea
+      // coherente con el acumulado de la cuenta. Si no lo es, alguien escribió
+      // en la BD por fuera del sistema (manual o pruebas): no se abona nada
+      // y se explica con precisión, sin confundir con una carrera.
+      const sumaHoy = await tx.abonoCuenta.aggregate({
+        where: { cuentaId },
+        _sum: { monto: true },
+      });
+      const suma = sumaHoy._sum.monto ?? 0;
+      if (suma > cuenta.valorOriginal - cuenta.saldoCondonado) {
+        throw new ErrorDeCuenta(
+          `Esta deuda tiene abonos por ${formatCOP(suma)} que superan su valor ${formatCOP(cuenta.valorOriginal)}: hay apuntes registrados fuera del sistema. Limpia esos apuntes antes de abonar.`,
+        );
+      }
+      if (suma !== cuenta.pagado) {
+        throw new ErrorDeCuenta(
+          `Esta deuda está incoherente: registra abonos por ${formatCOP(suma)} pero su acumulado dice ${formatCOP(cuenta.pagado)}. Hay apuntes escritos fuera del sistema; corrígelos antes de abonar.`,
+        );
+      }
+
       await tx.abonoCuenta.create({
         data: { cuentaId, monto, metodo, nota, usuarioId: adminId },
       });
