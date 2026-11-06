@@ -2,8 +2,10 @@
 
 import {
   CalendarClock,
+  CookingPot,
   Minus,
   Plus,
+  ShoppingBag,
   StickyNote,
   Trash2,
   UserPlus,
@@ -139,6 +141,9 @@ export function FormularioApartado({
 
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
+  // Cómo se entrega: recoger Y llevar (por defecto, como siempre) o servir
+  // en mesa del salón — cambia el precio congelado de cada plato
+  const [paraLlevar, setParaLlevar] = useState(true);
   const [observaciones, setObservaciones] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [extrasCant, setExtrasCant] = useState<Record<number, number>>({});
@@ -313,14 +318,14 @@ export function FormularioApartado({
   const extrasPorProducto = new Map(extras.map((e) => [e.productoId, e] as const));
 
   /** Precio congelado de UNA unidad del plan: proteína (el especial del día
-   *  de ESA FECHA manda, si no el almuerzo corriente para llevar) más los
+   *  de ESA FECHA manda, si no el almuerzo corriente en su modalidad) más los
    *  adicionales que van dentro del plato. */
   const precioPlato = (l: Linea) => {
     const prot = porProductoDelMenu.get(l.proteinaProductoId);
     const base =
       prot && prot.precioPropio > 0
-        ? precioEspecialDelDia(prot.precioPropio, l.conSopa, true)
-        : precioAlmuerzo(l.conSopa, true);
+        ? precioEspecialDelDia(prot.precioPropio, l.conSopa, paraLlevar)
+        : precioAlmuerzo(l.conSopa, paraLlevar);
     const adicion = Object.entries(l.adicionales).reduce(
       (suma, [id, n]) =>
         suma + (extrasPorProducto.get(Number(id))?.precio ?? 0) * n,
@@ -342,7 +347,7 @@ export function FormularioApartado({
     }
     return t;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineas, extrasCant, otros, extras, menuFecha]);
+  }, [lineas, extrasCant, otros, extras, menuFecha, paraLlevar]);
 
   // El apartado se despachó bien: limpiar el constructor para el siguiente
   const okPrevio = useRef<string | null>(null);
@@ -369,6 +374,7 @@ export function FormularioApartado({
     clienteId: clienteId ?? 0,
     fechaEntrega: fechaEntrega || undefined,
     horaEntrega: horaEntrega.trim() || undefined,
+    paraLlevar,
     lineas: lineas.map((l) => ({
       conSopa: l.conSopa,
       proteinaProductoId: l.proteinaProductoId,
@@ -1096,6 +1102,46 @@ export function FormularioApartado({
 
       {/* Entrega y notas */}
       <section className="grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2">
+        {/* Modalidad de entrega: congela el precio del plato (llevar con
+            empaque / en mesa a los platos del salón) */}
+        <div className="sm:col-span-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+            ¿Cómo lo entrega?
+          </p>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              aria-pressed={paraLlevar}
+              onClick={() => setParaLlevar(true)}
+              className={
+                "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition " +
+                (paraLlevar
+                  ? "bg-amber-brand text-brown-950"
+                  : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app hover:text-texto-app")
+              }
+            >
+              <ShoppingBag className="h-4 w-4" /> Recoger y llevar
+            </button>
+            <button
+              type="button"
+              aria-pressed={!paraLlevar}
+              onClick={() => setParaLlevar(false)}
+              className={
+                "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition " +
+                (!paraLlevar
+                  ? "bg-amber-brand text-brown-950"
+                  : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app hover:text-texto-app")
+              }
+            >
+              <CookingPot className="h-4 w-4" /> Comer en mesa
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-texto-muted/55">
+            {paraLlevar
+              ? "Precios para llevar (el completo lleva su empaque)."
+              : "Precios de salón, sin empaque."}
+          </p>
+        </div>
         <label className={ETIQUETA}>
           FECHA DE ENTREGA (opcional · hoy si no se dice)
           <input

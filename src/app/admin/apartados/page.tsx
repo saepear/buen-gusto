@@ -179,6 +179,11 @@ export default async function PaginaApartados() {
                         ? `Para el ${a.fechaEntrega}`
                         : `Apartado el ${new Date(a.createdAt).toLocaleDateString("es-CO")}`}
                       {a.horaEntrega ? ` · ${a.horaEntrega}` : ""}
+                      {a.paraLlevar === false ? (
+                        <span className="ml-1 rounded-full bg-info/15 px-2 py-0.5 text-[10px] font-bold text-info-text">
+                          EN MESA
+                        </span>
+                      ) : null}
                       {retrasado ? (
                         <span className="ml-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-amber-brand">
                           RETRASADO

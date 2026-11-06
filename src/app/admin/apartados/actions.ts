@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 import { formatCOP, claveDia } from "@/lib/format";
 import { minutosDeHora } from "@/lib/hora";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
-import { ES_METODO_PAGO, ESTADO_APARTADO } from "@/lib/roles";
+import { ES_METODO_PAGO, ESTADO_APARTADO, ESTADO_PEDIDO } from "@/lib/roles";
+import { crearCuentaFiadaTx } from "@/lib/fiados";
 import { exigirAdmin } from "@/lib/session";
 import { reservasPorMenuItem } from "@/lib/pedido";
 import { realtime } from "@/lib/realtime";
@@ -19,8 +20,12 @@ class ErrorDeApartado extends Error {}
 /** El nombre de la mesa virtual sobre la que nace la comanda del apartado */
 const MESA_APARTADOS = "Apartados";
 
-/** Los apartados se recogen: salen para llevar de fábrica */
-const PARA_LLEVAR = true;
+/**
+ * Cómo se entrega un apartado: para RECOGER (lleva empaque y sus precios de
+ * llevar; el valor por defecto, como siempre) o para SERVIR EN MESA del
+ * salón (precios de salón, sin recargos de icopor). Lo decide el admin en el
+ * constructor y se congela con el apartado.
+ */
 
 const CANTIDAD_MAX = 50;
 const ITEM_OTRO_MAX = 60;
@@ -56,6 +61,8 @@ export type CargaApartado = {
   clienteId: number;
   fechaEntrega?: string; // yyyy-mm-dd (opcional: hoy si no cabe)
   horaEntrega?: string; // como lo dijo el cliente («12:30», «la 1 y media»)
+  /** Cómo se entrega: recoger y llevar (precios de empaque) o comer en mesa */
+  paraLlevar?: boolean;
   lineas: LineaAlmuerzoApartado[];
   extras: ExtraApartado[];
   otros: OtroApartado[];
@@ -300,6 +307,9 @@ export async function crearApartado(
       : null;
   const horaEntrega = String(carga.horaEntrega ?? "").trim().slice(0, 30) || null;
   const horaMin = horaEntrega ? minutosDeHora(horaEntrega) : null;
+  // Modalidad de entrega: recoger Y llevar es el comportamiento de siempre
+  // (los apartados que ya existen nacieron así); «en mesa» lo pide el admin.
+  const paraLlevar = carga.paraLlevar !== false;
 
   // ── Preproceso las líneas: defiendo cada campo antes de tocar la base
   const lineas = Array.isArray(carga.lineas) ? carga.lineas.slice(0, 30) : [];
@@ -532,13 +542,13 @@ export async function crearApartado(
       }
 
       // Congelar el precio AHORA: especial del día (asados de domingo…) o
-      // almuerzo corriente para llevar (completo $14.500 · bandeja $13.000),
-      // más los adicionales del plato
+      // almuerzo en su modalidad — llevar (completo $14.500 · bandeja
+      // $13.000) o en mesa ($13.000 · $12.000) — más los adicionales
       const precio =
         sumaAdicionales +
         (proteina.precioPropio > 0
-          ? precioEspecialDelDia(proteina.precioPropio, prep.conSopa, PARA_LLEVAR)
-          : precioAlmuerzo(prep.conSopa, PARA_LLEVAR));
+          ? precioEspecialDelDia(proteina.precioPropio, prep.conSopa, paraLlevar)
+          : precioAlmuerzo(prep.conSopa, paraLlevar));
 
       // Porciones del menú de esa fecha que este apartado reserva mientras
       // esté pendiente (proteína, sopa exacta si la eligieron, principios y
@@ -746,6 +756,7 @@ export async function crearApartado(
           horaEntrega,
           horaEntregaMinutos: horaMin,
           total,
+          paraLlevar,
           observaciones,
           createdById: adminId,
         },
@@ -1070,7 +1081,9 @@ export async function entregarApartado(
           mesaId: mesa.id,
           meseroId: adminId,
           estado: "SERVIDO",
-          paraLlevar: PARA_LLEVAR,
+          // La modalidad congelada al apartar: recoger sale con empaque,
+          // «en mesa» sale a los platos del salón
+          paraLlevar: apartado.paraLlevar,
           observaciones,
         },
       });
@@ -1230,14 +1243,25 @@ export async function entregarApartado(
       });
 
       if (fiado) {
-        const cuenta = await tx.cuentaPorCobrar.create({
-          data: {
-            clienteId: apartado.clienteId,
-            concepto: `Apartado #${apartado.id}`,
-            valorOriginal: apartado.total,
-            pedidoId: pedido.id,
-            createdById: adminId,
-          },
+        // FOTO del desglose: los items recién creados (sus ids y sus precios
+        // congelados) alimentan CuentaPorCobrarItem vía el motor de fiados
+        const itemsFoto = await tx.pedidoItem.findMany({
+          where: { pedidoId: pedido.id },
+          include: { producto: { select: { nombre: true, precio: true } } },
+        });
+        const cuentaId = await crearCuentaFiadaTx(tx, {
+          clienteId: apartado.clienteId,
+          concepto: `Apartado #${apartado.id}`,
+          valorOriginal: apartado.total,
+          pedidoId: pedido.id,
+          createdById: adminId,
+          items: itemsFoto,
+        });
+        // Comanda FIADA: sale de todas las colas (cocina/ordenes/caja); el
+        // recaudo entra el día de los abonos, no el día del fiado
+        await tx.pedido.update({
+          where: { id: pedido.id },
+          data: { estado: ESTADO_PEDIDO.FIADO },
         });
         // Guard idempotente DENTRO de la transacción: si otra pantalla entret
         // o canceló primero, la cuenta nace ya no y el rollback deshace todo
@@ -1246,7 +1270,7 @@ export async function entregarApartado(
           data: {
             estado: ESTADO_APARTADO.ENTREGADO,
             pedidoId: pedido.id,
-            cuentaId: cuenta.id,
+            cuentaId,
             entregadoAt: new Date(),
           },
         });
