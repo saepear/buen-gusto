@@ -1,4 +1,4 @@
-import { ArrowLeft, Coffee, Receipt } from "lucide-react";
+import { ArrowLeft, Coffee, HandCoins, NotebookPen, Receipt } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { formatCOP, formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
-import { ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
+import { ESTADO_CUENTA, ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
 import { ordenMesasPorNombre } from "@/lib/mesas";
 import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 import { PanelCobroDomicilio } from "@/app/admin/domicilios/panel-cobro-domicilio";
@@ -120,6 +120,46 @@ export default async function PaginaCaja(
 
   const totalHoy = (resumenHoy._sum.total ?? 0) + (resumenHoy._sum.propina ?? 0);
   const cantidadPagos = resumenHoy._count;
+
+  // ── Fiados: deudas del día (no son dinero) + abonos recibidos hoy (sí son
+  // dinero de caja, el día en que se reciben; igual que en Reportes) ──
+  const [fiadosDelDia, abonosHoy, resumenAbonos] = await Promise.all([
+    db.cuentaPorCobrar.findMany({
+      where: { estado: ESTADO_CUENTA.PENDIENTE, createdAt: { gte: fecha } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        cliente: { select: { nombre: true, telefono: true } },
+      },
+    }),
+    db.abonoCuenta.findMany({
+      where: { createdAt: { gte: fecha } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: {
+        cuenta: {
+          select: {
+            concepto: true,
+            cliente: { select: { nombre: true } },
+          },
+        },
+      },
+    }),
+    db.abonoCuenta.aggregate({
+      where: { createdAt: { gte: fecha } },
+      _sum: { monto: true },
+      _count: true,
+    }),
+  ]);
+  const abonosHoyTotal = resumenAbonos._sum.monto ?? 0;
+  const cantidadAbonos = resumenAbonos._count;
+  const saldoFiadosDelDia = fiadosDelDia.reduce(
+    (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
+    0,
+  );
+  // Dinero real de la caja de hoy: pagos (recibos) + abonos de deudas.
+  // Las deudas NO suman: son promesa, no efectivo.
+  const totalCajaHoy = totalHoy + abonosHoyTotal;
 
   // ============ La comanda del domicilio, lista para cobrar en la caja ============
   let seccionDomicilio: ReactNode = null;
@@ -266,15 +306,26 @@ export default async function PaginaCaja(
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="font-display text-3xl text-amber-brand">
-              {formatCOP(totalHoy)}
+              {formatCOP(totalCajaHoy)}
             </p>
             <p className="mt-1 text-sm text-texto-muted/80">
-              {cantidadPagos === 0
-                ? "Aún no hay pagos registrados hoy"
-                : `Cobrado en caja hoy · ${cantidadPagos} ${
+              {cantidadPagos === 0 && cantidadAbonos === 0
+                ? "Aún no hay dinero en caja hoy"
+                : `Entró a la caja hoy · ${cantidadPagos} ${
                     cantidadPagos === 1 ? "pago" : "pagos"
                   }`}
             </p>
+            {cantidadAbonos > 0 ? (
+              <p
+                aria-live="polite"
+                className="mt-1 flex items-center gap-1.5 text-sm font-bold text-violeta-text"
+                title="El pago de deudas SÍ entra a caja el día que se recibe"
+              >
+                <HandCoins className="h-4 w-4" />
+                Abonos de fiados hoy: {formatCOP(abonosHoyTotal)} (
+                {cantidadAbonos} {cantidadAbonos === 1 ? "abono" : "abonos"})
+              </p>
+            ) : null}
           </div>
           <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-panel-app text-amber-brand ring-1 ring-borde-app">
             <Receipt className="h-7 w-7" />
@@ -346,6 +397,105 @@ export default async function PaginaCaja(
                   {formatCOP(pago.total + pago.propina)}
                 </span>
               </Link>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {/* Fiados del día: deudas que nacieron hoy y siguen por recaudar.
+          NO suman a la caja (no son dinero): aquí solo se informan. */}
+      <h2 className="mb-3 mt-8 flex items-center gap-2 font-display text-xl text-texto-app">
+        <NotebookPen className="h-5 w-5 text-violeta-text" /> Fiados del día por
+        recaudar
+      </h2>
+      {fiadosDelDia.length === 0 ? (
+        <p className="rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-6 text-center text-sm text-texto-muted/60">
+          Hoy nadie fió: los fiados de mesa, domicilios y apartados aparecen aquí
+          hasta que paguen.
+        </p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {fiadosDelDia.map((cuenta) => {
+              const saldo = Math.max(
+                0,
+                cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado,
+              );
+              return (
+                <Link
+                  key={cuenta.id}
+                  href={`/admin/clientes/${cuenta.clienteId}`}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-panel-app px-4 py-3 ring-1 ring-borde-app transition hover:ring-violeta-text"
+                >
+                  <NotebookPen className="h-4 w-4 text-violeta-text" />
+                  <span className="text-sm font-bold text-texto-app">
+                    {cuenta.cliente.nombre}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-texto-muted/60">
+                    {cuenta.concepto}
+                  </span>
+                  <span
+                    className={
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
+                      (saldo === 0
+                        ? "bg-success/10 text-success-text ring-1 ring-success/20"
+                        : "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/25")
+                    }
+                  >
+                    {saldo === 0 ? "Saldada" : `Falta ${formatCOP(saldo)}`}
+                  </span>
+                  <span className="text-sm font-bold tabular-nums text-violeta-text">
+                    {formatCOP(saldo)}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-right text-xs font-bold text-texto-muted/60">
+            Deuda del día pendiente:{" "}
+            <span className="text-violeta-text">
+              {formatCOP(saldoFiadosDelDia)}
+            </span>{" "}
+            (no cuenta como dinero de caja)
+          </p>
+        </>
+      )}
+
+      {/* Dinero recibido HOY por deudas (detalle): sí es dinero de caja */}
+      {abonosHoy.length > 0 ? (
+        <>
+          <h3 className="mb-2 mt-6 font-display text-lg text-texto-app">
+            Abonos de deudas recibidos hoy
+          </h3>
+          <div className="space-y-1.5">
+            {abonosHoy.map((ab) => (
+              <div
+                key={ab.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-panel-app px-4 py-2.5 ring-1 ring-borde-app"
+              >
+                <HandCoins className="h-4 w-4 text-violeta-text" />
+                <span className="text-sm font-bold text-texto-app">
+                  {ab.cuenta.cliente.nombre}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs text-texto-muted/60">
+                  {ab.cuenta.concepto}
+                </span>
+                <span className="text-xs text-texto-muted/45">
+                  {formatHora(ab.createdAt)}
+                </span>
+                <span
+                  className={
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
+                    (CHIP_METODO[ab.metodo] ??
+                      "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
+                  }
+                >
+                  {METODO_TXT[ab.metodo] ?? ab.metodo}
+                </span>
+                <span className="text-sm font-bold tabular-nums text-violeta-text">
+                  {formatCOP(ab.monto)}
+                </span>
+              </div>
             ))}
           </div>
         </>
