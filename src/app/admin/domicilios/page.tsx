@@ -24,11 +24,14 @@ export default async function PaginaDomicilios() {
   const [pendientes, cobrosDeHoy] = await Promise.all([
     db.domicilio.findMany({
       where: {
-        // Sin pago registrado, sin estar cancelado y con comanda viva:
-        // en cobradoMonto se guarda el total congelado del cobro.
+        // Sin pago registrado, sin estar cancelado ni fiado (los fiados van
+        // con abonos en «Cuentas por cobrar»), y con comanda viva: en
+        // cobradoMonto se guarda el total congelado del cobro.
         cobradoMonto: null,
-        estado: { not: ESTADO_DOMICILIO.CANCELADO },
-        pedido: { estado: { not: ESTADO_PEDIDO.CANCELADO } },
+        estado: { notIn: [ESTADO_DOMICILIO.CANCELADO, ESTADO_DOMICILIO.FIADO] },
+        pedido: {
+          estado: { notIn: [ESTADO_PEDIDO.CANCELADO, ESTADO_PEDIDO.FIADO] },
+        },
       },
       include: {
         pedido: { include: { items: { include: { producto: true } } } },
@@ -60,6 +63,8 @@ export default async function PaginaDomicilios() {
       /** Estado de la comanda: para saber si la cocina ya la tiene lista */
       pedidoEstado: d.pedido.estado,
       cliente: d.cliente,
+      /** Ficha del historial (Clientes): destino de la deuda si se fió */
+      clienteId: d.clienteId,
       telefono: d.telefono,
       direccion: d.direccion,
       barrio: d.barrio,

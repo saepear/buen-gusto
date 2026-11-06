@@ -51,6 +51,8 @@ export type DomicilioVista = {
   /** Estado de la comanda: para saber si la cocina la tiene lista */
   pedidoEstado: string;
   cliente: string;
+  /** Ficha del historial (Clientes): destino de la deuda si se fió */
+  clienteId: number | null;
   telefono: string;
   direccion: string;
   barrio: string | null;
@@ -355,6 +357,11 @@ function DetalleYcobro({
           <PanelCobroDomicilio
             domicilioId={domicilio.id}
             total={domicilio.total}
+            fichaCliente={
+              domicilio.clienteId
+                ? { id: domicilio.clienteId, nombre: domicilio.cliente }
+                : null
+            }
           />
         </div>
       </div>

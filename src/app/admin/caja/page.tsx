@@ -273,6 +273,11 @@ export default async function PaginaCaja(
             <PanelCobroDomicilio
               domicilioId={domicilioCobro.id}
               total={totalDomicilio}
+              fichaCliente={
+                domicilioCobro.clienteId
+                  ? { id: domicilioCobro.clienteId, nombre: domicilioCobro.cliente }
+                  : null
+              }
             />
           </div>
         </section>

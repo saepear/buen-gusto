@@ -100,6 +100,9 @@ export const ESTADO_DOMICILIO = {
   // escribe en el flujo nuevo (el cobro es el único paso siguiente), pero
   // los registros viejos de la BD siguen mostrándose con él.
   ENTREGADO: "ENTREGADO",
+  // La comanda se fió: nació CuentaPorCobrar. Sale del tablero (su recaudo
+  // entra con los abonos en «Cuentas por cobrar»), queda en el historial.
+  FIADO: "FIADO",
   CANCELADO: "CANCELADO",
 } as const;
 // Los estados ASIGNADO / EN_CAMINO / NO_ENTREGADO del seguimiento de
@@ -111,6 +114,7 @@ export type EstadoDomicilio = keyof typeof ESTADO_DOMICILIO;
 export const ESTADO_DOMICILIO_LABEL: Record<EstadoDomicilio, string> = {
   PENDIENTE: "Pendiente de cobro",
   ENTREGADO: "Entregado",
+  FIADO: "Fiada (deuda por cobrar)",
   CANCELADO: "Cancelado",
 };
 

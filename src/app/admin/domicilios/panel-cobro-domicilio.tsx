@@ -5,11 +5,17 @@ import {
   CreditCard,
   HandCoins,
   Landmark,
+  NotebookPen,
+  UserRound,
   Wallet,
 } from "lucide-react";
 import { useActionState, useState } from "react";
 import { formatCOP } from "@/lib/format";
-import { cobrarDomicilio, type EstadoAccionDomicilio } from "./actions";
+import {
+  cobrarDomicilio,
+  fiarDomicilio,
+  type EstadoAccionDomicilio,
+} from "./actions";
 
 const INICIAL: EstadoAccionDomicilio = { error: null, ok: null };
 
@@ -37,22 +43,36 @@ const BILLETES = [
  * El pago del domicilio: método de pago, propina y — solo en efectivo —
  * el billete con el que paga el cliente con sus vueltas en vivo. Al
  * confirmar, la acción del servidor manda directo a la factura imprimible.
+ * También puede qedar FIADO: nace la deuda (no entra a caja) o — si el
+ * cliente deja dinero ahora — entra ese abono y la deuda queda por el resto.
  * Vive a nivel del módulo de domicilios para que también la use la caja.
  */
 export function PanelCobroDomicilio({
   domicilioId,
   total,
+  fichaCliente = null,
 }: {
   domicilioId: number;
   total: number;
+  /** Ficha del cliente del domicilio: la deuda se va a su historial */
+  fichaCliente?: { id: number; nombre: string } | null;
 }) {
   const [estado, accion, pendiente] = useActionState<
     EstadoAccionDomicilio,
     FormData
   >(cobrarDomicilio, INICIAL);
+  const [estadoFiado, accionFiado, pendienteFiado] = useActionState<
+    EstadoAccionDomicilio,
+    FormData
+  >(fiarDomicilio, INICIAL);
+  const [modo, setModo] = useState<"cobrar" | "fiado">("cobrar");
   const [metodo, setMetodo] = useState<string>("EFECTIVO");
   const [propinaTxt, setPropinaTxt] = useState("");
   const [montoTxt, setMontoTxt] = useState("");
+  // Dinero que el cliente deja al fiar (abono parcial opcional)
+  const [abonoTxt, setAbonoTxt] = useState("");
+  const abonoNum =
+    Number.parseInt(abonoTxt.replace(/[^0-9]/g, ""), 10) || 0;
 
   const propinaNum = Number.parseInt(propinaTxt.replace(/[^0-9]/g, ""), 10) || 0;
   const aCobrar = total + propinaNum;
@@ -78,16 +98,69 @@ export function PanelCobroDomicilio({
         </div>
       </div>
 
-      <form action={accion} className="mt-4 space-y-3.5">
+      <form
+        action={modo === "cobrar" ? accion : accionFiado}
+        className="mt-4 space-y-3.5"
+      >
         <input type="hidden" name="domicilioId" value={domicilioId} />
         <input type="hidden" name="metodo" value={metodo} />
+        <input type="hidden" name="metodoAbono" value={metodo} />
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            aria-pressed={modo === "cobrar"}
+            onClick={() => setModo("cobrar")}
+            className={
+              "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition " +
+              (modo === "cobrar"
+                ? "bg-amber-brand text-brown-950"
+                : "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app hover:text-texto-app")
+            }
+          >
+            <Wallet className="h-4 w-4" /> Pagar ahora
+          </button>
+          <button
+            type="button"
+            aria-pressed={modo === "fiado"}
+            onClick={() => setModo("fiado")}
+            className={
+              "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition " +
+              (modo === "fiado"
+                ? "bg-violeta-text text-white"
+                : "bg-panel-app text-violeta-text ring-1 ring-violeta-text/30 hover:bg-violeta-text/10")
+            }
+          >
+            <NotebookPen className="h-4 w-4" /> Fiado (deuda)
+          </button>
+        </div>
 
         {estado.error ? (
-          <p className="rounded-xl border-2 border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm font-bold text-danger-text">
+          <p
+            aria-live="polite"
+            className="rounded-xl border-2 border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm font-bold text-danger-text"
+          >
             {estado.error}
           </p>
         ) : null}
+        {estadoFiado.error ? (
+          <p
+            aria-live="polite"
+            className="rounded-xl border-2 border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm font-bold text-danger-text"
+          >
+            {estadoFiado.error}
+          </p>
+        ) : estadoFiado.ok ? (
+          <p
+            aria-live="polite"
+            className="rounded-xl border-2 border-success/30 bg-success/10 px-3.5 py-2.5 text-sm font-bold text-success-text"
+          >
+            {estadoFiado.ok}
+          </p>
+        ) : null}
 
+        {modo === "cobrar" ? (
+          <>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
             Método de pago
@@ -236,6 +309,92 @@ export function PanelCobroDomicilio({
           <Wallet className="h-5 w-5" />
           {pendiente ? "Cobrando…" : `Cobrar ${formatCOP(aCobrar)}`}
         </button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-texto-muted/60">
+              La comanda queda{" "}
+              <b className="text-violeta-text">fiada</b>: nace la deuda de{" "}
+              <b className="text-texto-app">{fichaCliente?.nombre ?? "el cliente"}</b>{" "}
+              y no suma a caja. El recaudo entra el día que abonen.
+            </p>
+
+            {fichaCliente?.id ? (
+              <input type="hidden" name="clienteId" value={fichaCliente.id} />
+            ) : null}
+            {!fichaCliente ? (
+              <p className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-xs font-bold text-warning-text ring-1 ring-warning/25">
+                Este domicilio no tiene ficha de cliente: no se puede fiar.
+                Regístrala en «Clientes» y vuelve a intentarlo.
+              </p>
+            ) : null}
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+                Dinero que deja ahora (opcional)
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <input
+                  name="abonoAhora"
+                  value={abonoTxt}
+                  onChange={(e) => setAbonoTxt(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="Abono parcial…"
+                  aria-label="Dinero que el cliente entrega al fiar"
+                  className="w-36 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-amber-brand/60 placeholder:text-texto-muted/25"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAbonoTxt("")}
+                  className="rounded-full bg-panel-app px-3 py-1.5 text-xs font-bold text-texto-muted/60 ring-1 ring-borde-app transition hover:text-texto-app"
+                >
+                  Nada
+                </button>
+              </div>
+              {abonoNum > 0 && abonoNum < total ? (
+                <p
+                  aria-live="polite"
+                  className="mt-1.5 flex items-baseline justify-between rounded-xl bg-success/10 px-3.5 py-2 text-xs font-bold ring-1 ring-success/25"
+                >
+                  <span className="text-success-text">
+                    Deja {formatCOP(abonoNum)} (entra a caja)
+                  </span>
+                  <span className="text-warning-text">
+                    Fiado por {formatCOP(total - abonoNum)}
+                  </span>
+                </p>
+              ) : abonoNum >= total ? (
+                <p
+                  aria-live="assertive"
+                  className="mt-1.5 rounded-xl bg-danger/10 px-3.5 py-2 text-xs font-bold text-danger-text ring-1 ring-danger/25"
+                >
+                  Con {formatCOP(abonoNum)} alcanza para pagar el domicilio
+                  completo: usa «Pagar ahora».
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-texto-muted/50">
+                  Vacío = la deuda nace por el total del domicilio.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={pendienteFiado || !fichaCliente || abonoNum >= total}
+              className={
+                "flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-lg transition " +
+                (pendienteFiado || !fichaCliente || abonoNum >= total
+                  ? "cursor-not-allowed bg-panel-app text-texto-muted/50"
+                  : "bg-violeta-text text-white hover:bg-violeta-text/85")
+              }
+            >
+              <NotebookPen className="h-5 w-5" />
+              {pendienteFiado
+                ? "Fianado…"
+                : `Fiado ${formatCOP(Math.max(0, total - abonoNum))}`}
+            </button>
+          </>
+        )}
       </form>
     </section>
   );
