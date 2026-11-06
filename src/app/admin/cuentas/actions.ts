@@ -7,6 +7,7 @@ import { precioUnitarioItem } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_CUENTA, ESTADO_PEDIDO } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { crearCuentaFiadaTx, type ItemDePedidoParaFoto } from "@/lib/fiados";
 
 export type EstadoAccionCuenta = { error: string | null; ok: string | null };
 
@@ -180,6 +181,12 @@ export async function crearCuenta(
         ok: null,
       };
     }
+    if (estado === ESTADO_PEDIDO.FIADO) {
+      return {
+        error: `El pedido #${pedidoId} ya se fió: su cobro se lleva en «Cuentas por cobrar» con abonos, no se vuelve a fiar.`,
+        ok: null,
+      };
+    }
     if (!ESTADOS_FIABLES.includes(estado as never)) {
       return {
         error: `El pedido #${pedidoId} sigue ${estado} (no servido): espera a que esté listo o fía el pedido desde su comanda.`,
@@ -198,14 +205,37 @@ export async function crearCuenta(
     }
   }
 
-  await db.cuentaPorCobrar.create({
-    data: {
+  // El desglose de artículos: si hay pedido de origen, la deuda se lleva la
+  // FOTO de sus líneas con dinero (lib/fiados.ts es la única vía).
+  let items: ItemDePedidoParaFoto[] = [];
+  if (pedidoId !== null) {
+    items = await db.pedidoItem.findMany({
+      where: { pedidoId },
+      select: {
+        id: true,
+        pedidoId: true,
+        productoId: true,
+        producto: { select: { nombre: true, precio: true } },
+        productoNombre: true,
+        tipo: true,
+        cantidad: true,
+        precio: true,
+        conSopa: true,
+        nota: true,
+        grupo: true,
+      },
+    });
+  }
+
+  await db.$transaction(async (tx) => {
+    await crearCuentaFiadaTx(tx, {
       clienteId,
       concepto,
       valorOriginal,
       pedidoId,
       createdById: adminId,
-    },
+      items,
+    });
   });
 
   revalidar();
