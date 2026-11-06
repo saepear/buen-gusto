@@ -1,13 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/format";
-import { precioUnitarioItem } from "@/lib/precios";
-import { ES_METODO_PAGO, ESTADO_CUENTA, ESTADO_PEDIDO } from "@/lib/roles";
+import { nombreDeItem, precioUnitarioItem } from "@/lib/precios";
+import {
+  ES_METODO_PAGO,
+  ESTADO_CUENTA,
+  ESTADO_DOMICILIO,
+  ESTADO_MESA,
+  ESTADO_PEDIDO,
+} from "@/lib/roles";
+import { ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
-import { crearCuentaFiadaTx, type ItemDePedidoParaFoto } from "@/lib/fiados";
 
 export type EstadoAccionCuenta = { error: string | null; ok: string | null };
 
@@ -26,6 +33,8 @@ function parseMonto(crudo: unknown): number | null {
 function revalidar() {
   revalidatePath("/admin", "layout");
   revalidatePath("/admin/cuentas", "layout");
+  revalidatePath("/mesero", "layout");
+  revalidatePath("/ordenes", "layout");
   realtime.broadcast("update");
 }
 
@@ -35,6 +44,226 @@ const ESTADOS_FIABLES = [
   ESTADO_PEDIDO.SERVIDO,
   ESTADO_PEDIDO.POR_PAGAR,
 ];
+
+/** Una línea CON dinero de la comanda, con lo que ya quedó fiado */
+export type LineaFiable = {
+  pedidoItemId: number;
+  productoId: number | null;
+  nombre: string;
+  tipo: string;
+  grupo: number;
+  cantidad: number;
+  yaFiadas: number;
+  disponibles: number;
+  precio: number;
+  subtotal: number;
+  conSopa: boolean | null;
+  nota: string | null;
+};
+
+/** Resumen de un pedido que aún puede fiar saldo */
+export type OrdenFiable = {
+  pedidoId: number;
+  tipoOrigen: string;
+  cliente: string | null;
+  fecha: string;
+  total: number;
+  cobrado: number;
+  ligado: number;
+  pendiente: number;
+};
+
+/** Desglose completo de un pedido para el formulario de fiado */
+export type DesglosePedido = {
+  pedidoId: number;
+  tipoOrigen: string;
+  cliente: string | null;
+  total: number;
+  cobrado: number;
+  ligado: number;
+  pendiente: number;
+  lineas: LineaFiable[];
+};
+
+/** Cómo se originó un pedido (etiqueta legible para el selector) */
+function tipoDePedido(p: {
+  paraLlevar: boolean;
+  mesa: { nombre: string; esDomicilio: boolean; esApartado: boolean };
+  domicilio: unknown | null;
+  apartado: unknown | null;
+}): string {
+  if (p.domicilio) return "Domicilio";
+  if (p.apartado) return "Apartado entregado";
+  if (p.mesa.esDomicilio) return "Domicilio";
+  if (p.mesa.esApartado) return "Apartado entregado";
+  if (p.paraLlevar) return "Para llevar";
+  return `Mesa ${p.mesa.nombre}`;
+}
+
+/** Dinero pendiente de un pedido, calculado DENTRO de la transacción */
+async function pendienteDelPedidoTx(
+  tx: Prisma.TransactionClient,
+  pedidoId: number,
+): Promise<{ valorPedido: number; cobrado: number; ligado: number; pendiente: number }> {
+  const items = await tx.pedidoItem.findMany({
+    where: { pedidoId },
+    select: { cantidad: true, precio: true, producto: { select: { precio: true } } },
+  });
+  const valorPedido = items.reduce(
+    (s, i) => s + precioUnitarioItem(i) * i.cantidad,
+    0,
+  );
+  const pagos = await tx.pago.aggregate({
+    where: { pedidoId },
+    _sum: { total: true, propina: true },
+  });
+  const cobrado = (pagos._sum.total ?? 0) + (pagos._sum.propina ?? 0);
+  const cuentas = await tx.cuentaPorCobrar.findMany({
+    where: { pedidoId, estado: { not: ESTADO_CUENTA.ANULADA } },
+    select: { estado: true, valorOriginal: true, pagado: true, saldoCondonado: true },
+  });
+  const vivas = cuentas.filter(
+    (c) =>
+      c.estado === ESTADO_CUENTA.PENDIENTE || c.estado === ESTADO_CUENTA.CONDONADA,
+  );
+  const ligado =
+    vivas.reduce((s, c) => s + c.pagado, 0) +
+    vivas
+      .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
+      .reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado), 0);
+  return {
+    valorPedido,
+    cobrado,
+    ligado,
+    pendiente: Math.max(0, valorPedido - cobrado - ligado),
+  };
+}
+
+/** Líneas con dinero del pedido y cuántas unidades siguen libres de fiado */
+async function lineasFiablesDePedido(
+  tx: Prisma.TransactionClient,
+  pedidoId: number,
+): Promise<{ lineas: LineaFiable[]; total: number }> {
+  const items = await tx.pedidoItem.findMany({
+    where: { pedidoId },
+    orderBy: [{ grupo: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      productoId: true,
+      productoNombre: true,
+      tipo: true,
+      cantidad: true,
+      precio: true,
+      conSopa: true,
+      nota: true,
+      grupo: true,
+      producto: { select: { nombre: true, precio: true } },
+    },
+  });
+  const fiadas = await tx.cuentaPorCobrarItem.groupBy({
+    by: ["pedidoItemId"],
+    where: {
+      cuenta: { pedidoId, estado: { not: ESTADO_CUENTA.ANULADA } },
+    },
+    _sum: { cantidad: true },
+  });
+  const mapa = new Map<number, number>();
+  for (const f of fiadas) {
+    if (f.pedidoItemId !== null) mapa.set(f.pedidoItemId, f._sum.cantidad ?? 0);
+  }
+  const lineas: LineaFiable[] = [];
+  for (const i of items) {
+    const precio = precioUnitarioItem(i);
+    // Los componentes incluidos en el plato (precio 0) no se cobran aparte
+    if (precio <= 0) continue;
+    const yaFiadas = mapa.get(i.id) ?? 0;
+    lineas.push({
+      pedidoItemId: i.id,
+      productoId: i.productoId,
+      nombre: nombreDeItem(i),
+      tipo: i.tipo,
+      grupo: i.grupo,
+      cantidad: i.cantidad,
+      yaFiadas,
+      disponibles: Math.max(0, i.cantidad - yaFiadas),
+      precio,
+      subtotal: precio * i.cantidad,
+      conSopa: i.conSopa,
+      nota: i.nota,
+    });
+  }
+  return { lineas, total: lineas.reduce((s, l) => s + l.subtotal, 0) };
+}
+
+/** Pedidos que aún tienen saldo por fiar, con su resumen (selector del form) */
+export async function listarPedidosFiables(): Promise<OrdenFiable[]> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return [];
+  }
+  const pedidos = await db.pedido.findMany({
+    where: { estado: { in: ESTADOS_FIABLES } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      mesa: { select: { nombre: true, esDomicilio: true, esApartado: true } },
+      domicilio: { select: { cliente: true } },
+      apartado: { select: { cliente: { select: { nombre: true } } } },
+    },
+  });
+  const salida: OrdenFiable[] = [];
+  for (const p of pedidos) {
+    const r = await pendienteRealDelPedido(p.id);
+    if (!r.existe || (r.pendiente ?? 0) <= 0) continue;
+    salida.push({
+      pedidoId: p.id,
+      tipoOrigen: tipoDePedido(p),
+      cliente: p.domicilio?.cliente ?? p.apartado?.cliente?.nombre ?? null,
+      fecha: p.createdAt.toISOString(),
+      total: r.valorPedido ?? 0,
+      cobrado: r.cobrado ?? 0,
+      ligado: r.ligado ?? 0,
+      pendiente: r.pendiente ?? 0,
+    });
+  }
+  return salida;
+}
+
+/** Desglose real de un pedido (artículos, precios congelados y ya fiado) */
+export async function desglosePedidoCuenta(
+  pedidoId: number,
+): Promise<DesglosePedido | null> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return null;
+  }
+  const id = Number.parseInt(String(pedidoId ?? ""), 10);
+  if (!Number.isInteger(id)) return null;
+  const pedido = await db.pedido.findUnique({
+    where: { id },
+    include: {
+      mesa: { select: { nombre: true, esDomicilio: true, esApartado: true } },
+      domicilio: { select: { cliente: true } },
+      apartado: { select: { cliente: { select: { nombre: true } } } },
+    },
+  });
+  if (!pedido) return null;
+  const r = await pendienteRealDelPedido(id);
+  if (!r.existe) return null;
+  const { lineas } = await lineasFiablesDePedido(db, id);
+  return {
+    pedidoId: id,
+    tipoOrigen: tipoDePedido(pedido),
+    cliente: pedido.domicilio?.cliente ?? pedido.apartado?.cliente?.nombre ?? null,
+    total: r.valorPedido ?? 0,
+    cobrado: r.cobrado ?? 0,
+    ligado: r.ligado ?? 0,
+    pendiente: r.pendiente ?? 0,
+    lineas,
+  };
+}
 
 /** Dinero NO pagado de un pedido: subtotal de las líneas (precios
  *  congelados) minus lo cobrado en caja, minus el saldo que ya quedó
@@ -53,19 +282,10 @@ async function pendienteRealDelPedido(pedidoId: number): Promise<{
     select: { estado: true },
   });
   if (!pedido) return { existe: false };
-  const items = await db.pedidoItem.findMany({
-    where: { pedidoId },
-    select: { cantidad: true, precio: true, producto: { select: { precio: true } } },
-  });
-  const valorPedido = items.reduce(
-    (s, i) => s + precioUnitarioItem(i) * i.cantidad,
-    0,
+  const { valorPedido, cobrado, ligado, pendiente } = await pendienteDelPedidoTx(
+    db,
+    pedidoId,
   );
-  const pagos = await db.pago.aggregate({
-    where: { pedidoId },
-    _sum: { total: true, propina: true },
-  });
-  const cobrado = (pagos._sum.total ?? 0) + (pagos._sum.propina ?? 0);
   const cuentas = await db.cuentaPorCobrar.findMany({
     where: {
       pedidoId,
@@ -80,23 +300,13 @@ async function pendienteRealDelPedido(pedidoId: number): Promise<{
       saldoCondonado: true,
     },
   });
-  // Dinero ya comprometido con OTRAS deudas del mismo pedido (no la nueva):
-  // el abonado sí es real, y el saldo pendiente de esas cuentas también
-  const otrasVivas = cuentas.filter(
-    (c) => c.estado === ESTADO_CUENTA.PENDIENTE || c.estado === ESTADO_CUENTA.CONDONADA,
-  );
-  const ligado =
-    otrasVivas.reduce((s, c) => s + c.pagado, 0) + // abonos recibidos
-    otrasVivas
-      .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
-      .reduce((s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado), 0);
   return {
     existe: true,
     estado: pedido.estado,
     valorPedido,
     cobrado,
     ligado,
-    pendiente: Math.max(0, valorPedido - cobrado - ligado),
+    pendiente,
     cuentas: cuentas.map((c) => ({
       id: c.id,
       concepto: c.concepto,
@@ -106,22 +316,6 @@ async function pendienteRealDelPedido(pedidoId: number): Promise<{
       saldo: Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
     })),
   };
-}
-
-/** Resumen en vivo de un pedido para el formulario de deuda (admin) */
-export async function resumenPedidoCuenta(pedidoId: number) {
-  try {
-    await exigirAdmin();
-  } catch {
-    return null;
-  }
-  const id = Number.parseInt(String(pedidoId ?? ""), 10);
-  if (!Number.isInteger(id)) return { existe: false as const };
-  const r = await pendienteRealDelPedido(id);
-  if (r.existe) {
-    return { ...r, existe: true as const };
-  }
-  return { existe: false as const };
 }
 
 /**
@@ -148,14 +342,47 @@ export async function crearCuenta(
   if (concepto.length < 3) {
     return { error: "Escribe el concepto de la deuda (qué fue).", ok: null };
   }
-  const valorOriginal = parseMonto(datos.get("valorOriginal"));
-  if (valorOriginal === null || valorOriginal > 50_000_000) {
-    return { error: "Escribe el monto válido que debe.", ok: null };
-  }
-  // Origen opcional: el id del pedido (también sirve el de un domicilio,
-  // que es un pedido sobre la mesa virtual) para la trazabilidad.
+  // Origen opcional: una comanda existente, O una deuda manual sin pedido.
   const pedidoIdCrudo = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
   const pedidoId = Number.isInteger(pedidoIdCrudo) ? pedidoIdCrudo : null;
+
+  // Selección explícita de artículos (solo cuando hay pedido de origen):
+  // el navegador manda [{pedidoItemId, cantidad}]; el servidor lo revalida.
+  let seleccion: { pedidoItemId: number; cantidad: number }[] | null = null;
+  const lineasCrudas = String(datos.get("lineas") ?? "").trim();
+  if (lineasCrudas) {
+    try {
+      const parsed: unknown = JSON.parse(lineasCrudas);
+      if (!Array.isArray(parsed)) {
+        return { error: "La selección de artículos no es válida.", ok: null };
+      }
+      seleccion = parsed.map((x) => {
+        const o = x as Record<string, unknown>;
+        return {
+          pedidoItemId: Number(o?.pedidoItemId),
+          cantidad: Number(o?.cantidad),
+        };
+      });
+    } catch {
+      return {
+        error: "La selección de artículos está corrupta. Recarga la página.",
+        ok: null,
+      };
+    }
+  }
+
+  // Deuda manual: monto digitado. Con pedido: el importe lo calcula el
+  // servidor a partir de los artículos elegidos (nunca el navegador).
+  const valorManual = pedidoId === null ? parseMonto(datos.get("valorOriginal")) : 0;
+  if (pedidoId === null && (valorManual === null || valorManual > 50_000_000)) {
+    return { error: "Escribe el monto válido que debe.", ok: null };
+  }
+  if (pedidoId !== null && (!seleccion || seleccion.length === 0)) {
+    return {
+      error: "Selecciona los artículos del pedido que quedan fiados.",
+      ok: null,
+    };
+  }
 
   const cliente = await db.cliente.findUnique({
     where: { id: clienteId },
@@ -163,85 +390,175 @@ export async function crearCuenta(
   });
   if (!cliente) return { error: "Ese cliente ya no existe.", ok: null };
 
-  // Validación estricta del pedido de origen: existencia, estado vivo de
-  // cobro y que la deuda NO duplique dinero ya cobrado ni supere el saldo
-  // realmente pendiente del pedido.
-  if (pedidoId !== null) {
-    const r = await pendienteRealDelPedido(pedidoId);
-    if (!r.existe) {
-      return { error: `El pedido #${pedidoId} no existe. Revisa el número.`, ok: null };
-    }
-    const estado = r.estado ?? "";
-    if (estado === ESTADO_PEDIDO.CANCELADO) {
-      return { error: `El pedido #${pedidoId} está CANCELADO: no se fía.`, ok: null };
-    }
-    if (estado === ESTADO_PEDIDO.COBRADO) {
-      return {
-        error: `El pedido #${pedidoId} ya está COBRADO: todo su dinero entró a caja.`,
-        ok: null,
-      };
-    }
-    if (estado === ESTADO_PEDIDO.FIADO) {
-      return {
-        error: `El pedido #${pedidoId} ya se fió: su cobro se lleva en «Cuentas por cobrar» con abonos, no se vuelve a fiar.`,
-        ok: null,
-      };
-    }
-    if (!ESTADOS_FIABLES.includes(estado as never)) {
-      return {
-        error: `El pedido #${pedidoId} sigue ${estado} (no servido): espera a que esté listo o fía el pedido desde su comanda.`,
-        ok: null,
-      };
-    }
-    const pendiente = r.pendiente ?? 0;
-    if (valorOriginal > pendiente) {
-      return {
-        error:
-          `El pedido #${pedidoId} vale ${formatCOP(r.valorPedido ?? 0)}, ya cobró ` +
-          `${formatCOP(r.cobrado ?? 0)} y tiene ${formatCOP(r.ligado ?? 0)} ligado a otras deudas: ` +
-          `solo queda ${formatCOP(pendiente)} por fiar.`,
-        ok: null,
-      };
-    }
-  }
+  let resultado: { valor: number; fiadoCompleto: boolean };
+  try {
+    resultado = await db.$transaction(async (tx) => {
+      let valor: number;
+      const itemsSeleccionados: { line: LineaFiable; cantidad: number }[] = [];
+      let mesa: { id: number; esDomicilio: boolean; esApartado: boolean } | null = null;
 
-  // El desglose de artículos: si hay pedido de origen, la deuda se lleva la
-  // FOTO de sus líneas con dinero (lib/fiados.ts es la única vía).
-  let items: ItemDePedidoParaFoto[] = [];
-  if (pedidoId !== null) {
-    items = await db.pedidoItem.findMany({
-      where: { pedidoId },
-      select: {
-        id: true,
-        pedidoId: true,
-        productoId: true,
-        producto: { select: { nombre: true, precio: true } },
-        productoNombre: true,
-        tipo: true,
-        cantidad: true,
-        precio: true,
-        conSopa: true,
-        nota: true,
-        grupo: true,
-      },
-    });
-  }
+      if (pedidoId !== null) {
+        const pedido = await tx.pedido.findUnique({
+          where: { id: pedidoId },
+          select: {
+            estado: true,
+            mesaId: true,
+            mesa: { select: { id: true, esDomicilio: true, esApartado: true } },
+          },
+        });
+        if (!pedido) {
+          throw new ErrorDeCuenta(`El pedido #${pedidoId} no existe.`);
+        }
+        const estado = pedido.estado;
+        if (estado === ESTADO_PEDIDO.CANCELADO) {
+          throw new ErrorDeCuenta(`El pedido #${pedidoId} está CANCELADO: no se fía.`);
+        }
+        if (estado === ESTADO_PEDIDO.COBRADO) {
+          throw new ErrorDeCuenta(
+            `El pedido #${pedidoId} ya está COBRADO: todo su dinero entró a caja.`,
+          );
+        }
+        if (estado === ESTADO_PEDIDO.FIADO) {
+          throw new ErrorDeCuenta(
+            `El pedido #${pedidoId} ya se fió: su cobro se lleva en «Cuentas por cobrar» con abonos.`,
+          );
+        }
+        if (!ESTADOS_FIABLES.includes(estado as never)) {
+          throw new ErrorDeCuenta(
+            `El pedido #${pedidoId} sigue ${estado} (no servido): espera a que esté listo para fiar.`,
+          );
+        }
 
-  await db.$transaction(async (tx) => {
-    await crearCuentaFiadaTx(tx, {
-      clienteId,
-      concepto,
-      valorOriginal,
-      pedidoId,
-      createdById: adminId,
-      items,
+        // Re-lectura DENTRO de la transacción: nada de lo enviado por el
+        // navegador (precios, disponibles ni total) se toma como cierto.
+        const { lineas } = await lineasFiablesDePedido(tx, pedidoId);
+        const porId = new Map(lineas.map((l) => [l.pedidoItemId, l]));
+        const vistos = new Set<number>();
+        let suma = 0;
+        for (const s of seleccion!) {
+          const item = porId.get(s.pedidoItemId);
+          if (!item) {
+            throw new ErrorDeCuenta(
+              "Uno de los artículos no pertenece a ese pedido. Recarga la página.",
+            );
+          }
+          if (!Number.isInteger(s.cantidad) || s.cantidad < 1) {
+            throw new ErrorDeCuenta(
+              `La cantidad fiada de «${item.nombre}» no es válida.`,
+            );
+          }
+          if (vistos.has(s.pedidoItemId)) {
+            throw new ErrorDeCuenta("El mismo artículo aparece dos veces en el fiado.");
+          }
+          vistos.add(s.pedidoItemId);
+          if (s.cantidad > item.disponibles) {
+            throw new ErrorDeCuenta(
+              `De «${item.nombre}» solo quedan ${item.disponibles} unidad(es) por fiar: ` +
+                `${item.yaFiadas} ya se comprometieron en otra deuda.`,
+            );
+          }
+          suma += item.precio * s.cantidad;
+          itemsSeleccionados.push({ line: item, cantidad: s.cantidad });
+        }
+        if (itemsSeleccionados.length === 0) {
+          throw new ErrorDeCuenta("Selecciona al menos un artículo para fiar.");
+        }
+        const pend = await pendienteDelPedidoTx(tx, pedidoId);
+        if (suma > pend.pendiente) {
+          throw new ErrorDeCuenta(
+            `El pedido #${pedidoId} solo tiene ${formatCOP(pend.pendiente)} pendientes: ` +
+              `la selección vale ${formatCOP(suma)}.`,
+          );
+        }
+        valor = suma;
+        mesa = pedido.mesa;
+      } else {
+        valor = valorManual!;
+      }
+
+      const cuenta = await tx.cuentaPorCobrar.create({
+        data: {
+          clienteId,
+          concepto,
+          valorOriginal: valor,
+          pedidoId,
+          createdById: adminId,
+        },
+        select: { id: true },
+      });
+
+      // La foto de SOLO los artículos elegidos, con su cantidad y precio
+      // congelados (el desglose sobrevive a borrar el producto o la comanda).
+      if (itemsSeleccionados.length > 0) {
+        await tx.cuentaPorCobrarItem.createMany({
+          data: itemsSeleccionados.map(({ line, cantidad }) => ({
+            cuentaId: cuenta.id,
+            pedidoItemId: line.pedidoItemId,
+            productoId: line.productoId,
+            grupo: line.grupo,
+            tipo: line.tipo,
+            nombre: line.nombre,
+            cantidad,
+            precio: line.precio,
+            conSopa: line.conSopa,
+            nota: line.nota,
+          })),
+        });
+      }
+
+      // Si el fiado cubre TODO lo que faltaba, la comanda sale de las colas
+      // de cobro y queda FIADA (y el domicilio también). Un fiado parcial
+      // deja el pedido vivo con su saldo restante (nunca se oculta).
+      let fiadoCompleto = false;
+      if (pedidoId !== null) {
+        const despues = await pendienteDelPedidoTx(tx, pedidoId);
+        if (despues.pendiente <= 0) {
+          fiadoCompleto = true;
+          await tx.pedido.update({
+            where: { id: pedidoId },
+            data: { estado: ESTADO_PEDIDO.FIADO },
+          });
+          await tx.domicilio.updateMany({
+            where: { pedidoId },
+            data: { estado: ESTADO_DOMICILIO.FIADO },
+          });
+          // La mesa se libera solo si no le quedan otras comandas activas
+          if (mesa && !mesa.esDomicilio && !mesa.esApartado) {
+            const otros = await tx.pedido.count({
+              where: {
+                mesaId: mesa.id,
+                id: { not: pedidoId },
+                estado: { in: ESTADOS_ACTIVOS_PEDIDO },
+              },
+            });
+            if (otros === 0) {
+              await tx.mesa.update({
+                where: { id: mesa.id },
+                data: { estado: ESTADO_MESA.LIBRE },
+              });
+            }
+          }
+        }
+      }
+
+      return { valor, fiadoCompleto };
     });
-  });
+  } catch (e) {
+    if (e instanceof ErrorDeCuenta) return { error: e.message, ok: null };
+    return { error: "No se pudo registrar la deuda. Intenta otra vez.", ok: null };
+  }
 
   revalidar();
   return {
     error: null,
-    ok: `Deuda de ${formatCOP(valorOriginal)} registrada para ${cliente.nombre}. No suma a la caja: entra cuando pague.`,
+    ok:
+      `Deuda de ${formatCOP(resultado.valor)} registrada para ${cliente.nombre}. ` +
+      "No suma a la caja: entra cuando pague." +
+      (resultado.fiadoCompleto
+        ? " El pedido quedó FIADO y salió de las colas de cobro."
+        : pedidoId !== null
+          ? " El pedido conserva el saldo que aún falta cobrar."
+          : ""),
   };
 }
 

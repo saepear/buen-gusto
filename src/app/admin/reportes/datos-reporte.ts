@@ -61,6 +61,15 @@ export type FilaAbonoReporte = {
   nota: string | null;
 };
 
+/** Una línea del desglose fiado (foto congelada, no se recalcula) */
+export type LineaFiadoReporte = {
+  nombre: string;
+  cantidad: number;
+  precio: number;
+  conSopa: boolean | null;
+  nota: string | null;
+};
+
 /** Deuda (cuenta por cobrar) creada en el día (promesa de pago, no ingreso) */
 export type FilaCuentaReporte = {
   id: number;
@@ -70,6 +79,10 @@ export type FilaCuentaReporte = {
   concepto: string;
   valorOriginal: number;
   pedidoId: number | null;
+  /** "Deuda manual" o el origen real de la comanda (domicilio, mesa, apartado…) */
+  origenTipo: string;
+  /** Artículos fiados con su cantidad y precio congelados */
+  items: LineaFiadoReporte[];
   creadoPor: string;
   /** Estado de la ficha al momento del reporte (p. ej. anulada por error) */
   estadoLabel: string;
@@ -195,10 +208,14 @@ export async function datosReporte(fechaFila: Date) {
       include: { cuenta: { include: { cliente: true } }, registradoPor: true },
       orderBy: { createdAt: "asc" },
     }),
-    // Deudas creadas HOY (promesas: no tocan la caja)
+    // Deudas creadas HOY (promesas: no tocan la caja) con su desglose
     db.cuentaPorCobrar.findMany({
       where: { createdAt: { gte: fechaFila, lt: hastaDia } },
-      include: { cliente: true, creadoPor: true },
+      include: {
+        cliente: true,
+        creadoPor: true,
+        items: { orderBy: { id: "asc" } },
+      },
       orderBy: { createdAt: "asc" },
     }),
     // Todo lo que sigue debiéndose AL MOMENTO de este reporte
@@ -433,6 +450,44 @@ export async function datosReporte(fechaFila: Date) {
     (s, c) => s + c.valorOriginal,
     0,
   );
+  // El origen real de cada fiado: el pedido de donde salió (domicilio, mesa,
+  // para llevar o apartado entregado). Sin pedido = deuda manual.
+  const idsPedidosFiados = [
+    ...new Set(
+      cuentasCreadasHoy
+        .map((c) => c.pedidoId)
+        .filter((x): x is number => x !== null),
+    ),
+  ];
+  const pedidosDeFiados =
+    idsPedidosFiados.length > 0
+      ? await db.pedido.findMany({
+          where: { id: { in: idsPedidosFiados } },
+          include: {
+            mesa: { select: { nombre: true, esDomicilio: true, esApartado: true } },
+            domicilio: { select: { id: true } },
+            apartado: { select: { id: true } },
+          },
+        })
+      : [];
+  const origenPorPedido = new Map<number, string>();
+  for (const p of pedidosDeFiados) {
+    origenPorPedido.set(
+      p.id,
+      p.domicilio
+        ? "Domicilio"
+        : p.apartado
+          ? "Apartado entregado"
+          : p.mesa.esDomicilio
+            ? "Domicilio"
+            : p.mesa.esApartado
+              ? "Apartado entregado"
+              : p.paraLlevar
+                ? "Para llevar"
+                : `Mesa ${p.mesa.nombre}`,
+    );
+  }
+
   const filasCuentasCreadas: FilaCuentaReporte[] = cuentasCreadasHoy.map((c) => ({
     id: c.id,
     hora: c.createdAt,
@@ -441,6 +496,17 @@ export async function datosReporte(fechaFila: Date) {
     concepto: c.concepto,
     valorOriginal: c.valorOriginal,
     pedidoId: c.pedidoId,
+    origenTipo:
+      c.pedidoId !== null
+        ? (origenPorPedido.get(c.pedidoId) ?? `Pedido #${c.pedidoId}`)
+        : "Deuda manual",
+    items: c.items.map((i) => ({
+      nombre: i.nombre,
+      cantidad: i.cantidad,
+      precio: i.precio,
+      conSopa: i.conSopa,
+      nota: i.nota,
+    })),
     creadoPor: c.creadoPor?.nombre ?? "—",
     estadoLabel:
       ESTADO_CUENTA_LABEL[c.estado as keyof typeof ESTADO_CUENTA_LABEL] ?? c.estado,

@@ -307,9 +307,11 @@ export async function crearApartado(
       : null;
   const horaEntrega = String(carga.horaEntrega ?? "").trim().slice(0, 30) || null;
   const horaMin = horaEntrega ? minutosDeHora(horaEntrega) : null;
-  // Modalidad de entrega: recoger Y llevar es el comportamiento de siempre
-  // (los apartados que ya existen nacieron así); «en mesa» lo pide el admin.
-  const paraLlevar = carga.paraLlevar !== false;
+  // Modalidad de entrega: por defecto se aparta para COMER EN MESA (precios
+  // de salón, sin empaque); el admin puede cambiarlo a recoger y llevar. El
+  // modo queda congelado con el apartado y manda sobre el precio de cada
+  // plato (nunca se confía en el total que mande el navegador).
+  const paraLlevar = carga.paraLlevar === true;
 
   // ── Preproceso las líneas: defiendo cada campo antes de tocar la base
   const lineas = Array.isArray(carga.lineas) ? carga.lineas.slice(0, 30) : [];

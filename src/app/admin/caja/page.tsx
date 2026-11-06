@@ -130,6 +130,7 @@ export default async function PaginaCaja(
       take: 10,
       include: {
         cliente: { select: { nombre: true, telefono: true } },
+        items: { orderBy: { id: "asc" } },
       },
     }),
     db.abonoCuenta.findMany({
@@ -438,7 +439,17 @@ export default async function PaginaCaja(
                   </span>
                   <span className="min-w-0 flex-1 truncate text-xs text-texto-muted/60">
                     {cuenta.concepto}
+                    <span className="ml-2 text-[11px] text-texto-muted/40">
+                      {formatHora(cuenta.createdAt)}
+                    </span>
                   </span>
+                  {cuenta.items.length > 0 ? (
+                    <span className="w-full truncate pl-7 text-[11px] text-texto-muted/50">
+                      {cuenta.items
+                        .map((i) => `${i.cantidad}× ${i.nombre}`)
+                        .join(" · ")}
+                    </span>
+                  ) : null}
                   <span
                     className={
                       "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +

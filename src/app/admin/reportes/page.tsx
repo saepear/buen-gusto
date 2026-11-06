@@ -71,6 +71,7 @@ export default async function PaginaReportes(
     numeroAbonos,
     filasAbonos,
     cuentasCreadasHoy,
+    filasCuentasCreadas,
     cxcCreadasCantidad,
     cxcCreadasValor,
     cuentasPendientesLista,
@@ -423,22 +424,27 @@ export default async function PaginaReportes(
                 ) : null}
               </div>
               <ul className="mt-3 space-y-1.5 text-sm">
-                {cuentasCreadasHoy.slice(0, 6).map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-panel-app px-3 py-2"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-texto-app">
-                        {c.cliente.nombre}
+                {filasCuentasCreadas.slice(0, 6).map((c) => (
+                  <li key={c.id} className="rounded-xl bg-panel-app px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-texto-app">
+                          {c.cliente}
+                        </span>
+                        <span className="block truncate text-[11px] text-texto-muted/50">
+                          {c.origenTipo}
+                          {c.pedidoId !== null ? ` #${c.pedidoId}` : ""} · {c.concepto}
+                        </span>
                       </span>
-                      <span className="block truncate text-[11px] text-texto-muted/50">
-                        {c.concepto}
-                      </span>
-                    </span>
-                    <strong className="shrink-0 text-danger-text">
-                      {formatCOP(c.valorOriginal)}
-                    </strong>
+                      <strong className="shrink-0 text-danger-text">
+                        {formatCOP(c.valorOriginal)}
+                      </strong>
+                    </div>
+                    {c.items.length > 0 ? (
+                      <p className="mt-1 text-[11px] text-texto-muted/60">
+                        {c.items.map((i) => `${i.cantidad}× ${i.nombre}`).join(" · ")}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

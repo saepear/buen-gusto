@@ -141,9 +141,9 @@ export function FormularioApartado({
 
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
-  // Cómo se entrega: recoger Y llevar (por defecto, como siempre) o servir
-  // en mesa del salón — cambia el precio congelado de cada plato
-  const [paraLlevar, setParaLlevar] = useState(true);
+  // Cómo se entrega: comer en mesa del salón (por defecto, lo habitual en
+  // un apartado) o recoger y llevar con empaque — cambia el precio congelado.
+  const [paraLlevar, setParaLlevar] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [extrasCant, setExtrasCant] = useState<Record<number, number>>({});
