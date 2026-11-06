@@ -162,16 +162,19 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                           "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider " +
                           (pedido.estado === "ENVIADO" ? "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20" :
                            pedido.estado === "SERVIDO" ? "bg-success/10 text-success-text ring-1 ring-success/20" :
+                           pedido.estado === "FIADO" ? "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/25" :
                            pedido.estado === "COBRADO" ? "bg-panel-app text-texto-muted/40" :
                            pedido.estado === "CANCELADO" ? "bg-danger/10 text-danger-text ring-1 ring-danger/20" :
                            "bg-panel-app text-texto-muted/60")
                         }>
-                          <span className={"h-1.5 w-1.5 rounded-full " + 
+                          <span className={"h-1.5 w-1.5 rounded-full " +
                             (pedido.estado === "ENVIADO" ? "bg-amber-brand" :
                              pedido.estado === "SERVIDO" ? "bg-success" :
+                             pedido.estado === "FIADO" ? "bg-violeta-text" :
                              pedido.estado === "CANCELADO" ? "bg-danger" : "bg-texto-muted/40")
                           }></span>
-                          {pedido.estado === "COBRADO" ? "Atendido" : 
+                          {pedido.estado === "COBRADO" ? "Atendido" :
+                           pedido.estado === "FIADO" ? "Fiada (deuda)" :
                            pedido.estado === "CANCELADO" ? "Cancelado" :
                            pedido.estado.replace("_", " ")}
                         </span>
