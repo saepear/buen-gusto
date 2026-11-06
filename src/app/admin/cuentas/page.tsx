@@ -159,6 +159,8 @@ export default async function PaginaCuentas(
           orderBy: { createdAt: "desc" },
           include: { registradoPor: true },
         },
+        // Desglose de artículos (la foto congelada al fiar)
+        items: { orderBy: { id: "asc" } },
       },
     }),
     db.cuentaPorCobrar.count({ where: donde }),
@@ -620,6 +622,46 @@ export default async function PaginaCuentas(
                     {cuenta.pedidoId ? ` · pedido #${cuenta.pedidoId}` : ""}
                   </span>
                 </div>
+
+                {cuenta.items.length > 0 ? (
+                  <details className="mt-2.5">
+                    <summary className="cursor-pointer text-xs font-bold text-violeta-text/80 transition hover:text-violeta-text">
+                      Se lleva {cuenta.items.length}{" "}
+                      {cuenta.items.length === 1 ? "artículo" : "artículos"} (la
+                      foto de lo que fió)
+                    </summary>
+                    <ul className="mt-2 space-y-1 rounded-xl bg-fondo-app px-3 py-2">
+                      {cuenta.items.map((linea) => (
+                        <li
+                          key={linea.id}
+                          className="flex flex-wrap items-baseline gap-x-2 text-xs text-texto-muted/80"
+                        >
+                          <span className="font-bold text-texto-app">
+                            {linea.cantidad > 1 ? `${linea.cantidad}× ` : ""}
+                            {linea.nombre}
+                          </span>
+                          {linea.conSopa === false ? (
+                            <span className="rounded-md bg-panel-app px-1.5 py-0.5 text-[10px] font-bold uppercase text-texto-muted/50">
+                              sin sopa
+                            </span>
+                          ) : null}
+                          {linea.nota ? (
+                            <span className="italic text-texto-muted/55">
+                              «{linea.nota}»
+                            </span>
+                          ) : null}
+                          <span className="ml-auto tabular-nums font-bold text-texto-app">
+                            {formatCOP(linea.precio * linea.cantidad)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 text-[10px] text-texto-muted/45">
+                      Precios congelados al momento del fiado (no cambian con el
+                      menú del día).
+                    </p>
+                  </details>
+                ) : null}
 
                 {cuenta.abonos.length > 0 ? (
                   <details className="mt-2.5">
