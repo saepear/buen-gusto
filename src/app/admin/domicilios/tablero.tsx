@@ -3,9 +3,7 @@
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import {
-  Banknote,
   Bike,
-  Check,
   Clock,
   MapPin,
   Phone,
@@ -26,7 +24,6 @@ import { ESTADO_DOMICILIO, ordenDeItem } from "@/lib/roles";
 import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import {
   cancelarDomicilio,
-  marcarListaDomicilio,
   type EstadoAccionDomicilio,
 } from "./actions";
 import { PanelCobroDomicilio } from "./panel-cobro-domicilio";
@@ -140,12 +137,6 @@ function TarjetaDomicilio({
   domicilio: DomicilioVista;
   onAbrir: (rect: DOMRect) => void;
 }) {
-  // La comanda todavía no pasó por cocina: hay que marcarla lista para empaque
-  const comandaEnCocina =
-    domicilio.pedidoEstado === "ENVIADO" ||
-    domicilio.pedidoEstado === "EN_PREPARACION" ||
-    domicilio.pedidoEstado === "PARCIAL_SERVIDO";
-
   return (
     <button
       type="button"
@@ -193,12 +184,8 @@ function TarjetaDomicilio({
         >
           {TXT_COMANDA[domicilio.pedidoEstado] ?? domicilio.pedidoEstado}
         </span>
-        <span className="font-display text-xl text-amber-brand">
+        <span className="ml-auto font-display text-xl text-amber-brand">
           {formatCOP(domicilio.total)}
-        </span>
-        <span className="ml-auto flex items-center gap-1.5 rounded-xl bg-amber-brand px-3 py-1.5 text-xs font-bold text-brown-950">
-          <Banknote className="h-4 w-4" />
-          {comandaEnCocina ? "Revisar y cobrar" : "Cobrar"}
         </span>
       </div>
     </button>
@@ -214,20 +201,11 @@ function DetalleYcobro({
   domicilio: DomicilioVista;
   cerrar: () => void;
 }) {
-  const [listaEstado, listaAccion, listaPendiente] = useActionState<
-    EstadoAccionDomicilio,
-    FormData
-  >(marcarListaDomicilio, INICIAL);
   const [canEstado, canAccion, canPendiente] = useActionState<
     EstadoAccionDomicilio,
     FormData
   >(cancelarDomicilio, INICIAL);
 
-  // La comanda sigue en cocina: conviene marcarla lista cuando ya salió el empaque
-  const comandaEnCocina =
-    domicilio.pedidoEstado === "ENVIADO" ||
-    domicilio.pedidoEstado === "EN_PREPARACION" ||
-    domicilio.pedidoEstado === "PARCIAL_SERVIDO";
   const puedeCancelar =
     domicilio.estado === ESTADO_DOMICILIO.PENDIENTE &&
     domicilio.pedidoEstado !== "CANCELADO";
@@ -381,7 +359,7 @@ function DetalleYcobro({
         </div>
       </div>
 
-      {/* Acciones secundarias: comanda, marcar lista y cancelación */}
+      {/* Acciones secundarias: comanda y cancelación */}
       <div
         data-anim
         className="border-t border-borde-app/50 bg-panel-app/40 p-5"
@@ -394,19 +372,6 @@ function DetalleYcobro({
           >
             <Printer className="h-3.5 w-3.5" /> Imprimir comanda
           </Link>
-          {comandaEnCocina ? (
-            <form action={listaAccion}>
-              <input type="hidden" name="pedidoId" value={domicilio.pedidoId} />
-              <button
-                type="submit"
-                disabled={listaPendiente}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-warning-text ring-1 ring-warning/30 transition hover:bg-warning/20 disabled:opacity-50"
-              >
-                <Check className="h-3.5 w-3.5" />
-                {listaPendiente ? "Marcando…" : "Marcar lista para empaque"}
-              </button>
-            </form>
-          ) : null}
           {puedeCancelar ? (
             <form action={canAccion} className="ml-auto">
               <input type="hidden" name="domicilioId" value={domicilio.id} />
@@ -421,7 +386,6 @@ function DetalleYcobro({
             </form>
           ) : null}
         </div>
-        <Aviso estado={listaEstado} />
         <Aviso estado={canEstado} />
         <p className="mt-2 flex items-center gap-1.5 text-[11px] text-texto-muted/45">
           <Bike className="h-3.5 w-3.5" />

@@ -198,7 +198,7 @@ export default async function PaginaNuevoDomicilio(
 
       <EncabezadoPagina
         titulo="Nuevo domicilio"
-        subtitulo="Arma el almuerzo paso a paso o repítelo con un toque para los clientes de siempre"
+        subtitulo="Arma el almuerzo paso a paso, o carga con un toque el pedido de los clientes de siempre"
       />
 
       {/* Clientes fijos alineados con el ancho del formulario */}

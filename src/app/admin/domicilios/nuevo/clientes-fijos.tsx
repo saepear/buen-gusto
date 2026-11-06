@@ -3,20 +3,16 @@
 import {
   ChevronDown,
   ClipboardList,
-  Repeat2,
   Search,
   UsersRound,
 } from "lucide-react";
-import { useActionState, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatCOP } from "@/lib/format";
-import { repetirUltimoDomicilio, type EstadoAccionDomicilio } from "../actions";
 
-const INICIAL: EstadoAccionDomicilio = { error: null, ok: null };
-
-/** Cliente con historia de domicilios: su chip repite el último pedido */
+/** Cliente con historia de domicilios: su chip precarga el último pedido */
 export type ClienteFijo = {
-  /** Id de su último domicilio (el que se replica / precarga) */
+/** Id de su último domicilio (el que precarga el formulario) */
   domicilioId: number;
   cliente: string;
   telefono: string;
@@ -35,14 +31,10 @@ export type ClienteFijo = {
 /**
  * Historial de clientes: cerrado por defecto para no tapar el flujo de crear
  * domicilios. Dentro hay buscador y, por cliente, «Realizar pedido» (abre el
- * formulario con sus datos ya cargados) o «Repetir su pedido» (lo registra
- * tal cual fue la última vez, con el precio de hoy).
+ * formulario con sus datos y su último pedido ya cargados, listo para ajustar
+ * y confirmar).
  */
 export function ClientesFijos({ clientes }: { clientes: ClienteFijo[] }) {
-  const [estado, accion, pendiente] = useActionState<
-    EstadoAccionDomicilio,
-    FormData
-  >(repetirUltimoDomicilio, INICIAL);
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
@@ -169,39 +161,11 @@ export function ClientesFijos({ clientes }: { clientes: ClienteFijo[] }) {
                     <ClipboardList aria-hidden className="h-3.5 w-3.5" />
                     Realizar pedido
                   </Link>
-
-                  <form action={accion} className="mt-1.5">
-                    <input type="hidden" name="domicilioId" value={c.domicilioId} />
-                    <button
-                      type="submit"
-                      disabled={pendiente}
-                      title="Registra su pedido de siempre, con el precio de hoy"
-                      className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-muted/70 ring-1 ring-borde-app transition hover:text-texto-app active:scale-[0.97] disabled:opacity-50"
-                    >
-                      {pendiente ? (
-                        "Registrando…"
-                      ) : (
-                        <>
-                          <Repeat2 aria-hidden className="h-3.5 w-3.5" /> Repetir
-                          su pedido
-                        </>
-                      )}
-                    </button>
-                  </form>
                 </article>
               ))}
             </div>
           )}
         </div>
-      ) : null}
-
-      {estado.error ? (
-        <p
-          aria-live="polite"
-          className="mt-3 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger-text ring-1 ring-danger/20"
-        >
-          {estado.error}
-        </p>
       ) : null}
     </section>
   );
