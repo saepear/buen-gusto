@@ -1,4 +1,4 @@
-import { CircleDollarSign, History, Plus, Search } from "lucide-react";
+import { CircleDollarSign, History, Plus, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -44,8 +44,17 @@ function fechaDeFiltro(
 export default async function PaginaCuentas(
   props: PageProps<"/admin/cuentas">,
 ) {
-  const { q, telefono, concepto, estado, desde, hasta, pagina, nuevo } =
-    await props.searchParams;
+  const {
+    q,
+    telefono,
+    concepto,
+    estado,
+    desde,
+    hasta,
+    pagina,
+    nuevo,
+    clienteId,
+  } = await props.searchParams;
 
   // ── Validación de cada filtro por separado ──
   const filtro = typeof q === "string" ? q.trim() : "";
@@ -59,6 +68,41 @@ export default async function PaginaCuentas(
     1,
     Number.parseInt(typeof pagina === "string" ? pagina : "1", 10) || 1,
   );
+
+  // ── Contexto de ficha («Gestionar fiados» desde la ficha del cliente) ──
+  // Un valor inválido o inexistente NUNCA se descarta en silencio: se avisa
+  // con claridad (y si la ficha fue fusionada, se ofrece su destino) y la
+  // página se ve como la vista general, sin filtro.
+  const crudoClienteId = typeof clienteId === "string" ? clienteId.trim() : "";
+  let fichaFija: { id: number; nombre: string; telefono: string } | null = null;
+  let avisoFicha = "";
+  let destinoDeFichaFusionada = 0;
+  if (crudoClienteId) {
+    const idFicha = Number.parseInt(crudoClienteId, 10);
+    if (!Number.isInteger(idFicha) || idFicha <= 0) {
+      avisoFicha = `«${crudoClienteId}» no es un número de ficha válido.`;
+    } else {
+      const ficha = await db.cliente.findUnique({
+        where: { id: idFicha },
+        select: { id: true, nombre: true, telefono: true },
+      });
+      if (ficha) {
+        fichaFija = ficha;
+      } else {
+        const fusion = await db.fusionCliente.findFirst({
+          where: { origenId: idFicha },
+          orderBy: { createdAt: "desc" },
+          select: { destinoId: true },
+        });
+        if (fusion) {
+          destinoDeFichaFusionada = fusion.destinoId;
+          avisoFicha = `La ficha #${idFicha} ya no existe: fue fusionada con la ficha #${fusion.destinoId}.`;
+        } else {
+          avisoFicha = `La ficha #${idFicha} no existe (puede haberse eliminado).`;
+        }
+      }
+    }
+  }
 
   const donde: Prisma.CuentaPorCobrarWhereInput = {};
   if (estadoFiltro) donde.estado = estadoFiltro;
@@ -91,6 +135,10 @@ export default async function PaginaCuentas(
       donde.cliente = { OR: opcionesCliente };
     }
   }
+
+  // ── Ficha fijada: filtro POR IDENTIFICADOR (no por coincidencia con el
+  // nombre o el teléfono) y se combina con todos los filtros de arriba ──
+  if (fichaFija) donde.clienteId = fichaFija.id;
 
   const salto = (paginaN - 1) * POR_PAGINA;
 
@@ -194,8 +242,26 @@ export default async function PaginaCuentas(
   if (estadoFiltro) qs.set("estado", estadoFiltro);
   if (typeof desde === "string" && desdeDt) qs.set("desde", desde);
   if (typeof hasta === "string" && hastaDt) qs.set("hasta", hasta);
+  if (fichaFija) qs.set("clienteId", String(fichaFija.id));
   if (mostrarNuevo) qs.set("nuevo", nuevo as string);
   const baseQs = qs.toString() ? `${qs.toString()}&` : "";
+
+  // «Registrar fiado»/«Cerrar registro» mantiene el contexto (ficha + filtros)
+  const enlaceNuevo = (conNuevo: boolean) => {
+    const p = new URLSearchParams(qs);
+    if (conNuevo) p.set("nuevo", "1");
+    else p.delete("nuevo");
+    return p.toString() ? `/admin/cuentas?${p.toString()}` : "/admin/cuentas";
+  };
+  const hrefToggle = enlaceNuevo(!mostrarNuevo);
+  // Quitar el filtro de cliente regresa a la vista general (conserva el resto
+  // de filtros y cierra el registro, que ya no tendría una ficha fija)
+  const sinFicha = new URLSearchParams(qs);
+  sinFicha.delete("clienteId");
+  sinFicha.delete("nuevo");
+  const hrefVistaGeneral = sinFicha.toString()
+    ? `/admin/cuentas?${sinFicha.toString()}`
+    : "/admin/cuentas";
 
   return (
     <>
@@ -206,7 +272,7 @@ export default async function PaginaCuentas(
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <Link
-          href={mostrarNuevo ? "/admin/cuentas" : `/admin/cuentas?nuevo=1`}
+          href={hrefToggle}
           className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
         >
           <Plus className="h-5 w-5" />
@@ -224,9 +290,74 @@ export default async function PaginaCuentas(
         </span>
       </div>
 
+      {/* Cliente fijo desde la ficha: indicador visible + limpiar filtro */}
+      {fichaFija ? (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-amber-brand/10 p-3.5 ring-1 ring-amber-brand/40">
+          <UserRound className="h-4 w-4 text-texto-muted/60" aria-hidden />
+          <p className="text-sm font-bold text-texto-app">
+            Viendo las cuentas de {fichaFija.nombre}
+            <span className="ml-2 font-normal text-texto-muted/60">
+              ficha #{fichaFija.id}
+              {fichaFija.telefono ? ` · ${fichaFija.telefono}` : ""}
+            </span>
+          </p>
+          <span className="grow" />
+          <Link
+            href={`/admin/clientes/${fichaFija.id}`}
+            className="text-xs font-bold text-amber-brand transition hover:underline"
+          >
+            Ver ficha del cliente
+          </Link>
+          <Link
+            href={hrefVistaGeneral}
+            className="flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+          >
+            <X className="h-3.5 w-3.5" />
+            Quitar filtro de cliente
+          </Link>
+        </div>
+      ) : null}
+
+      {/* clienteId inválido o de ficha inexistente: nunca en silencio */}
+      {avisoFicha ? (
+        <div
+          role="alert"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-danger/10 p-4 ring-1 ring-danger/25"
+        >
+          <p className="text-sm font-bold text-danger-text">{avisoFicha}</p>
+          <span className="flex flex-wrap gap-2">
+            {destinoDeFichaFusionada > 0 ? (
+              <Link
+                href={`/admin/cuentas?clienteId=${destinoDeFichaFusionada}&nuevo=1`}
+                className="rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+              >
+                Ir a la ficha #{destinoDeFichaFusionada}
+              </Link>
+            ) : null}
+            <Link
+              href="/admin/cuentas"
+              className="rounded-xl bg-panel-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover"
+            >
+              Ver todas las cuentas
+            </Link>
+          </span>
+        </div>
+      ) : null}
+
       {mostrarNuevo ? (
         <div className="mb-6">
-          <FormularioNuevaCuenta />
+          <FormularioNuevaCuenta
+            clienteFijo={
+              fichaFija
+                ? {
+                    id: fichaFija.id,
+                    etiqueta: fichaFija.telefono
+                      ? `${fichaFija.nombre} · ${fichaFija.telefono}`
+                      : fichaFija.nombre,
+                  }
+                : null
+            }
+          />
         </div>
       ) : null}
 
@@ -236,6 +367,9 @@ export default async function PaginaCuentas(
         method="get"
         className="mb-6 flex flex-wrap items-end gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app"
       >
+        {fichaFija ? (
+          <input type="hidden" name="clienteId" value={fichaFija.id} />
+        ) : null}
         <label className="flex flex-1 min-w-52 items-center gap-2.5 rounded-xl bg-fondo-app px-3 py-2 ring-1 ring-borde-app focus-within:ring-amber-brand/60">
           <Search className="h-4 w-4 shrink-0 text-texto-muted/35" />
           <input

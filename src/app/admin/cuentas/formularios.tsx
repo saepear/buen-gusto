@@ -86,7 +86,12 @@ export function FormularioNuevaCuenta({
   const [buscando, setBuscando] = useState(false);
   const [elegido, setElegido] = useState<OpcionCliente | null>(clienteFijo ?? null);
 
+  // Con una ficha fija (llegada desde «Gestionar fiados») el picker no tiene
+  // nada que buscar: no se corre la consulta en segundo plano. Sin ficha, la
+  // búsqueda normal sigue igual.
+  const hayFichaFija = Boolean(clienteFijo);
   useEffect(() => {
+    if (hayFichaFija) return;
     let cancelada = false;
     setBuscando(true);
     const t = setTimeout(async () => {
@@ -103,7 +108,7 @@ export function FormularioNuevaCuenta({
       cancelada = true;
       clearTimeout(t);
     };
-  }, [termino, pagina]);
+  }, [termino, pagina, hayFichaFija]);
 
   const paginasTotales = Math.max(1, Math.ceil(total / 8));
 

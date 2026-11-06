@@ -1,4 +1,11 @@
-import { ArrowLeft, PackageOpen, Phone, MapPin, Truck } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleDollarSign,
+  PackageOpen,
+  Phone,
+  MapPin,
+  Truck,
+} from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -15,12 +22,6 @@ import {
 } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
-import {
-  FormularioAbono,
-  FormularioAnularCuenta,
-  FormularioCondonarCuenta,
-  FormularioNuevaCuenta,
-} from "@/app/admin/cuentas/formularios";
 import { FormularioEditarCliente } from "./editar";
 import { AccionesDuplicados } from "./acciones-ficha";
 
@@ -80,20 +81,28 @@ export default async function PaginaFichaCliente(
   });
   if (!cliente) notFound();
 
-  const saldoFiado = cliente.cuentas
-    .filter((c) => c.estado === ESTADO_CUENTA.PENDIENTE)
-    .reduce(
-      (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
-      0,
-    );
-
-  // Rastro de fusiones recibidas (auditoría de FusionCliente)
-  const fusionesRecibidas = await db.fusionCliente.findMany({
-    where: { destinoId: cliente.id },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    include: { hechoPor: { select: { nombre: true } } },
-  });
+  // Rastro de fusiones recibidas (auditoría de FusionCliente) + resumen de
+  // deuda viva. El resumen usa TODAS las cuentas pendientes del cliente, no
+  // solo las últimas 30 del historial (esas cargas quedan limitadas a la
+  // vista): una ficha con más de 30 deudas siempre muestra su saldo real.
+  // Saldo de cada cuenta: MAX(0, valorOriginal - pagado - saldoCondonado);
+  // el total del resumen es la suma de esos saldos por cuenta.
+  const [fusionesRecibidas, cuentasPendientes] = await Promise.all([
+    db.fusionCliente.findMany({
+      where: { destinoId: cliente.id },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: { hechoPor: { select: { nombre: true } } },
+    }),
+    db.cuentaPorCobrar.findMany({
+      where: { clienteId: cliente.id, estado: ESTADO_CUENTA.PENDIENTE },
+      select: { valorOriginal: true, pagado: true, saldoCondonado: true },
+    }),
+  ]);
+  const saldoFiado = cuentasPendientes.reduce(
+    (s, c) => s + Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado),
+    0,
+  );
 
   return (
     <>
@@ -217,17 +226,20 @@ export default async function PaginaFichaCliente(
         </section>
       ) : null}
 
-      {/* ════ Fiados ════ */}
+      {/* ════ Fiados: SOLO LECTURA. Registrar debtas, recibir abonos, anular
+          o condonar se hace en el módulo Cuentas por cobrar (una sola fuente
+          de verdad): la ficha consulta y enlaza. ════ */}
       <section className="mb-10">
-        <h2 className="mb-3 font-display text-xl text-texto-app">Fiados</h2>
-        <FormularioNuevaCuenta
-          clienteFijo={{
-            id: cliente.id,
-            etiqueta: cliente.telefono
-              ? `${cliente.nombre} · ${cliente.telefono}`
-              : cliente.nombre,
-          }}
-        />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-xl text-texto-app">Fiados</h2>
+          <Link
+            href={`/admin/cuentas?clienteId=${cliente.id}&nuevo=1`}
+            className="flex items-center gap-2 rounded-2xl bg-amber-brand px-4 py-2.5 font-display text-sm text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
+          >
+            <CircleDollarSign className="h-4 w-4" />
+            Gestionar fiados
+          </Link>
+        </div>
 
         {cliente.cuentas.length === 0 ? (
           <p className="mt-4 rounded-2xl border-2 border-dashed border-borde-app bg-panel-app p-6 text-center text-sm text-texto-muted/60">
@@ -310,21 +322,6 @@ export default async function PaginaFichaCliente(
                         </li>
                       ))}
                     </ul>
-                  ) : null}
-
-                  {cuenta.estado === ESTADO_CUENTA.PENDIENTE ? (
-                    <div className="mt-3 border-t border-borde-app/60 pt-3">
-                      <FormularioAbono cuentaId={cuenta.id} saldo={saldo} />
-                      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
-                        <FormularioCondonarCuenta
-                          cuentaId={cuenta.id}
-                          valorOriginal={cuenta.valorOriginal}
-                          abonado={cuenta.pagado}
-                          saldo={saldo}
-                        />
-                        <FormularioAnularCuenta cuentaId={cuenta.id} />
-                      </div>
-                    </div>
                   ) : null}
 
                   {cuenta.estado === ESTADO_CUENTA.CONDONADA ? (
