@@ -11,6 +11,31 @@ export function telefonoNormalizado(telefono: string): string {
   return telefono.replace(/\D/g, "");
 }
 
+/**
+ * Clave de comparación SIN prefijo internacional: la misma persona escribe su
+ * número unas veces como «+57 320…» y otras como «320…». Más allá de los
+ * dígitos solos, se quita el "57" inicial cuando el número tiene 11+ cifras y
+ * empieza por 57 (un celular colombiano con indicativo). Las fichas viejas
+ * quedaron con el número completo en telefonoBusqueda: las consultas exactas
+ * usan variantesTelefono para tolerar los dos formatos.
+ */
+export function telefonoComparacion(telefono: string): string {
+  const digitos = telefonoNormalizado(telefono);
+  if (digitos.length >= 11 && digitos.startsWith("57")) {
+    return digitos.slice(2);
+  }
+  return digitos;
+}
+
+/**
+ * Variantes EXACTAS bajo las que puede estar guardado un número en la base:
+ * la clave nueva sin 57 y la completa (fichas legacy). Un «where in» con estas
+ * dos variantes cruza cualquiera de los dos formatos.
+ */
+export function variantesTelefono(claveComparacion: string): string[] {
+  return claveComparacion ? [claveComparacion, "57" + claveComparacion] : [claveComparacion];
+}
+
 /** Nombre canon: minúsculas, sin acentos, espacios comprimidos */
 export function nombreCanonico(nombre: string): string {
   return nombre
@@ -29,11 +54,12 @@ export type DatosClienteBase = {
   observaciones?: string | null;
 };
 
-/** Columnas de búsqueda normalizadas que escribe cualquier alta/edición */
+/** Columnas de búsqueda normalizadas que escribe cualquier alta/edición.
+ *  telefonoBusqueda guarda la clave de comparación SIN el "57" inicial. */
 export function datosBusquedaCliente(datos: { nombre: string; telefono: string }) {
   return {
     nombreBusqueda: nombreCanonico(datos.nombre),
-    telefonoBusqueda: telefonoNormalizado(datos.telefono),
+    telefonoBusqueda: telefonoComparacion(datos.telefono),
   };
 }
 
@@ -59,11 +85,11 @@ export async function coincidenciasDeCliente(
 ): Promise<ClienteResumen[]> {
   const nombre = datos.nombre.trim();
   const telefono = datos.telefono.trim();
-  const tel = telefonoNormalizado(telefono);
+  const tel = telefonoComparacion(telefono);
 
   if (tel.length >= 7) {
     return db.cliente.findMany({
-      where: { telefonoBusqueda: tel },
+      where: { telefonoBusqueda: { in: variantesTelefono(tel) } },
       orderBy: { id: "desc" },
       take: 6,
       select: { id: true, nombre: true, telefono: true, direccion: true, barrio: true, createdAt: true },
@@ -99,38 +125,136 @@ export async function crearClienteNuevo(datos: DatosClienteBase): Promise<number
 }
 
 /**
- * Encuentra el cliente guardado que corresponda (por teléfono normalizado;
- * los «solo el nombre» se cruzan por nombre canónico) o crea uno nuevo.
- * Úsalo SOLO en operaciones automáticas internas (vinculación masiva del
- * historial): el alta desde la UI muestra las coincidencias y pide una
- * decisión en vez de reusar silenciosamente.
+ * Resolutor ÚNICO de clientes (un teléfono ES una persona): decide entre
+ * reutilizar una ficha existente o crear una nueva; NUNCA fusiona.
+ *
+ * · Con teléfono (7+ cifras de comparación): si existe ficha con ese número
+ *   y el nombre canónico coincide → se reutiliza. Si existe pero con otro
+ *   nombre canónico (una familia compartiendo la línea) → NO se reutiliza ni
+ *   se crea: devuelve «revision» con las candidatas para que el administrador
+ *   elija en la UI. Si no existe nada → crea, dentro de una transacción con
+ *   re-verificación (dos peticiones simultáneas no crean duplicado).
+ * · Sin teléfono: mismo nombre canónico entre fichas «solo el nombre» →
+ *   reutiliza; si no hay ninguna, crea.
  */
+export type ResultadoResolutorCliente =
+  | { tipo: "resuelto"; id: number; yaExistia: boolean }
+  | { tipo: "revision"; coincidencias: ClienteResumen[] };
+
+/** Los consumos del resolutor se serializan: la ventana entre buscar y
+ *  crear es interna de este módulo y nunca dos llamadas la pisan. */
+let colaResolucion: Promise<unknown> = Promise.resolve();
+
 export async function buscarOcrearCliente(
   datos: DatosClienteBase,
-): Promise<{ id: number; yaExistia: boolean }> {
+): Promise<ResultadoResolutorCliente> {
+  const previa = colaResolucion;
+  let liberar: () => void = () => {};
+  colaResolucion = new Promise<void>((libre) => (liberar = libre));
+  await previa;
+  try {
+    return await resolverCliente(datos);
+  } finally {
+    liberar();
+  }
+}
+
+const SELECCION_CLIENTE = {
+  id: true,
+  nombre: true,
+  telefono: true,
+  direccion: true,
+  barrio: true,
+  createdAt: true,
+  nombreBusqueda: true,
+} as const;
+
+function aResumen(c: {
+  id: number; nombre: string; telefono: string; direccion: string; barrio: string | null; createdAt: Date;
+}): ClienteResumen {
+  return {
+    id: c.id, nombre: c.nombre, telefono: c.telefono,
+    direccion: c.direccion, barrio: c.barrio, createdAt: c.createdAt,
+  };
+}
+
+async function resolverCliente(
+  datos: DatosClienteBase,
+): Promise<ResultadoResolutorCliente> {
   const nombre = datos.nombre.trim();
   const telefono = datos.telefono.trim();
-  const tel = telefonoNormalizado(telefono);
+  const clave = telefonoComparacion(telefono);
+  const canon = nombreCanonico(nombre);
 
-  if (tel.length >= 7) {
-    const igual = await db.cliente.findFirst({
-      where: { telefonoBusqueda: tel },
+  if (clave.length >= 7) {
+    const variantes = variantesTelefono(clave);
+    const candidatas = await db.cliente.findMany({
+      where: { telefonoBusqueda: { in: variantes } },
       orderBy: { id: "desc" },
+      take: 6,
+      select: SELECCION_CLIENTE,
     });
-    if (igual) return { id: igual.id, yaExistia: true };
-  } else {
-    const canon = nombreCanonico(nombre);
-    if (canon.length > 2) {
-      const igual = await db.cliente.findFirst({
-        where: { nombreBusqueda: canon, telefonoBusqueda: "" },
+    if (candidatas.length > 0) {
+      if (canon.length > 2) {
+        const laMisma = candidatas.find((c) => c.nombreBusqueda === canon);
+        if (laMisma) {
+          return { tipo: "resuelto", id: laMisma.id, yaExistia: true };
+        }
+      }
+      // Mismo número con otro nombre canónico: puede ser una familia
+      // comparta la línea o una escritura con error de teclado. La decisión
+      // es del administrador, nunca del código.
+      return { tipo: "revision", coincidencias: candidatas.map(aResumen) };
+    }
+
+    // Nadie con ese número: crear, pero re-verificando DENTRO de la
+    // transacción por si otra petición la creó en el ínterin.
+    const resuelto = await db.$transaction(async (tx) => {
+      const choca = await tx.cliente.findFirst({
+        where: { telefonoBusqueda: { in: variantes } },
         orderBy: { id: "desc" },
+        select: SELECCION_CLIENTE,
       });
-      if (igual) return { id: igual.id, yaExistia: true };
+      if (choca) {
+        if (canon.length > 2 && choca.nombreBusqueda === canon) {
+          return { tipo: "resuelto", id: choca.id, yaExistia: true } as const;
+        }
+        return null; // el concurrente era otra persona → revisión
+      }
+      const creado = await tx.cliente.create({
+        data: {
+          nombre,
+          telefono,
+          direccion: (datos.direccion ?? "").trim(),
+          barrio: datos.barrio?.trim() || null,
+          observaciones: datos.observaciones?.trim() || null,
+          ...datosBusquedaCliente({ nombre, telefono }),
+        },
+        select: { id: true },
+      });
+      return { tipo: "resuelto", id: creado.id, yaExistia: false } as const;
+    });
+    if (resuelto) return resuelto;
+
+    // Perdimos la carrera contra una ficha de otro nombre: pedido de revisión
+    const candidatasAhora = await coincidenciasDeCliente(datos);
+    return { tipo: "revision", coincidencias: candidatasAhora };
+  }
+
+  // «Solo el nombre»: se cruza con fichas que tampoco registran teléfono
+  if (canon.length > 2) {
+    const igual = await db.cliente.findFirst({
+      where: { nombreBusqueda: canon, telefonoBusqueda: "" },
+      orderBy: { id: "desc" },
+      select: SELECCION_CLIENTE,
+    });
+    if (igual) {
+      return { tipo: "resuelto", id: igual.id, yaExistia: true };
     }
   }
 
   const id = await crearClienteNuevo(datos);
-  return { id, yaExistia: false };
+  return { tipo: "resuelto", id, yaExistia: false };
 }
 
 /** Qué historial tiene una ficha (para decidir «eliminar» vs «fusionar»).
@@ -348,7 +472,9 @@ export async function buscarClientesPagina(
 ): Promise<{ filas: ClienteResumen[]; total: number; pagina: number }> {
   const crudo = term.trim();
   const canon = nombreCanonico(crudo);
-  const digitos = telefonoNormalizado(crudo);
+  // Búsqueda parcial: con la clave SIN 57 cruza tanto las fichas nuevas como
+  // las legacy (el número completo «57…» contiene la clave como subcadena)
+  const digitos = telefonoComparacion(crudo);
 
   // Identificador de ficha: «#12», «# 12» o un número solo
   const ficha = /^#?\s*(\d{1,7})$/.exec(crudo);
@@ -390,10 +516,12 @@ export type ResultadoVinculado = {
 
 /**
  * Crea clientes a partir del historial de domicilios sin clienteId y los
- * enlaza. Agrupa por teléfono normalizado; los que van sin teléfono se
- * agrupan por nombre canónico (la única señal fiable que tienen).
- * No toca los datos de los domicilios (nombre/telefono propios quedan como
- * estaban): solo rellena clienteId de los nuevos registros de Cliente.
+ * enlaza. Agrupa por la clave de comparación del teléfono (sin "57"); los
+ * que van sin teléfono se agrupan por nombre canónico (la única señal
+ * fiable que tienen). No toca los datos de los domicilios (nombre/telefono
+ * propios quedan como estaban): solo rellena clienteId. Si el resolutor
+ * queda en revisión (número compartido con nombres distintos), ese grupo
+ * se deja sin ficha para que lo decida el administrador en la UI.
  */
 export async function vincularHistorialDomicilios(): Promise<ResultadoVinculado> {
   const sinVincular = await db.domicilio.findMany({
@@ -414,9 +542,11 @@ export async function vincularHistorialDomicilios(): Promise<ResultadoVinculado>
     { clienteId?: number; resultados: DatosClienteBase[] }
   >();
   for (const d of sinVincular) {
-    const tel = telefonoNormalizado(d.telefono);
+    const claveTelefono = telefonoComparacion(d.telefono);
     const clave =
-      tel.length >= 7 ? `t:${tel}` : `n:${nombreCanonico(d.cliente)}`;
+      claveTelefono.length >= 7
+        ? `t:${claveTelefono}`
+        : `n:${nombreCanonico(d.cliente)}`;
     const grupo = porGrupo.get(clave) ?? { resultados: [] };
     grupo.resultados.push({
       nombre: d.cliente,
@@ -432,17 +562,24 @@ export async function vincularHistorialDomicilios(): Promise<ResultadoVinculado>
 
   for (const grupo of porGrupo.values()) {
     // Los datos del cliente salen del registro MÁS NUEVO del grupo (el
-    // último domicilio del grupo dica la dirección/observación vigente)
+    // último domicilio del grupo dice la dirección/observación vigente)
     const muestra = grupo.resultados[grupo.resultados.length - 1];
-    const { id: clienteId, yaExistia } = await buscarOcrearCliente(muestra);
-    if (!yaExistia) clientesCreados += 1;
+    const resuelto = await buscarOcrearCliente(muestra);
+    if (resuelto.tipo !== "resuelto") {
+      // Está en revisión: ese número (una casa / una familia) puede
+      // pertenecer a varias personas. Se deja sin ficha para decidirlo
+      // con criterio humano en la UI, nunca automático.
+      continue;
+    }
+    const clienteId = resuelto.id;
+    if (!resuelto.yaExistia) clientesCreados += 1;
 
-    // Enlaza todas las filas del grupo (por teléfono o nombre coincide)
-    const tel = telefonoNormalizado(muestra.telefono);
+    // Enlaza todas las filas del grupo con la clave sin "57"
+    const tel = telefonoComparacion(muestra.telefono);
     const canon = nombreCanonico(muestra.nombre);
     for (const d of sinVincular) {
       if (d.clienteId !== null) continue;
-      const dTel = telefonoNormalizado(d.telefono);
+      const dTel = telefonoComparacion(d.telefono);
       const dCan = nombreCanonico(d.cliente);
       const coincide =
         tel.length >= 7

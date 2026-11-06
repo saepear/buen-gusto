@@ -26,11 +26,18 @@ import { useActionState, useEffect, useRef, useState, type ReactNode } from "rea
 import { formatCOP } from "@/lib/format";
 import { PRECIO_ICOPOR, precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import type { CategoriaPropia } from "@/lib/config";
+import type { ClienteResumen } from "@/lib/clientes";
 import { iconoDeCategoria } from "@/lib/iconos";
 import type { ItemMenuHoy } from "@/lib/pedido";
 import { tomarPedido } from "@/app/mesero/actions";
 
-export type EstadoFormularioPedido = { error: string | null; ok: string | null };
+/** error/ok del envío + coincidencias que piden decisión (solo domicilios) */
+export type EstadoFormularioPedido = {
+  error: string | null;
+  ok: string | null;
+  /** Fichas candidatas: el teléfono que escribió ya pertenece a otra persona */
+  coincidencias?: ClienteResumen[];
+};
 
 /** Acción de servidor que guarda el pedido (mesero o domicilio) */
 export type AccionPedido = (
@@ -233,6 +240,17 @@ export function FormularioPedido({
   >(accionPedido, SIN_ENVIAR);
 
   const esDomicilio = modo === "domicilio";
+
+  // ---- Decisión de coincidencias (solo domicilio): el teléfono que escribió
+  // ---- ya pertenece a otra persona. El admin elige ficha o «persona nueva».
+  const [eleccion, setEleccion] = useState<
+    { tipo: "ficha"; id: number } | { tipo: "nueva" } | null
+  >(null);
+  useEffect(() => {
+    if (estado.coincidencias) setEleccion(null);
+  }, [estado]);
+  const hayCoincidencias =
+    esDomicilio && (estado.coincidencias?.length ?? 0) > 0;
 
   // ---- Constructor del plato (se arman de uno en uno) ----
   const [conSopa, setConSopa] = useState(true);
@@ -1070,6 +1088,72 @@ export function FormularioPedido({
         >
           {estado.error}
         </p>
+      ) : null}
+
+      {/* La ficha que el admin confirmó frente al aviso de coincidencias */}
+      <input
+        type="hidden"
+        name="clienteIdElegido"
+        value={eleccion?.tipo === "ficha" ? eleccion.id : ""}
+      />
+      {eleccion?.tipo === "nueva" ? (
+        <input type="hidden" name="clienteNuevo" value="1" />
+      ) : null}
+
+      {hayCoincidencias && estado.coincidencias ? (
+        <section
+          aria-live="polite"
+          className="mb-3 rounded-2xl bg-warning/10 px-4 py-3 ring-1 ring-warning/30"
+        >
+          <p className="text-sm font-bold text-warning-text">
+            El teléfono que escribiste ya está guardado con otro nombre
+          </p>
+          <p className="mt-1 text-xs text-warning-text/80">
+            ¿Quién es la persona de este pedido? Si el número lo comparte familia
+            o amigos, registra una ficha aparte; los fiados van por ficha.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {estado.coincidencias.map((cada) => (
+              <button
+                key={cada.id}
+                type="button"
+                onClick={() => setEleccion({ tipo: "ficha", id: cada.id })}
+                aria-pressed={eleccion?.tipo === "ficha" && eleccion.id === cada.id}
+                className={
+                  "rounded-xl px-3 py-2 text-left text-sm ring-1 transition " +
+                  (eleccion?.tipo === "ficha" && eleccion.id === cada.id
+                    ? "bg-amber-brand/20 ring-amber-brand/50"
+                    : "bg-fondo-app ring-borde-app hover:ring-amber-brand/40")
+                }
+              >
+                <span className="font-bold text-texto-app">{cada.nombre}</span>
+                <span className="block text-[11px] text-texto-muted/60">
+                  {cada.telefono || "Sin teléfono"}
+                  {cada.direccion ? ` · ${cada.direccion}` : ""}
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setEleccion({ tipo: "nueva" })}
+              aria-pressed={eleccion?.tipo === "nueva"}
+              className={
+                "rounded-xl px-3 py-2 text-left text-sm ring-1 transition " +
+                (eleccion?.tipo === "nueva"
+                  ? "bg-amber-brand/20 ring-amber-brand/50"
+                  : "bg-fondo-app ring-borde-app hover:ring-amber-brand/40")
+              }
+            >
+              <span className="font-bold text-texto-app">Persona nueva</span>
+              <span className="block text-[11px] text-texto-muted/60">
+                Crea una ficha aparte con este número
+              </span>
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-warning-text">
+            Elige una opción y vuelve a pulsar «Crear domicilio».
+          </p>
+        </section>
       ) : null}
 
       {/* Comida a la izquierda; la comanda vive a la derecha en escritorio

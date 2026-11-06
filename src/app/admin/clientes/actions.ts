@@ -10,7 +10,9 @@ import {
   buscarClientesPagina,
   fusionarClientes,
   resumenDeFusion,
+  telefonoComparacion,
   telefonoNormalizado,
+  variantesTelefono,
   vincularHistorialDomicilios,
   type ClienteResumen,
 } from "@/lib/clientes";
@@ -145,11 +147,16 @@ export async function editarCliente(
 
   revalidar();
 
-  const tel = telefonoNormalizado(telefono);
+  const tel = telefonoComparacion(telefono);
+  // Cruce de teléfonos: la ficha quedó guardada SIN el "57" inicial, pero
+  // las legacy van completas; variantesTelefono cruza cualquiera de las dos.
   const repetido =
     tel.length >= 7
       ? await db.cliente.count({
-          where: { telefonoBusqueda: tel, id: { not: id } },
+          where: {
+            telefonoBusqueda: { in: variantesTelefono(tel) },
+            id: { not: id },
+          },
         })
       : 0;
 

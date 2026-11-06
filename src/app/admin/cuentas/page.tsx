@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatHora } from "@/lib/format";
-import { nombreCanonico, telefonoNormalizado } from "@/lib/clientes";
+import { nombreCanonico, telefonoComparacion } from "@/lib/clientes";
 import { ESTADO_CUENTA, ESTADO_CUENTA_LABEL, type EstadoCuenta } from "@/lib/roles";
 import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
 import {
@@ -114,14 +114,16 @@ export default async function PaginaCuentas(
   }
   if (filtroConcepto) donde.concepto = { contains: filtroConcepto };
   if (filtroTelefono) {
-    const digitos = telefonoNormalizado(filtroTelefono);
+    const digitos = telefonoComparacion(filtroTelefono);
+    // La clave guardada va sin "57": un contains de la clave cruce igual
+    // fichas nuevas y legacy (el número completo la contiene como subcadena)
     if (digitos.length >= 3) {
       donde.cliente = { telefonoBusqueda: { contains: digitos } };
     }
   }
   if (filtro) {
     const canon = nombreCanonico(filtro);
-    const digitos = telefonoNormalizado(filtro);
+    const digitos = telefonoComparacion(filtro);
     // «#12» (o un número suelto) busca la ficha por su identificador
     const ficha = /^#?\s*(\d{1,7})$/.exec(filtro);
     const idFicha = ficha ? Number.parseInt(ficha[1], 10) : null;

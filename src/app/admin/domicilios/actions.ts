@@ -10,7 +10,7 @@ import {
   ErrorDePedido,
   type CargaPedido,
 } from "@/lib/pedido";
-import { buscarOcrearCliente } from "@/lib/clientes";
+import { buscarOcrearCliente, crearClienteNuevo, type ClienteResumen } from "@/lib/clientes";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
@@ -20,7 +20,13 @@ import {
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
-export type EstadoAccionDomicilio = { error: string | null; ok: string | null };
+export type EstadoAccionDomicilio = {
+  error: string | null;
+  ok: string | null;
+  /** Coincidencias que piden decisión del administrador: el número que
+   *  escribió ya pertenece a otra persona con otro nombre canónico. */
+  coincidencias?: ClienteResumen[];
+};
 
 function revalidarDomicilios() {
   revalidatePath("/admin", "layout");
@@ -94,15 +100,40 @@ export async function crearDomicilio(
   const observaciones =
     texto(datos.get("observaciones"), 140) || null;
 
-  // El cliente del módulo Clientes: si ya existe (por teléfono o nombre)
-  // se reutiliza su ficha; si no, se crea. El domicilio queda enlazado a
-  // su historial para el módulo de clientes.
-  const { id: clienteId } = await buscarOcrearCliente({
-    nombre: cliente,
-    telefono,
-    direccion,
-    barrio,
-  });
+  // El cliente del módulo Clientes. El resolutor único reutiliza la ficha
+  // cuando el nombre canónico coincide, devuelve coincidencias cuando el
+  // número pertenece a otra persona (familia compartiendo línea) y crea
+  // ficha nueva cuando nadie tiene ese número.
+  const elegidoId = Number.parseInt(
+    String(datos.get("clienteIdElegido") ?? ""),
+    10,
+  );
+  const forzarNuevo = String(datos.get("clienteNuevo") ?? "") === "1";
+  let clienteId: number;
+  if (Number.isInteger(elegidoId)) {
+    // La ficha que el administrador escogió en el aviso de coincidencias
+    const existe = await db.cliente.findUnique({
+      where: { id: elegidoId },
+      select: { id: true },
+    });
+    if (!existe) {
+      return { error: "La ficha elegida ya no existe: envía de nuevo el domicilio.", ok: null };
+    }
+    clienteId = elegidoId;
+  } else {
+    const resolucion = forzarNuevo
+      ? ({ tipo: "resuelto", id: await crearClienteNuevo({ nombre: cliente, telefono, direccion, barrio }), yaExistia: false } as const)
+      : await buscarOcrearCliente({ nombre: cliente, telefono, direccion, barrio });
+    if (resolucion.tipo !== "resuelto") {
+      return {
+        error: `El número ${telefono} ya está guardado con otro nombre. Confirma quién es la persona de este pedido.`,
+        ok: null,
+        coincidencias: resolucion.coincidencias,
+      };
+    }
+    clienteId = resolucion.id;
+  }
+  // El domicilio queda enlazado a su historial para el módulo de clientes.
 
   let pedidoId: number;
   try {
