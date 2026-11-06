@@ -296,11 +296,19 @@ export async function cobrarDomicilio(
         },
       });
       if (!domicilio) throw new ErrorDeCobroDomicilio("Ese domicilio ya no existe.");
+      if (domicilio.estado === ESTADO_DOMICILIO.FIADO) {
+        throw new ErrorDeCobroDomicilio(
+          "Ese domicilio se fió: cobra sus abonos en «Cuentas por cobrar».",
+        );
+      }
       if (domicilio.estado === ESTADO_DOMICILIO.CANCELADO) {
         throw new ErrorDeCobroDomicilio("Ese domicilio está cancelado.");
       }
       if (domicilio.cobradoMonto !== null) {
         throw new ErrorDeCobroDomicilio("Ese domicilio ya está cobrado.");
+      }
+      if (domicilio.pedido.estado === ESTADO_PEDIDO.FIADO) {
+        throw new ErrorDeCobroDomicilio("Esa comanda ya está fiada.");
       }
       if (domicilio.pedido.estado === ESTADO_PEDIDO.COBRADO) {
         throw new ErrorDeCobroDomicilio("Esa comanda ya está cobrada.");
