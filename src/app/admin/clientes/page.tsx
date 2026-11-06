@@ -139,8 +139,12 @@ export default async function PaginaClientes(
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visibles.map((c) => {
+          {visibles.map((c, indice) => {
             const deuda = deudaDe.get(c.id);
+            // Lo que ve el administrador: consecutivo visual de la página,
+            // no el id interno de la base. Con una búsqueda «#12» se muestra
+            // además el id de ficha para poder ubicarla.
+            const ordinal = (nPagina - 1) * POR_PAGINA + indice + 1;
             return (
               <Link
                 key={c.id}
@@ -157,9 +161,17 @@ export default async function PaginaClientes(
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold leading-tight text-texto-app">
                       {c.nombre}
-                      <span className="ml-1.5 rounded-md bg-fondo-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
-                        #{c.id}
+                      <span
+                        className="ml-1.5 rounded-md bg-amber-brand/12 px-1.5 py-0.5 text-[10px] font-bold text-amber-brand ring-1 ring-amber-brand/30"
+                        title={`Cliente n.º ${ordinal}`}
+                      >
+                        N.º {ordinal}
                       </span>
+                      {/^#?\s*\d{1,7}$/.test(filtro) ? (
+                        <span className="ml-1 rounded-md bg-fondo-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
+                          Ficha #{c.id}
+                        </span>
+                      ) : null}
                     </p>
                     <p className="text-[11px] text-texto-muted/50">
                       Cliente desde{" "}
