@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import {
   coincidenciasDeCliente,
@@ -263,8 +264,12 @@ export async function prepararFusion(origenId: number, destinoId: number) {
   return resumenDeFusion(origenId, destinoId);
 }
 
-/** Ejecuta la fusión: mueve todo el historial al destino y borra el origen
- *  en una única transacción. Devuelve el estado para el form. */
+/**
+ * Ejecuta la fusión: mueve todo el historial al destino y borra el origen
+ * en una única transacción. El formulario (acciones-ficha.tsx) ya pidió
+ * la confirmación explícita del administrador; al terminar lleva a la
+ * ficha destino con el banner de éxito (?fusion=ok&origen=…).
+ */
 export async function fusionarClientesForm(
   _previa: EstadoAccionCliente,
   datos: FormData,
@@ -284,17 +289,14 @@ export async function fusionarClientesForm(
   if (origenId === destinoId) {
     return { error: "El origen y el destino son la misma ficha.", ok: null };
   }
-  // Doble confirmación explícita: el administrador debe escribir FUSION
-  // (es irreversible y no hay registro que la deshaga)
-  if (texto(datos.get("confirmar"), 10).toUpperCase() !== "FUSION") {
-    return { error: "Escribe FUSION en la casilla de confirmación para ejecutarla.", ok: null };
-  }
 
   const resultado = await fusionarClientes(origenId, destinoId, adminId);
-  revalidar();
   if (!resultado.ok) {
+    revalidar();
     return { error: resultado.mensaje, ok: null };
   }
-  return { error: null, ok: resultado.mensaje };
+  revalidar();
+  // La ficha origen se borró: si el admin recargara ahí vería un 404.
+  redirect(`/admin/clientes/${destinoId}?fusion=ok&origen=${origenId}`);
 }
 

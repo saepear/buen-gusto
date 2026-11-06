@@ -51,8 +51,14 @@ export default async function PaginaFichaCliente(
 ) {
   await requerirRol("ADMIN");
   const { clienteId: crudo } = await props.params;
+  const { fusion, origen } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
   if (!Number.isInteger(id)) notFound();
+
+  // Banner de fusión exitosa: la action redirige aquí con
+  // ¿fusion=ok&origen=…? porque la ficha origen quedó borrada
+  const fusionOk = fusion === "ok";
+  const origenFusion = Number.parseInt(typeof origen === "string" ? origen : "", 10);
 
   const cliente = await db.cliente.findUnique({
     where: { id },
@@ -117,6 +123,15 @@ export default async function PaginaFichaCliente(
         titulo={cliente.nombre}
         subtitulo={`Ficha #${cliente.id} · domicilios, apartados y fiados en un solo lugar`}
       />
+
+      {fusionOk ? (
+        <p
+          aria-live="polite"
+          className="mb-4 rounded-2xl bg-success/10 px-4 py-3 text-sm font-bold text-success-text ring-1 ring-success/25"
+        >
+          Fusión terminada{Number.isInteger(origenFusion) ? `: la ficha #${origenFusion} se cerró y todo su historial (domicilios, apartados y fiados) quedó aquí.` : "."} El rastro de la fusión queda registrado más abajo.
+        </p>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2.5">
         <span className="rounded-2xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-muted/70 ring-1 ring-borde-app">

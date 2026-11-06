@@ -225,18 +225,24 @@ function BloqueFusionar({ clienteId }: { clienteId: number }) {
                 Los importes, abonos y estados quedan iguales; no crea movimientos de caja. Los
                 datos vacíos de la ficha que se conserva se completan con los de la que se borra.
               </p>
-              <label className="mt-2.5 block text-xs font-bold tracking-wide text-texto-muted/60">
-                ESCRIBE FUSION PARA CONFIRMAR
-                <input name="confirmar" required placeholder="FUSION" className={CAMPO + " mt-1"} autoComplete="off" />
-              </label>
-              <div className="mt-2.5 flex items-center gap-2">
+              <div className="mt-3 flex items-center gap-2">
                 <AlertTriangle aria-hidden className="h-4 w-4 shrink-0 text-warning-text" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAbierto(false);
+                    setDestino(null);
+                  }}
+                  className="rounded-xl bg-panel-hover px-3.5 py-2 text-xs font-bold text-texto-muted/80 ring-1 ring-borde-app transition hover:text-texto-app"
+                >
+                  Cancelar
+                </button>
                 <button
                   type="submit"
                   disabled={pendiente}
                   className="rounded-xl bg-amber-brand px-4 py-2.5 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
                 >
-                  {pendiente ? "Fusionando…" : "Fusionar fichas"}
+                  {pendiente ? "Fusionando…" : "Confirmar fusión"}
                 </button>
               </div>
             </div>
