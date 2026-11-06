@@ -418,7 +418,7 @@ export function TarjetaProducto({
     <div
       className={
         "rounded-2xl bg-panel-app p-4 ring-1 transition " +
-        (activo ? "ring-borde-app" : "ring-warning/45 opacity-70")
+        (activo ? "ring-borde-app" : "ring-warning/45")
       }
     >
       <form

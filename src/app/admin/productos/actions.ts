@@ -116,6 +116,8 @@ export async function desactivarProducto(datos: FormData): Promise<void> {
 
   revalidatePath("/admin/productos");
   revalidatePath("/admin/menu-dia");
+  revalidatePath("/admin/apartados");
+  revalidatePath("/admin/apartados/nuevo");
   revalidatePath("/mesero");
   revalidatePath("/ordenes");
 }
@@ -128,6 +130,10 @@ export async function reactivarProducto(datos: FormData): Promise<void> {
   await db.producto.update({ where: { id }, data: { activo: true } });
   revalidatePath("/admin/productos");
   revalidatePath("/admin/menu-dia");
+  revalidatePath("/admin/apartados");
+  revalidatePath("/admin/apartados/nuevo");
+  revalidatePath("/mesero");
+  revalidatePath("/ordenes");
 }
 
 // ─── Eliminación DEFINITIVA de productos ─────────────────────────────────────
@@ -534,6 +540,7 @@ function revalidarTodo() {
   revalidatePath("/admin/productos");
   revalidatePath("/admin/menu-dia");
   revalidatePath("/admin/apartados");
+  revalidatePath("/admin/apartados/nuevo");
   revalidatePath("/mesero");
   revalidatePath("/ordenes");
 }
