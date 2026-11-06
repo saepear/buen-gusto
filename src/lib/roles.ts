@@ -72,6 +72,10 @@ export const ESTADO_PEDIDO = {
   SERVIDO: "SERVIDO",
   POR_PAGAR: "POR_PAGAR",
   COBRADO: "COBRADO",
+  // La comanda se convirtió en deuda (CuentaPorCobrar): NO hay dinero aún.
+  // Sale de todas las colas (cocina, caja, mesas) pero sigue en la BD y su
+  // recaudo entra el día del abono, no el día del fiado.
+  FIADO: "FIADO",
   CANCELADO: "CANCELADO",
 } as const;
 
@@ -85,6 +89,7 @@ export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
   SERVIDO: "Lista para servir",
   POR_PAGAR: "Por pagar",
   COBRADO: "Pagada",
+  FIADO: "Fiada (deuda por cobrar)",
   CANCELADO: "Cancelada",
 };
 

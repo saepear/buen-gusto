@@ -602,4 +602,6 @@ export const CHIP_ESTADO_PEDIDO: Record<string, string> = {
     "bg-danger/15 text-[#f09490] border border-danger/40",
   COBRADO:
     "bg-white/5 text-cream-200/60 border border-white/10",
+  FIADO:
+    "bg-violeta-text/10 text-violeta-text border border-violeta-text/30",
 };

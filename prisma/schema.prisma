@@ -49,6 +49,7 @@ model Producto {
   pedidoItems      PedidoItem[]
   apartadoItems    ApartadoItem[]
   reservasApartado ApartadoReserva[] @relation("ReservasDeProducto")
+  cuentaItems      CuentaPorCobrarItem[]
 }
 
 // Menú del día: que comidas se ofrecen HOY (proteínas, principios, sopas)
@@ -129,6 +130,8 @@ model PedidoItem {
   conSopa    Boolean? // aplica a la línea principal del almuerzo
   nota       String? // ej: "Res sin cebolla"
   grupo      Int      @default(0) // 0 = extra, 1+ = índice del plato en la comanda
+
+  cuentaItems CuentaPorCobrarItem[] // fotos de esta línea en deudas (fiados)
 }
 
 model Pago {
@@ -258,6 +261,9 @@ model Apartado {
   clienteId          Int
   cliente            Cliente          @relation(fields: [clienteId], references: [id])
   estado             String           @default("PENDIENTE") // PENDIENTE | ENTREGADO | CANCELADO
+  // Cómo se entrega: para recoger (llama a precios para llevar y siempre
+  // sale con empaque) o para servir EN MESA del salón. Se congeló al apartar.
+  paraLlevar         Boolean          @default(false)
   fechaEntrega       String? // yyyy-mm-dd deseado (opcional; hoy si no se dijo)
   horaEntrega        String? // "12:30 p. m." tal como lo dijo el cliente
   horaEntregaMinutos Int? // «12:30» → 750, para ordenar la fila
@@ -372,6 +378,7 @@ model CuentaPorCobrar {
 
   apartados Apartado[]    @relation("ApartadoOrigen")
   abonos    AbonoCuenta[]
+  items     CuentaPorCobrarItem[]
 }
 
 // Pago total o parcial de una deuda. Nunca se borra: al llegar el saldo a
@@ -386,6 +393,32 @@ model AbonoCuenta {
   usuarioId     Int
   registradoPor Usuario         @relation("AbonoRegistradoPor", fields: [usuarioId], references: [id])
   createdAt     DateTime        @default(now())
+}
+
+// Desglose de artículos de una deuda: la FOTO de cada línea del pedido que se
+// fió, con el precio congelado (se lee con precioUnitarioItem como en caja).
+// Deuda ≠ ingreso: esta foto informa qué se llevó el cliente, nunca cuánta
+// caja entró. pedidoItemId enlaza la línea concreta de la comanda; si el
+// pedido se anula/borra la foto sigue completa (SetNull). El precio NUNCA se
+// recalcula: es el congelado al fiar.
+model CuentaPorCobrarItem {
+  id           Int             @id @default(autoincrement())
+  cuentaId     Int
+  cuenta       CuentaPorCobrar @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  pedidoItemId Int?
+  pedidoItem   PedidoItem?     @relation(fields: [pedidoItemId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  productoId   Int?
+  producto     Producto?       @relation(fields: [productoId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  grupo        Int       @default(0) // 0 = extra, 1+ = plato de la comanda
+  tipo         String // snapshot del tipo de la línea
+  nombre       String // snapshot del nombre (productoNombre de la línea)
+  cantidad     Int
+  precio       Int // COP por unidad congelado al fiar
+  conSopa      Boolean?
+  nota         String?
+  createdAt    DateTime  @default(now())
+
+  @@index([cuentaId])
 }
 
 // ════════ Gastos ════════
