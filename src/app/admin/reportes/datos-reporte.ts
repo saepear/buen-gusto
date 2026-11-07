@@ -636,8 +636,12 @@ export async function datosReporte(fechaFila: Date) {
   // ---- Efectivo disponible al final del día (dinero físicamente en caja) ----
   // ventas en efectivo + abonos en efectivo − gastos pagados con efectivo de caja
   const efectivoVentas =
-    (porMetodo.get("EFECTIVO") ?? 0) + (propinasPorMetodo.get("EFECTIVO") ?? 0);
-  const efectivoAbonos = abonosPorMetodo.get("EFECTIVO") ?? 0;
+    (porMetodo.get("EFECTIVO") ?? 0) +
+    (porMetodo.get("FIADO") ?? 0) +
+    (propinasPorMetodo.get("EFECTIVO") ?? 0);
+  const efectivoAbonos =
+    (abonosPorMetodo.get("EFECTIVO") ?? 0) +
+    (abonosPorMetodo.get("FIADO") ?? 0);
   const efectivoDisponible = efectivoVentas + efectivoAbonos - gastosCajaEfectivo;
 
   return {
@@ -709,6 +713,7 @@ export const ETIQUETA_METODO: Record<string, string> = {
   EFECTIVO: "Efectivo",
   TARJETA: "Tarjeta",
   TRANSFERENCIA: "Transferencia",
+  FIADO: "Fiado pagado",
 };
 
 /** Todo el reporte de un día, listo para pintar o para exportar */

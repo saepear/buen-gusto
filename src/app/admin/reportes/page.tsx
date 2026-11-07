@@ -28,6 +28,7 @@ const CHIP_METODO: Record<string, string> = {
   EFECTIVO: "bg-success/10 text-success-text ring-1 ring-success/20",
   TARJETA: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
   TRANSFERENCIA: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
+  FIADO: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
 
 export default async function PaginaReportes(
@@ -227,6 +228,18 @@ export default async function PaginaReportes(
               .join(" · ")}
           </span>
         ) : null}
+        {[...abonosPorMetodo.entries()]
+          .filter(([m]) => m === "FIADO")
+          .map(([, v]) => (
+            <span
+              key={"fiado-" + v}
+              className={
+                "rounded-full bg-warning/10 px-3 py-1.5 text-xs font-bold text-warning-text ring-1 ring-warning/20"
+              }
+            >
+              Fiado pagado: {formatCOP(v)}
+            </span>
+          ))}
         <span className="flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1.5 text-xs font-bold text-success-text ring-1 ring-success/20">
           <UtensilsCrossed className="h-3.5 w-3.5" /> Servidas: {servidas.length}
         </span>
