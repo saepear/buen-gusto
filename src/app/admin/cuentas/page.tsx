@@ -541,11 +541,14 @@ export default async function PaginaCuentas(
         </div>
       ) : (
         <div className="space-y-2.5">
-          {cuentas.map((cuenta) => {
+          {cuentas.map((cuenta, indice) => {
             const saldo = Math.max(
               0,
               cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado,
             );
+            // Enumeración IGUAL que las fichas de Clientes: consecutivo
+            // visual de la página, no el id interno de la base
+            const ordinal = (paginaN - 1) * POR_PAGINA + indice + 1;
             return (
               <article
                 key={cuenta.id}
@@ -567,6 +570,12 @@ export default async function PaginaCuentas(
                       >
                         {cuenta.cliente.nombre}
                       </Link>
+                      <span
+                        className="ml-1.5 rounded-md bg-amber-brand/12 px-1.5 py-0.5 text-[10px] font-bold text-amber-brand ring-1 ring-amber-brand/30"
+                        title={`Fiado n.º ${ordinal}`}
+                      >
+                        N.º {ordinal}
+                      </span>
                       {cuenta.cliente.telefono ? (
                         <span className="ml-2 text-xs font-medium text-texto-muted/50">
                           {cuenta.cliente.telefono}
