@@ -272,9 +272,20 @@ export async function construirLibroExcel(
   fila += 1;
   subtituloBloque(resumen, fila, "Fiados (cuentas por cobrar)");
   fila += 1;
-  filaResumen(resumen, fila, "Deudas creadas hoy", datos.cxcCreadasCantidad);
+  filaResumen(
+    resumen,
+    fila,
+    "Deudas creadas hoy que siguen por cobrar",
+    datos.cxcCreadasCantidad,
+  );
   fila += 1;
-  filaResumen(resumen, fila, "Valor fiado hoy", datos.cxcCreadasValor, { dinero: true });
+  filaResumen(
+    resumen,
+    fila,
+    "Valor fiado hoy sin cobrar",
+    datos.cxcCreadasValor,
+    { dinero: true },
+  );
   fila += 1;
   filaResumen(resumen, fila, "Deuda pendiente de cobrar (saldo real)", datos.cxcPendienteTotal, {
     dinero: true,
@@ -561,11 +572,22 @@ export async function construirLibroExcel(
   ];
   tituloHoja(cxcHoja, "El Buen Gusto · Fiados (cuentas por cobrar)", 8, diaLegible, generado);
 
-  filaResumen(cxcHoja, 5, "Deudas creadas HOY", datos.cxcCreadasCantidad);
-  filaResumen(cxcHoja, 6, "Valor fiado HOY (no es ingreso de caja)", datos.cxcCreadasValor, {
-    dinero: true,
-    fuerte: true,
-  });
+  filaResumen(
+    cxcHoja,
+    5,
+    "Deudas creadas HOY que siguen por cobrar",
+    datos.cxcCreadasCantidad,
+  );
+  filaResumen(
+    cxcHoja,
+    6,
+    "Valor fiado HOY sin cobrar (no es ingreso de caja)",
+    datos.cxcCreadasValor,
+    {
+      dinero: true,
+      fuerte: true,
+    },
+  );
   filaResumen(
     cxcHoja,
     7,
@@ -580,7 +602,12 @@ export async function construirLibroExcel(
   notaHoja(cxcHoja, 9, "El listado de pendientes abarca TODAS las deudas vivas (de hoy y anteriores).", 8);
 
   let filaCxc = 11;
-  notaHoja(cxcHoja, filaCxc, "Fiados creados HOY", 8);
+  notaHoja(
+    cxcHoja,
+    filaCxc,
+    "Fiados creados HOY (las ya pagadas o condonadas no aparecen; su cobro queda en los abonos)",
+    8,
+  );
   const finCreadas = tablaSimple(
     cxcHoja,
     filaCxc + 1,
@@ -599,7 +626,7 @@ export async function construirLibroExcel(
     {
       colDinero: [6],
       total: [
-        "Total vivas (sin anuladas)",
+        "Total por cobrar (sin anuladas ni pagadas)",
         "",
         "",
         "",

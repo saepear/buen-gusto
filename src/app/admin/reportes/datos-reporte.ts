@@ -461,7 +461,17 @@ export async function datosReporte(fechaFila: Date) {
   const cuentasCreadasVivas = cuentasCreadasHoy.filter(
     (c) => c.estado !== ESTADO_CUENTA.ANULADA,
   );
-  const cxcCreadasValor = cuentasCreadasVivas.reduce(
+  // Lo que aún falta de una deuda creada hoy (saldo real: original −
+  // pagado − condonado, nunca < 0). Si ya no falta nada (el cliente pagó
+  // todo, o lo último se condonó) la deuda se LIQUIDÓ: ya no es un fiado
+  // pendiente y sale de «Fiados del día» — el dinero que pagó ya está
+  // contado el día de sus abonos, no se cuenta dos veces.
+  const saldoFaltanteCreada = (c: (typeof cuentasCreadasHoy)[number]) =>
+    Math.max(0, c.valorOriginal - c.pagado - c.saldoCondonado);
+  const cuentasCreadasPorCobrar = cuentasCreadasVivas.filter(
+    (c) => saldoFaltanteCreada(c) > 0,
+  );
+  const cxcCreadasValor = cuentasCreadasPorCobrar.reduce(
     (s, c) => s + c.valorOriginal,
     0,
   );
@@ -503,7 +513,16 @@ export async function datosReporte(fechaFila: Date) {
     );
   }
 
-  const filasCuentasCreadas: FilaCuentaReporte[] = cuentasCreadasHoy.map((c) => ({
+  const filasCuentasCreadas: FilaCuentaReporte[] = cuentasCreadasHoy
+    .filter(
+      (c) =>
+        // Las anuladas siguen en la lista (auditoría) y las vivas solo
+        // mientras tengan algo por cobrar; las ya pagadas/condonadas
+        // desaparecen de «Fiados del día».
+        c.estado === ESTADO_CUENTA.ANULADA ||
+        cuentasCreadasPorCobrar.includes(c),
+    )
+    .map((c) => ({
     id: c.id,
     hora: c.createdAt,
     cliente: c.cliente?.nombre ?? "—",
@@ -657,7 +676,7 @@ export async function datosReporte(fechaFila: Date) {
     numeroAbonos: abonosHoy.length,
     filasAbonos,
     cuentasCreadasHoy,
-    cxcCreadasCantidad: cuentasCreadasVivas.length,
+    cxcCreadasCantidad: cuentasCreadasPorCobrar.length,
     cxcCreadasValor,
     filasCuentasCreadas,
     cuentasPendientes,

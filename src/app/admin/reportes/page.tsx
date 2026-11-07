@@ -404,9 +404,11 @@ export default async function PaginaReportes(
           <p className="mt-1 text-xs text-texto-muted/55">
             Lo fiado hoy NO es ingreso de caja: entra el día en que se pague.
           </p>
-          {cuentasCreadasHoy.length === 0 ? (
+          {filasCuentasCreadas.length === 0 ? (
             <p className="mt-3 text-sm text-texto-muted/45">
-              Hoy no se fió nada (buena señal para el bolsillo).
+              {cuentasCreadasHoy.length === 0
+                ? "Hoy no se fió nada (buena señal para el bolsillo)."
+                : "Lo fiado de ese día ya se cobró: no queda nada por cobrar de este día."}
             </p>
           ) : (
             <>
