@@ -53,7 +53,6 @@ export default async function PaginaNomina({
     empleados,
     liquidaciones,
     vales,
-    jornadas,
     parametrosPendientes,
     parametrosTotal,
   ] = await Promise.all([
@@ -112,11 +111,6 @@ export default async function PaginaNomina({
         liquidacionId: true,
       },
     }),
-    db.jornadaLaboral.groupBy({
-      by: ["empleadoId"],
-      where: { fecha: { gte: rango.desde, lte: rango.hasta } },
-      _sum: { minutosTrabajados: true, descansoMinutos: true },
-    }),
     db.parametroLaboral.count({ where: { pendienteVerificar: true } }),
     db.parametroLaboral.count(),
   ]);
@@ -153,9 +147,6 @@ export default async function PaginaNomina({
           fechaIngreso: e.fechaIngreso.toISOString(),
           liquidacion: liquidaciones.find((l) => l.empleadoId === e.id) ?? null,
           vales: vales.filter((v) => v.empleadoId === e.id),
-          minutos:
-            jornadas.find((j) => j.empleadoId === e.id)?._sum
-              .minutosTrabajados ?? 0,
           ...resumenEmpleado(
             liquidaciones.find((l) => l.empleadoId === e.id) ?? null,
             vales.filter((v) => v.empleadoId === e.id),

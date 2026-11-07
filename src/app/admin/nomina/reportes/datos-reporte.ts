@@ -26,17 +26,6 @@ export type FilaEmpleado = {
   prestaciones: number;
 };
 
-export type FilaAsistencia = {
-  empleadoId: number;
-  nombre: string;
-  jornadas: number;
-  minutos: number;
-  nocturnos: number;
-  extras: number;
-  festivos: number;
-  diasAusencia: number;
-};
-
 export type FilaPago = {
   id: number;
   fecha: string;
@@ -50,7 +39,6 @@ export type FilaPago = {
 export type DatosReporteNomina = {
   resumen: ResumenNomina;
   porEmpleado: FilaEmpleado[];
-  asistencia: FilaAsistencia[];
   pagos: FilaPago[];
 };
 
@@ -112,68 +100,6 @@ export async function datosReporteNomina(
     totalPrestaciones: porEmpleado.reduce((s, f) => s + f.prestaciones, 0),
   };
 
-  // Asistencia en el rango (por fecha de entrada)
-  const jornadas = await db.jornadaLaboral.findMany({
-    where: { fecha: { gte: desde, lte: hasta }, ...dondeEmpleado },
-    include: { empleado: true },
-  });
-  const asisMap = new Map<number, FilaAsistencia>();
-  const ausencias = await db.novedadNomina.findMany({
-    where: {
-      estado: "APROBADA",
-      tipo: { in: ["AUSENCIA", "PERMISO_NO_REMUNERADO", "INCAPACIDAD"] },
-      fecha: { gte: desde, lte: hasta },
-      ...dondeEmpleado,
-    },
-  });
-  const ausenciaPor = new Map<number, number>();
-  for (const a of ausencias) {
-    ausenciaPor.set(a.empleadoId, (ausenciaPor.get(a.empleadoId) ?? 0) + (a.dias ?? 1));
-  }
-  for (const j of jornadas) {
-    const fila =
-      asisMap.get(j.empleadoId) ??
-      ({
-        empleadoId: j.empleadoId,
-        nombre: `${j.empleado.nombre} ${j.empleado.apellidos}`,
-        jornadas: 0,
-        minutos: 0,
-        nocturnos: 0,
-        extras: 0,
-        festivos: 0,
-        diasAusencia: ausenciaPor.get(j.empleadoId) ?? 0,
-      } satisfies FilaAsistencia);
-    fila.jornadas++;
-    fila.minutos += j.minutosTrabajados;
-    fila.nocturnos += j.minutosNocturnos;
-   fila.extras +=
-      j.minutosExtraDiurnas + j.minutosExtraNocturnas +
-      j.minutosExtraFestivasDiurnas + j.minutosExtraFestivasNocturnas;
-    fila.festivos += j.minutosFestivos;
-    asisMap.set(j.empleadoId, fila);
-  }
-  // personas solo con ausencias (sin jornadas) también aparecen
-  for (const [empleadoIdAus, dias] of ausenciaPor) {
-    if (!asisMap.has(empleadoIdAus)) {
-      const empleado = await db.empleado.findUnique({
-        where: { id: empleadoIdAus },
-        select: { nombre: true, apellidos: true },
-      });
-      if (!empleado) continue;
-      asisMap.set(empleadoIdAus, {
-        empleadoId: empleadoIdAus,
-        nombre: `${empleado.nombre} ${empleado.apellidos}`,
-        jornadas: 0,
-        minutos: 0,
-        nocturnos: 0,
-        extras: 0,
-        festivos: 0,
-        diasAusencia: dias,
-      });
-    }
-  }
-  const asistencia = [...asisMap.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
-
   const pagos = await db.pagoNomina.findMany({
     where: { fecha: { gte: new Date(`${desde}T00:00:00.000Z`), lte: new Date(`${hasta}T23:59:59.999Z`) }, ...dondeEmpleado },
     include: { liquidacion: { include: { empleado: true } } },
@@ -190,5 +116,5 @@ export async function datosReporteNomina(
     gastoId: p.gastoId,
   }));
 
-  return { resumen, porEmpleado, asistencia, pagos: pagosFila };
+  return { resumen, porEmpleado, pagos: pagosFila };
 }

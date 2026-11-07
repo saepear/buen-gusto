@@ -1,6 +1,6 @@
 // ═════════ Nómina · Reportes ═════════
-// Consulta por rango y empleado: nómina, deducciones, aportes, prestaciones,
-// pagos y asistencia. La MISMA consulta alimenta el Excel (no duplicada:
+// Consulta por rango y empleado: nómina, deducciones, aportes, prestaciones
+// y pagos. La MISMA consulta alimenta el Excel (no duplicada:
 // se resuelve en `datos-reporte.ts` y aquí solo se pinta).
 import { BarChart3, Download } from "lucide-react";
 import Link from "next/link";
@@ -88,7 +88,7 @@ export default async function PaginaReportesNomina(
       <div className="mb-6 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
           <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Total devengado
+            Pago base + extras
           </p>
           <p className="font-display text-2xl text-texto-app">{formatCOP(datos.resumen.totalDevengado)}</p>
         </div>
@@ -149,44 +149,6 @@ export default async function PaginaReportesNomina(
               <tr>
                 <td colSpan={9} className="px-3 py-6 text-center text-texto-muted/60">
                   Sin liquidaciones en ese rango.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Asistencia y ausencias */}
-      <h2 className="mb-3 font-display text-xl text-texto-app">Asistencia y ausencias en el rango</h2>
-      <div className="mb-8 overflow-x-auto rounded-2xl bg-panel-app p-1 ring-1 ring-borde-app">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead>
-            <tr className="text-left text-[10px] font-bold uppercase tracking-wide text-texto-muted/55">
-              <th className="px-3 py-2">Empleado</th>
-              <th className="px-3 py-2 text-right">Jornadas</th>
-              <th className="px-3 py-2 text-right">Horas trabajadas</th>
-              <th className="px-3 py-2 text-right">Nocturnas</th>
-              <th className="px-3 py-2 text-right">Extras</th>
-              <th className="px-3 py-2 text-right">Festivo/dominical</th>
-              <th className="px-3 py-2 text-right">Ausencias (días)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.asistencia.map((a) => (
-              <tr key={a.empleadoId} className="border-t border-borde-app/40">
-                <td className="px-3 py-1.5 font-bold text-texto-app">{a.nombre}</td>
-                <td className="px-3 py-1.5 text-right">{a.jornadas}</td>
-                <td className="px-3 py-1.5 text-right">{(a.minutos / 60).toFixed(1)} h</td>
-                <td className="px-3 py-1.5 text-right">{(a.nocturnos / 60).toFixed(1)} h</td>
-                <td className="px-3 py-1.5 text-right">{(a.extras / 60).toFixed(1)} h</td>
-                <td className="px-3 py-1.5 text-right">{(a.festivos / 60).toFixed(1)} h</td>
-                <td className="px-3 py-1.5 text-right text-danger-text">{a.diasAusencia}</td>
-              </tr>
-            ))}
-            {datos.asistencia.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-texto-muted/60">
-                  Sin jornadas registradas en ese rango.
                 </td>
               </tr>
             ) : null}

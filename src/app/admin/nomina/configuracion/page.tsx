@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { requerirRol } from "@/lib/session";
-import { db } from "@/lib/db";
 import { NavegacionNomina } from "../navegacion";
 export const metadata = { title: "Configuración · Nómina · El Buen Gusto" };
 export default async function PaginaConfiguracion() {
   await requerirRol("ADMIN");
-  const pendientes = await db.parametroLaboral.count({
-    where: { pendienteVerificar: true },
-  });
   return (
     <>
       <EncabezadoPagina
         titulo="Configuración de nómina"
-        subtitulo="Ciclos, contratos, jornadas y obligaciones del restaurante"
+        subtitulo="Salarios, cortes y ajustes de los pagos del restaurante"
       />
       <NavegacionNomina actual="/admin/nomina/configuracion" />
       <div className="grid gap-4 md:grid-cols-2">
@@ -33,29 +29,9 @@ export default async function PaginaConfiguracion() {
             accion: "Gestionar empleados",
           },
           {
-            titulo: "Asistencia y descansos",
-            texto:
-              "Registra entrada, salida y minutos de descanso reales. El tiempo de presencia y el tiempo efectivamente trabajado se mantienen separados.",
-            href: "/admin/nomina/asistencia",
-            accion: "Registrar jornadas",
-          },
-          {
-            titulo: "Parámetros laborales",
-            texto: `${pendientes ? `${pendientes} parámetros requieren verificación. ` : ""}Consulta fuentes, fechas de vigencia, aportes y recargos antes de aprobar liquidaciones.`,
-            href: "/admin/nomina/parametros",
-            accion: "Revisar parámetros",
-          },
-          {
-            titulo: "Obligaciones y prestaciones",
-            texto:
-              "Consulta los valores causados y pagados que tiene registrados el motor existente. La ausencia de liquidaciones no acredita que el restaurante esté al día.",
-            href: "/admin/nomina/obligaciones",
-            accion: "Consultar obligaciones",
-          },
-          {
             titulo: "Reportes",
             texto:
-              "Liquidaciones, pagos y deducciones por empleado o rango de fechas, con exportación a Excel.",
+              "Pagos y deducciones por empleado o rango de fechas, con exportación a Excel.",
             href: "/admin/nomina/reportes",
             accion: "Consultar reportes",
           },

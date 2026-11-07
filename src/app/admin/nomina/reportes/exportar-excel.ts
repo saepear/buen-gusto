@@ -69,33 +69,9 @@ export async function construirLibroExcelNomina(datos: Datos): Promise<Uint8Arra
   });
   total1.font = { bold: true };
 
-  // ── Hoja 2: asistencia y ausencias ──
-  const hoja2 = libro.addWorksheet("Asistencia");
+  // ── Hoja 2: pagos ──
+  const hoja2 = libro.addWorksheet("Pagos");
   hoja2.columns = [
-    { header: "Empleado", key: "nombre", width: 32 },
-    { header: "Jornadas", key: "jornadas", width: 12 },
-    { header: "Horas trabajadas", key: "minutos", width: 17 },
-    { header: "Nocturnas", key: "nocturnos", width: 13 },
-    { header: "Extras", key: "extras", width: 12 },
-    { header: "Festivo/dominical", key: "festivos", width: 18 },
-    { header: "Ausencias (días)", key: "ausencias", width: 17 },
-  ];
-  estiloEncabezado(hoja2, 1, 7);
-  for (const a of datos.asistencia) {
-    hoja2.addRow({
-      nombre: a.nombre,
-      jornadas: a.jornadas,
-      minutos: +(a.minutos / 60).toFixed(2),
-      nocturnos: +(a.nocturnos / 60).toFixed(2),
-      extras: +(a.extras / 60).toFixed(2),
-      festivos: +(a.festivos / 60).toFixed(2),
-      ausencias: a.diasAusencia,
-    });
-  }
-
-  // ── Hoja 3: pagos ──
-  const hoja3 = libro.addWorksheet("Pagos");
-  hoja3.columns = [
     { header: "Fecha", key: "fecha", width: 14 },
     { header: "Empleado", key: "empleado", width: 32 },
     { header: "Método", key: "metodo", width: 14 },
@@ -103,9 +79,9 @@ export async function construirLibroExcelNomina(datos: Datos): Promise<Uint8Arra
     { header: "Monto", key: "monto", width: 15, style: { numFmt: NUM_COP } },
     { header: "Egreso de caja", key: "gasto", width: 15 },
   ];
-  estiloEncabezado(hoja3, 1, 6);
+  estiloEncabezado(hoja2, 1, 6);
   for (const p of datos.pagos) {
-    hoja3.addRow({
+    hoja2.addRow({
       fecha: p.fecha,
       empleado: p.empleado,
       metodo: p.metodo,
@@ -115,21 +91,21 @@ export async function construirLibroExcelNomina(datos: Datos): Promise<Uint8Arra
     });
   }
 
-  // ── Hoja 4: aportes del empleador y prestaciones (totales del rango) ──
-  const hoja4 = libro.addWorksheet("Aportes y prestaciones");
-  hoja4.columns = [
+  // ── Hoja 3: aportes del empleador y prestaciones (totales del rango) ──
+  const hoja3 = libro.addWorksheet("Aportes y prestaciones");
+  hoja3.columns = [
     { header: "Concepto", key: "concepto", width: 34 },
     { header: "Valor", key: "valor", width: 17, style: { numFmt: NUM_COP } },
   ];
-  estiloEncabezado(hoja4, 1, 2);
-  hoja4.addRows([
+  estiloEncabezado(hoja3, 1, 2);
+  hoja3.addRows([
     { concepto: "Aportes del empleador (costo del empleador)", valor: datos.resumen.totalAportes },
     {
       concepto: "Prestaciones causadas (prima, cesantías, intereses, vacaciones)",
       valor: datos.resumen.totalPrestaciones,
     },
   ]);
-  hoja4.getCell("A2").note = {
+  hoja3.getCell("A2").note = {
     texts: [
       {
         font: { size: 10 },

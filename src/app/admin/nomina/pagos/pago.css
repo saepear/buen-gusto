@@ -1,0 +1,24 @@
+.pago-layout { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(280px,.8fr); gap:24px; align-items:start; }
+.pago-ficha { min-width:0; border:1px solid var(--borde-app); border-radius:22px; background:var(--panel-app); padding:28px; }
+.pago-ficha header { border-bottom:1px solid var(--borde-app); padding-bottom:22px; margin-bottom:20px; }
+.pago-eyebrow { color:var(--color-amber-brand); letter-spacing:.12em; font-size:10px; font-weight:800; }
+.pago-ficha h2 { font-size:28px; font-weight:800; margin:8px 0; overflow-wrap:anywhere; }
+.pago-ficha header > p:last-child { font-size:12px; color:var(--texto-muted); }
+.pago-ficha h3 { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; margin:26px 0 10px; color:var(--texto-muted); }
+.pago-linea { display:flex; justify-content:space-between; align-items:start; gap:18px; padding:10px 0; font-size:15px; }
+.pago-linea > div { min-width:0; overflow-wrap:anywhere; }
+.pago-linea strong { flex-shrink:0; font-variant-numeric:tabular-nums; }
+.pago-subtotal { border-top:1px solid var(--borde-app); margin-top:12px; font-size:13px; }
+.pago-vacio { font-size:13px; color:var(--texto-muted); padding:10px 0; }
+.pago-total { margin-top:24px; border-radius:14px; padding:20px; background:var(--color-amber-brand); color:var(--color-brown-950); font-weight:800; align-items:center; flex-wrap:wrap; }
+.pago-total strong { font-size:28px; }
+@media(max-width:900px) { .pago-layout { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:450px) { .pago-ficha { padding:18px; } .pago-linea { font-size:13px; } .pago-total strong { font-size:24px; } }
+@media print {
+  body:has([data-print-pago]) { background:white!important; color:black!important; }
+  body:has([data-print-pago]) *:not(:has([data-print-pago])):not([data-print-pago]):not([data-print-pago] *) { display:none!important; }
+  body:has([data-print-pago]) *:has([data-print-pago]) { display:block!important; position:static!important; margin:0!important; padding:0!important; width:auto!important; max-width:none!important; min-height:0!important; transform:none!important; background:white!important; }
+  [data-print-pago], [data-print-pago] * { color:black!important; background:white!important; box-shadow:none!important; }
+  [data-print-pago] .pago-ficha { border:1px solid #555; break-inside:avoid; }
+  [data-print-pago] .pago-total { border:2px solid #222; }
+}

@@ -29,7 +29,7 @@ export default async function PaginaEmpleados() {
   const empleados = await db.empleado.findMany({
     orderBy: [{ estado: "asc" }, { apellidos: "asc" }],
     include: {
-      _count: { select: { liquidaciones: true, jornadas: true } },
+      _count: { select: { liquidaciones: true } },
     },
   });
 
@@ -118,7 +118,7 @@ export default async function PaginaEmpleados() {
                     Ficha e historial
                   </Link>
                   <p className="text-[11px] text-texto-muted/55">
-                    {e._count.liquidaciones} liquidaciones · {e._count.jornadas} jornadas
+                    {e._count.liquidaciones} liquidaciones
                   </p>
                 </div>
               </div>

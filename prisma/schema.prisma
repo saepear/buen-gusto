@@ -37,8 +37,6 @@ model Usuario {
   // Nómina (quién registró qué)
   nominaCreados           Empleado[]           @relation("NominaCreadoPor")
   contratosCreados        ContratoVersion[]    @relation("ContratoVersionCreadoPor")
-  jornadasCreadas         JornadaLaboral[]     @relation("JornadaCreadoPor")
-  jornadasModificadas     JornadaLaboral[]     @relation("JornadaModificadaPor")
   novedadesCreadas        NovedadNomina[]      @relation("NovedadCreadoPor")
   novedadesAprobadas      NovedadNomina[]      @relation("NovedadAprobadaPor")
   periodosCreados         PeriodoNomina[]      @relation("PeriodoCreadoPor")
@@ -536,7 +534,6 @@ model Empleado {
   updatedAt        DateTime @updatedAt
 
   contratoVersiones ContratoVersion[]
-  jornadas          JornadaLaboral[]
   novedades         NovedadNomina[]
   liquidaciones     LiquidacionNomina[]
   pagosPrestaciones PagoPrestacion[]
@@ -572,45 +569,8 @@ model ContratoVersion {
   @@index([empleadoId, desde])
 }
 
-// Asistencia diaria: registro administrativo manual. El clasificado de
-// minutos queda CONGELADO al guardar y se recalcula con una función única.
-model JornadaLaboral {
-  id          Int      @id @default(autoincrement())
-  empleadoId  Int
-  empleado    Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
-  fecha       String // yyyy-mm-dd del DÍA DE ENTRADA
-  entradaMinutos Int // minutos desde la medianoche
-  salidaMinutos  Int // si <= entrada cruza a medianoche (termina al día siguiente)
-  descansoMinutos Int @default(0) // pausas NO remuneradas (almuerzo) que se restan
-  esFestivo       Boolean @default(false) // marcado del calendario (o a mano si se save tras recorte)
-  esDiaDescanso   Boolean @default(false) // trabajó en su día de descanso semanal
-  // Clasificación CONGELADA (minutos) por clase:
-  minutosOrdinarios         Int @default(0)
-  minutosNocturnos          Int @default(0) // recargo nocturno sobre jornada ordinaria
-  minutosFestivos           Int @default(0) // recargo dominical/festivo (jornada ordinaria)
-  minutosExtraDiurnas       Int @default(0)
-  minutosExtraNocturnas     Int @default(0)
-  minutosExtraFestivasDiurnas   Int @default(0) // HEDF: extra diurna en festivo (dominical + extra)
-  minutosExtraFestivasNocturnas Int @default(0) // HENF: extra nocturna en festivo (dominical + extra)
-  minutosTrabajados         Int @default(0) // total neto (descuento descansos)
-  observaciones    String?
-  // Auditoría de modificaciones manuales
-  modificadoById  Int?
-  modificadoPor   Usuario? @relation("JornadaModificadaPor", fields: [modificadoById], references: [id])
-  modificadoAt    DateTime?
-  modificadoMotivo String?
-  creadoById      Int
-  creadoPor       Usuario   @relation("JornadaCreadoPor", fields: [creadoById], references: [id])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  @@unique([empleadoId, fecha])
-  @@index([fecha])
-}
-
 // Novedad que modifica una liquidación (comisiones, ausencias, permisos…).
-// Las horas extras y recargos NO se registran aquí: ya viven en JornadaLaboral
-// (así no se contabilizan dos veces).
+// El pago interno no calcula horas extras ni recargos por asistencia.
 model NovedadNomina {
   id           Int      @id @default(autoincrement())
   empleadoId   Int
@@ -674,7 +634,7 @@ model LiquidacionNomina {
 
   // Devengados
   salarioBase     Int @default(0) // proporcional a los días del período
-  horasExtraRecargos Int @default(0) // HE diurnas/nocturnas/dominicales por jornadas
+  horasExtraRecargos Int @default(0) // reservado: el pago interno no calcula recargos
   comisionesBonos Int @default(0)
   auxilioTransporte Int @default(0)
   otrosDevengados Int @default(0) // permisos remunerados días de salario etc.

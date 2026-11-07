@@ -1,6 +1,6 @@
 // ═════════ Nómina · Ficha del empleado ═════════
-// Historial completo: versiones de contrato, jornadas recientes,
-// liquidaciones y pagos. El pasado se muestra con sus fotos, no recalculado.
+// Historial completo: versiones de contrato, liquidaciones y pagos.
+// El pasado se muestra con sus fotos, no recalculado.
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
@@ -35,7 +35,6 @@ export default async function PaginaFichaEmpleado(
     where: { id },
     include: {
       contratoVersiones: { orderBy: { desde: "desc" } },
-      jornadas: { orderBy: { fecha: "desc" }, take: 10 },
       liquidaciones: {
         orderBy: { createdAt: "desc" },
         include: { periodo: true },
@@ -176,7 +175,7 @@ export default async function PaginaFichaEmpleado(
                         : "pagada"}
                     </span>
                     <Link
-                      href={`/admin/nomina/liquidaciones/${l.id}`}
+                      href={`/admin/nomina/pagos/${l.id}`}
                       className="rounded-xl bg-fondo-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app hover:bg-panel-hover"
                     >
                       Detalle
@@ -215,32 +214,6 @@ export default async function PaginaFichaEmpleado(
                 {p.observaciones ? (
                   <p className="mt-0.5 text-[11px] italic text-texto-muted/55">«{p.observaciones}»</p>
                 ) : null}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Últimas jornadas */}
-      <section className="mb-6">
-        <h2 className="mb-2 font-display text-xl text-texto-app">Últimas jornadas</h2>
-        {empleado.jornadas.length === 0 ? (
-          <p className="rounded-2xl bg-panel-app p-4 text-sm text-texto-muted/70 ring-1 ring-borde-app">
-            Sin jornadas registradas.
-          </p>
-        ) : (
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            {empleado.jornadas.map((j) => (
-              <article key={j.id} className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-                <p className="font-bold text-texto-app">{j.fecha}</p>
-                <p className="text-[11px] text-texto-muted/60">
-                  {Math.floor(j.minutosTrabajados / 60)} h {j.minutosTrabajados % 60} min
-                  {j.minutosNocturnos > 0 ? ` · nocturnas ${Math.round(j.minutosNocturnos / 60)}h` : ""}
-                  {j.minutosFestivos > 0 ? ` · festivo ${Math.round(j.minutosFestivos / 60)}h` : ""}
-                  {j.minutosExtraDiurnas + j.minutosExtraNocturnas + j.minutosExtraFestivasDiurnas + j.minutosExtraFestivasNocturnas > 0
-                    ? ` · extra ${Math.round((j.minutosExtraDiurnas + j.minutosExtraNocturnas + j.minutosExtraFestivasDiurnas + j.minutosExtraFestivasNocturnas) / 60)}h`
-                    : ""}
-                </p>
               </article>
             ))}
           </div>

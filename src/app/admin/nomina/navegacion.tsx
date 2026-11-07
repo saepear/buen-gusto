@@ -1,12 +1,11 @@
 // Navegación compartida de las pantallas de Nómina + chips de estado
 import Link from "next/link";
-import { LayoutDashboard, UsersRound, Ticket, Clock3, ClipboardList, CalendarDays, Banknote, Settings2 } from "lucide-react";
+import { LayoutDashboard, UsersRound, Ticket, ClipboardList, CalendarDays, Banknote, Settings2 } from "lucide-react";
 
 const SECCIONES = [
   { href: "/admin/nomina", etiqueta: "Resumen", icono: LayoutDashboard },
   { href: "/admin/nomina/empleados", etiqueta: "Empleados", icono: UsersRound },
   { href: "/admin/nomina/vales", etiqueta: "Vales y consumos", icono: Ticket },
-  { href: "/admin/nomina/asistencia", etiqueta: "Asistencia", icono: Clock3 },
   { href: "/admin/nomina/novedades", etiqueta: "Novedades", icono: ClipboardList },
   { href: "/admin/nomina/periodos", etiqueta: "Ciclos de pago", icono: CalendarDays },
   { href: "/admin/nomina/pagos", etiqueta: "Pagos", icono: Banknote },

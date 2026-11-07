@@ -71,7 +71,7 @@ export default async function PaginaDetallePeriodo(
       <div className="mb-6 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
           <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Total devengado
+            Pago base + extras
           </p>
           <p className="font-display text-2xl text-texto-app">{formatCOP(totalDevengado)}</p>
         </div>
@@ -152,7 +152,7 @@ export default async function PaginaDetallePeriodo(
                         <BotonAprobarLiquidacion liquidacionId={liq.id} nombre={e.nombre} />
                       ) : null}
                       <Link
-                        href={`/admin/nomina/liquidaciones/${liq.id}`}
+                        href={`/admin/nomina/pagos/${liq.id}`}
                         className="inline-flex items-center gap-1 rounded-xl bg-fondo-app px-3 py-2 text-xs font-bold text-texto-app ring-1 ring-borde-app hover:bg-panel-hover"
                       >
                         Desglose <ChevronRight className="h-3.5 w-3.5" />

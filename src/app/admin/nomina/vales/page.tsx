@@ -210,7 +210,7 @@ export default async function PaginaVales({
                       {
                         PENDIENTE: "Por autorizar",
                         AUTORIZADO: "Autorizado",
-                        DESCONTADO: "Incluido en liquidación",
+                        DESCONTADO: "Incluido en pago",
                         ANULADO: "Anulado",
                       } as Record<string, string>
                     )[v.estado]
@@ -236,7 +236,7 @@ export default async function PaginaVales({
             {v.liquidacionId ? (
               <Link
                 className="mt-3 inline-block text-xs font-bold text-amber-brand"
-                href={`/admin/nomina/liquidaciones/${v.liquidacionId}`}
+                href={`/admin/nomina/pagos/${v.liquidacionId}`}
               >
                 Consultar liquidación →
               </Link>

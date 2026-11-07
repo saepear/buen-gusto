@@ -13,17 +13,12 @@ import { db } from "@/lib/db";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 import { fechaNominaValida } from "@/lib/nomina/resumen";
-import { fotoParametros } from "@/lib/nomina/parametros";
+import { calcularPago } from "@/lib/nomina/pago";
 import {
   contratoVigente,
-  parametrosDelPeriodo,
   rangoDePeriodo,
 } from "@/lib/nomina/helpers";
-import {
-  liquidarEmpleado,
-  type JornadaResumen,
-  type NovedadResumen,
-} from "@/lib/nomina/calculo";
+import type { NovedadResumen } from "@/lib/nomina/calculo";
 
 export type EstadoAccionPeriodo = { error: string | null; ok: string | null };
 
@@ -137,29 +132,12 @@ export async function liquidarEmpleadoEnPeriodo(
     return { error: "La liquidación ya está aprobada y no se recalcula.", ok: null };
   }
 
-  const { filas, mapa } = await parametrosDelPeriodo(periodo.fechaDesde, periodo.fechaHasta);
-  if (Object.keys(mapa).length === 0) {
-    return {
-      error: "No hay parámetros laborales sembrados: corre «npm run db:nomina» para instalarlos.",
-      ok: null,
-    };
-  }
-
-  // Jornadas del período (fecha ≤ hasta; una que cruza medianoche hasta el
-  // día siguiente SIGUE perteneciendo al día de ENTRADA).
-  const jornadas = await db.jornadaLaboral.findMany({
-    where: {
-      empleadoId,
-      fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta },
-    },
-    orderBy: { fecha: "asc" },
-  });
-
   // Novedades APROBADAS del período que TODAVÍA no se contaron
   const novedades = await db.novedadNomina.findMany({
     where: {
       empleadoId,
       estado: "APROBADA",
+      tipo: { in: ["COMISION", "BONIFICACION", "DESCUENTO"] },
       OR: [{ liquidacionId: null }, ...(anterior ? [{ liquidacionId: anterior.id }] : [])],
       fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta },
     },
@@ -183,17 +161,6 @@ export async function liquidarEmpleadoEnPeriodo(
     orderBy: { fecha: "asc" },
   });
 
-  const jornadasResumen: JornadaResumen[] = jornadas.map((j) => ({
-    fecha: j.fecha,
-    minutosOrdinarios: j.minutosOrdinarios,
-    minutosNocturnos: j.minutosNocturnos,
-    minutosFestivos: j.minutosFestivos,
-    minutosExtraDiurnas: j.minutosExtraDiurnas,
-    minutosExtraNocturnas: j.minutosExtraNocturnas,
-    minutosExtraFestivasDiurnas: j.minutosExtraFestivasDiurnas,
-    minutosExtraFestivasNocturnas: j.minutosExtraFestivasNocturnas,
-    minutosTrabajados: j.minutosTrabajados,
-  }));
   const novedadesResumen: NovedadResumen[] = novedades.map((n) => ({
     id: n.id,
     tipo: n.tipo,
@@ -203,34 +170,12 @@ export async function liquidarEmpleadoEnPeriodo(
     descripcion: n.descripcion,
   }));
 
-  // ── Vales a cuenta del sueldo ──
-  // LABORAL: entran al liquidador como descuentos (el neto sale ya restado).
-  // INDEPENDIENTE: honorarios puros, el liquidador no tiene deducciones;
-  // aquí se ajustan los totales a mano (mismo resultado, sin tocar el cálculo).
-  const esLaboral = contrato.modalidad === "LABORAL";
-  const valesResumen = vales.map((v) => ({
-    id: v.id,
-    productoNombre: v.productoNombre,
-    cantidad: v.cantidad,
-    total: v.total,
-  }));
-  let valesAjuste = 0; // solo INDEPENDIENTE (en LABORAL ya los cuenta el calculo)
-  if (esLaboral) {
-    for (const v of valesResumen) {
-      novedadesResumen.push({
-        id: 0,
-        tipo: "DESCUENTO",
-        fecha: "",
-        dias: null,
-        valor: v.total,
-        descripcion: `Vale: ${v.productoNombre} ×${v.cantidad}`,
-      });
-    }
-  } else {
-    valesAjuste = valesResumen.reduce((s, v) => s + v.total, 0);
+  // Los vales autorizados se descuentan una sola vez en cualquier modalidad.
+  for (const v of vales) {
+    novedadesResumen.push({ id: 0, tipo: "DESCUENTO", fecha: "", dias: null, valor: v.total, descripcion: `Vale: ${v.productoNombre} ×${v.cantidad}` });
   }
 
-  const calculo = liquidarEmpleado({
+  const calculoFinal = calcularPago({
     contrato: {
       modalidad: contrato.modalidad,
       remuneracion: contrato.remuneracion,
@@ -244,30 +189,19 @@ export async function liquidarEmpleadoEnPeriodo(
       metodoPago: contrato.metodoPago,
       arpClase: empleado.arpClase,
     },
-    parametros: mapa,
-    jornadas: jornadasResumen,
     novedades: novedadesResumen,
     periodoDesde: periodo.fechaDesde,
     periodoHasta: periodo.fechaHasta,
     periodoTipo: periodo.tipo,
   });
 
-  // LABORAL: los vales ya restan en el cálculo. INDEPENDIENTE: honorarios
-  // puros (el liquidador no tiene deducciones) → se ajustan a mano aquí.
-  const calculoFinal = esLaboral
-    ? calculo
-    : {
-        ...calculo,
-        otrosDescuentos: calculo.otrosDescuentos + valesAjuste,
-        totalDeducciones: calculo.totalDeducciones + valesAjuste,
-        netoAPagar: calculo.netoAPagar - valesAjuste,
-      };
   if (calculoFinal.netoAPagar < 0) {
     return { error: "Los descuentos superan el neto disponible. Revisa vales y novedades antes de liquidar.", ok: null };
   }
 
   // Foto de contrato (de la ContratoVersion, con la clase ARP del empleado)
   const contratoFoto = JSON.stringify({
+    esquemaPago: "INTERNO_V1",
     modalidad: contrato.modalidad,
     remuneracion: contrato.remuneracion,
     salarioMensual: contrato.salarioMensual,
@@ -287,8 +221,9 @@ export async function liquidarEmpleadoEnPeriodo(
     const yaExiste = await tx.liquidacionNomina.findUnique({
       where: { periodoId_empleadoId: { periodoId, empleadoId } },
     });
+    if (yaExiste && anterior && yaExiste.updatedAt.getTime() !== anterior.updatedAt.getTime()) throw new Error("El pago cambió mientras se calculaba. Actualiza y vuelve a intentarlo.");
     if (yaExiste) {
-      if (yaExiste.estado !== "BORRADOR") {
+      if (yaExiste.estado !== "BORRADOR" || yaExiste.pagado > 0) {
         throw new Error(
           "La liquidación ya está APROBADA: su foto no se recalcula. Usa un período posterior para ajustes.",
         );
@@ -304,17 +239,16 @@ export async function liquidarEmpleadoEnPeriodo(
         data: { liquidacionId: null, estado: "AUTORIZADO" },
       });
       await tx.liquidacionConcepto.deleteMany({ where: { liquidacionId: yaExiste.id } });
-      await tx.liquidacionNomina.delete({ where: { id: yaExiste.id } });
+
     }
 
-    const liquidacion = await tx.liquidacionNomina.create({
-      data: {
+    const datosPago = {
         periodoId,
         empleadoId,
         estado: "BORRADOR",
         diasTrabajados: calculoFinal.diasTrabajados,
         contratoFoto,
-        parametrosFoto: fotoParametros(filas),
+        parametrosFoto: "[]",
         novedadesFoto: JSON.stringify(
           novedadesResumen.map((n) => ({
             id: n.id,
@@ -348,21 +282,9 @@ export async function liquidarEmpleadoEnPeriodo(
         estadoPago: "PENDIENTE",
         creadoById: sesion.id,
         notas: calculoFinal.notasCalculo.join(" · ") || null,
-      },
-    });
+    };
+    const liquidacion = await tx.liquidacionNomina.upsert({ where: { periodoId_empleadoId: { periodoId, empleadoId } }, create: datosPago, update: datosPago });
 
-    // Conceptos del liquidador. Los descuentos de vales aparecen con detalle
-    // «Vale: …»: se rotulan con su propia etiqueta en el comprobante.
-    const conceptosVales = esLaboral
-      ? []
-      : valesResumen.map((v) => ({
-          liquidacionId: liquidacion.id,
-          tipo: "DEDUCCION",
-          clave: "DESCUENTO",
-          etiqueta: "Vale de empleado",
-          valor: v.total,
-          detalle: `Vale: ${v.productoNombre} ×${v.cantidad}`,
-        }));
     await tx.liquidacionConcepto.createMany({
       data: [
         ...calculoFinal.conceptos.map((c) => ({
@@ -376,7 +298,6 @@ export async function liquidarEmpleadoEnPeriodo(
           valor: c.valor,
           detalle: c.detalle,
         })),
-        ...conceptosVales,
       ],
     });
 
@@ -400,7 +321,7 @@ export async function liquidarEmpleadoEnPeriodo(
 
   revalidar();
   return {
-    ok: `Liquidación de ${empleado.nombre} ${empleado.apellidos} generada (borrador)${
+    ok: `Pago de ${empleado.nombre} ${empleado.apellidos} preparado (borrador)${
       vales.length > 0 ? ` · ${vales.length} vale(s) descontado(s)` : ""
     }.`,
     error: null,

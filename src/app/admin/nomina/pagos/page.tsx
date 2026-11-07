@@ -7,7 +7,7 @@ import { NavegacionNomina } from "../navegacion";
 export const metadata = { title: "Pagos · Nómina · El Buen Gusto" };
 export default async function PaginaPagos() {
   await requerirRol("ADMIN");
-  const [pendientes, pagos] = await Promise.all([
+  const [pendientes, pagos, borradores] = await Promise.all([
     db.liquidacionNomina.findMany({
       where: { estado: "APROBADA", estadoPago: { not: "PAGADO" } },
       include: { empleado: true, periodo: true },
@@ -18,6 +18,7 @@ export default async function PaginaPagos() {
       orderBy: { fecha: "desc" },
       take: 100,
     }),
+    db.liquidacionNomina.findMany({ where: { estado: "BORRADOR" }, include: { empleado: true, periodo: true }, orderBy: { createdAt: "desc" } }),
   ]);
   return (
     <>
@@ -26,11 +27,9 @@ export default async function PaginaPagos() {
         subtitulo="Saldos aprobados y pagos efectivamente realizados"
       />
       <NavegacionNomina actual="/admin/nomina/pagos" />
-      <p className="mb-4 text-sm text-texto-muted">
-        Para preparar un pago, selecciona el corte y el empleado en <Link className="underline" href="/admin/nomina">Resumen</Link>.
-        Al liquidar un corte, el salario mensual se divide automáticamente entre 4; después se aplican novedades y descuentos.
-        Revisa y aprueba el resultado para registrar el pago aquí.
-      </p>
+      <p className="mb-4 text-sm text-texto-muted">Prepara el pago desde <Link className="underline" href="/admin/nomina">Resumen</Link>, agrega extras o deducciones, confirma el total y registra el dinero entregado.</p>
+      <h2 className="mb-3 text-xl font-bold">En preparación ({borradores.length})</h2>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">{borradores.map(p => <Link key={p.id} href={"/admin/nomina/pagos/" + p.id} className="rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app"><strong>{p.empleado.nombre} {p.empleado.apellidos}</strong><p className="my-2 text-xs text-texto-muted">{p.periodo.fechaDesde} — {p.periodo.fechaHasta}</p><span className="font-bold text-amber-brand">{formatCOP(p.netoAPagar)} · Revisar y ajustar →</span></Link>)}</div>
       <div className="mb-6 rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app">
         <p className="text-xs text-texto-muted">
           Saldo aprobado pendiente de pago
@@ -49,7 +48,7 @@ export default async function PaginaPagos() {
         {pendientes.map((l) => (
           <Link
             key={l.id}
-            href={`/admin/nomina/liquidaciones/${l.id}`}
+            href={`/admin/nomina/pagos/${l.id}`}
             className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
           >
             <div>
@@ -69,7 +68,7 @@ export default async function PaginaPagos() {
         ))}
         {!pendientes.length && (
           <p className="text-sm text-texto-muted">
-            No hay liquidaciones aprobadas pendientes de pago.
+            No hay pagos confirmados pendientes de entrega.
           </p>
         )}
       </div>
@@ -80,7 +79,7 @@ export default async function PaginaPagos() {
         {pagos.map((p) => (
           <Link
             key={p.id}
-            href={`/admin/nomina/liquidaciones/${p.liquidacionId}`}
+            href={`/admin/nomina/pagos/${p.liquidacionId}`}
             className="flex flex-wrap justify-between gap-3 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
           >
             <div>
@@ -107,7 +106,7 @@ export default async function PaginaPagos() {
       </div>
       <p className="mt-6 text-xs text-texto-muted">
         Solo los pagos en efectivo generan egreso de caja. Un vale o una
-        liquidación pendiente no equivalen a un pago.
+        preparación de pago no equivalen a un pago.
       </p>
     </>
   );

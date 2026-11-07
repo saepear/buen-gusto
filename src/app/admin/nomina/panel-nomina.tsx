@@ -11,7 +11,6 @@ import {
   Search,
   ChevronRight,
   BriefcaseBusiness,
-  Clock3,
   ShieldCheck,
   Plus,
   ArrowUpRight,
@@ -105,7 +104,6 @@ type Empleado = {
   valorHora: number;
   diaDescanso: number;
   metodoPago: string;
-  minutos: number;
   vales: Vale[];
   valesPendientes: number;
   valesAutorizados: number;
@@ -157,7 +155,7 @@ const dias = [
 const estadoVale: Record<string, string> = {
   PENDIENTE: "Por autorizar",
   AUTORIZADO: "Autorizado",
-  DESCONTADO: "Incluido en liquidación",
+  DESCONTADO: "Incluido en pago",
   ANULADO: "Anulado",
 };
 const iniciales = (e: Empleado) =>
@@ -344,7 +342,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
           {
             icon: Banknote,
             label: "Bruto calculado",
-            value: calculados.length ? formatCOP(bruto) : "Por liquidar",
+            value: calculados.length ? formatCOP(bruto) : "Por preparar",
             note: `${calculados.length} de ${participantes.length} empleados liquidados`,
           },
           {
@@ -356,8 +354,8 @@ export function PanelNomina({ datos }: { datos: Datos }) {
           {
             icon: CircleCheck,
             label: "Neto estimado",
-            value: calculados.length ? formatCOP(neto) : "Por liquidar",
-            note: "Según liquidaciones y vales autorizados",
+            value: calculados.length ? formatCOP(neto) : "Por preparar",
+            note: "Según pagos preparados y vales autorizados",
           },
         ].map(({ icon: Icon, label, value, note }) => (
           <article className={s.stat} key={label}>
@@ -376,7 +374,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
         </span>
         <span>
           Saldo estimado{" "}
-          <b>{calculados.length ? formatCOP(neto - pagado) : "Por liquidar"}</b>
+          <b>{calculados.length ? formatCOP(neto - pagado) : "Por preparar"}</b>
         </span>
         <span>
           Pagos completos{" "}
@@ -521,16 +519,6 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                           </span>
                         </p>
                         <p>
-                          <Clock3 size={18} />
-                          <span>
-                            Trabajo registrado
-                            <strong>
-                              {Math.floor(empleado.minutos / 60)} h{" "}
-                              {empleado.minutos % 60} min
-                            </strong>
-                          </span>
-                        </p>
-                        <p>
                           <ShieldCheck size={18} />
                           <span>
                             Descanso semanal
@@ -542,15 +530,15 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                         <p>Neto estimado del ciclo</p>
                         <strong>
                           {empleado.netoEstimado === null
-                            ? "Por liquidar"
+                            ? "Por preparar"
                             : formatCOP(empleado.netoEstimado)}
                         </strong>
                         <span>
                           {empleado.liquidacion?.estado === "APROBADA"
-                            ? "Liquidación aprobada"
+                            ? "Pago confirmado"
                             : empleado.liquidacion
                               ? "Borrador · pendiente de aprobación"
-                              : "Aún no tiene liquidación"}
+                              : "Aún no tiene pago preparado"}
                         </span>
                       </div>
                     </div>
@@ -593,7 +581,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                       <span>Saldo estimado</span>
                       <strong>
                         {empleado.saldoEstimado === null
-                          ? "Por liquidar"
+                          ? "Por preparar"
                           : formatCOP(empleado.saldoEstimado)}
                       </strong>
                     </div>
@@ -643,13 +631,13 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                   (empleado.liquidacion ? (
                     <>
                       <div className={s.amountLine}>
-                        <span>Total devengado</span>
+                        <span>Pago base + extras</span>
                         <strong>
                           {formatCOP(empleado.liquidacion.totalDevengado)}
                         </strong>
                       </div>
                       <div className={s.amountLine}>
-                        <span>Deducciones de la liquidación</span>
+                        <span>Deducciones del pago</span>
                         <strong>
                           − {formatCOP(empleado.liquidacion.totalDeducciones)}
                         </strong>
@@ -674,7 +662,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                       </div>
                       <Link
                         className={s.textLink}
-                        href={`/admin/nomina/liquidaciones/${empleado.liquidacion.id}`}
+                        href={`/admin/nomina/pagos/${empleado.liquidacion.id}`}
                       >
                         Consultar conceptos y comprobante{" "}
                         <ArrowUpRight size={15} />
@@ -697,7 +685,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
               {empleado.liquidacion?.estado === "APROBADA" &&
                 empleado.valesAutorizados > 0 && (
                   <p className={s.notice}>
-                    La liquidación aprobada conserva su importe. Revisa los
+                    El pago confirmado conserva su importe. Revisa los
                     vales nuevos antes de asignarlos a otro ciclo.
                   </p>
                 )}
@@ -720,12 +708,12 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                 {empleado.liquidacion && (
                   <Link
                     className={s.secondary}
-                    href={`/admin/nomina/liquidaciones/${empleado.liquidacion.id}`}
+                    href={`/admin/nomina/pagos/${empleado.liquidacion.id}`}
                   >
                     <Banknote size={17} />
                     {empleado.liquidacion.estado === "APROBADA"
                       ? "Registrar pago"
-                      : "Ver liquidación"}
+                      : "Ver pago"}
                   </Link>
                 )}
               </div>
@@ -767,10 +755,6 @@ export function PanelNomina({ datos }: { datos: Datos }) {
             <section className={s.panel}>
               <h3>Acciones rápidas</h3>
               <div className={s.quickActions}>
-                <Link href="/admin/nomina/asistencia">
-                  <Clock3 size={17} />
-                  Asistencia
-                </Link>
                 <Link href="/admin/nomina/novedades">
                   <Plus size={17} />
                   Novedad
@@ -779,9 +763,9 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                   <Banknote size={17} />
                   Pagos
                 </Link>
-                <Link href="/admin/nomina/obligaciones">
+                <Link href="/admin/nomina/reportes">
                   <ShieldCheck size={17} />
-                  Obligaciones
+                  Reportes
                 </Link>
               </div>
             </section>
@@ -791,15 +775,8 @@ export function PanelNomina({ datos }: { datos: Datos }) {
       <aside className={s.legal}>
         <ShieldCheck size={19} />
         <p>
-          <strong>Configuración laboral y obligaciones</strong>
-          <span>
-            {!datos.parametrosTotal
-              ? "No hay parámetros laborales instalados. Completa su configuración antes de liquidar."
-              : datos.parametrosPendientes
-                ? `${datos.parametrosPendientes} parámetros marcados para verificar. Revisa sus fuentes y vigencias antes de aprobar.`
-                : "Consulta los parámetros, sus fuentes y vigencias antes de aprobar las liquidaciones."}{" "}
-            Los importes pendientes de liquidar no se registran como gastos.
-          </span>
+          <strong>Pago base + extras − deducciones</strong>
+          <span>Prepara el pago del corte, agrega incentivos o descuentos y confirma el total antes de registrar la entrega. Solo el dinero entregado se registra como pago.</span>
         </p>
         <Link href="/admin/nomina/configuracion">
           Revisar

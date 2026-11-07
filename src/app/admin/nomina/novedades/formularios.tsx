@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useActionState } from "react";
 import { Plus } from "lucide-react";
 import { crearNovedad, type EstadoAccionNovedad } from "./actions";
-import { TIPO_NOVEDAD, TIPO_NOVEDAD_LABEL } from "./constantes";
+import { TIPO_NOVEDAD_LABEL } from "./constantes";
 
 const INICIAL: EstadoAccionNovedad = { error: null, ok: null };
 
@@ -90,14 +90,11 @@ export function FormularioNovedad({
             required
             maxLength={200}
             className={CAMPO}
-            placeholder="Ej: se fichó tarde el jueves, colecta de cumpleaños…"
+            placeholder="Ej: incentivo del corte o descuento por anticipo"
           />
         </label>
         <p className="text-[11px] text-texto-muted/60 sm:col-span-2 lg:col-span-3">
-          Las novedades quedan PENDIENTES: solo las aprobadas se incorporan a
-          una liquidación, y una vez contadas quedan marcadas — no se pueden
-          contar dos veces. Las horas extra y recargos NO se registran aquí:
-          nacen de las jornadas de asistencia.
+          Solo los extras y descuentos monetarios aprobados modifican el pago. Las ausencias y permisos se conservan como registro; no descuentan dinero automáticamente. También puedes agregar extras o deducciones directamente desde un pago en preparación.
         </p>
         <button
           type="submit"

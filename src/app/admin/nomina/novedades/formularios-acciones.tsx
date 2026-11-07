@@ -17,7 +17,7 @@ export function AccionAprobarNovedad({ novedadId }: { novedadId: number }) {
         disabled={pendiente}
         className="rounded-xl bg-success/15 px-3 py-2 text-xs font-bold text-success-text ring-1 ring-success/25 transition hover:bg-success/25 disabled:opacity-50"
       >
-        {pendiente ? "…" : "Aprobar"}
+        {pendiente ? "…" : "Aprobar ajuste"}
       </button>
       {estado.error ? (
         <p aria-live="polite" className="mt-1 max-w-48 text-[10px] font-bold text-danger-text">

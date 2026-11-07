@@ -102,7 +102,7 @@ export function BotonLiquidarEmpleado({ periodoId, empleadoId, nombre }: { perio
         disabled={pendiente}
         className="rounded-xl bg-amber-brand px-3 py-2 text-xs font-bold text-brown-950 transition hover:bg-orange-brand disabled:opacity-50"
       >
-        {pendiente ? "…" : `Liquidar a ${nombre}`}
+        {pendiente ? "…" : `Preparar pago de ${nombre}`}
       </button>
       {estado.error || estado.ok ? (
         <p
@@ -127,10 +127,10 @@ export function BotonAprobarLiquidacion({ liquidacionId, nombre }: { liquidacion
       <button
         type="submit"
         disabled={pendiente}
-        title={`Aprobar la liquidación de ${nombre}`}
+        title={`Confirmar el pago de ${nombre}`}
         className="rounded-xl bg-success/15 px-3 py-2 text-xs font-bold text-success-text ring-1 ring-success/25 transition hover:bg-success/25 disabled:opacity-50"
       >
-        {pendiente ? "…" : "Aprobar"}
+        {pendiente ? "…" : "Confirmar pago"}
       </button>
       {estado.error ? (
         <p aria-live="polite" className="mt-1 max-w-56 text-[10px] font-bold text-danger-text">
