@@ -21,6 +21,7 @@ import {
   FileText,
 } from "lucide-react";
 import { formatCOP } from "@/lib/format";
+import { salarioDelCiclo } from "@/lib/nomina/salario-ciclo";
 import { NavegacionNomina } from "./navegacion";
 import { crearPeriodo } from "./periodos/actions";
 import { BotonLiquidarEmpleado } from "./periodos/formularios";
@@ -129,7 +130,7 @@ type Datos = {
   corte: number;
   rango: { desde: string; hasta: string };
   cortes: { desde: string; hasta: string; periodoId: number | null }[];
-  periodo: { id: number; estado: string; fechaPago: string } | null;
+  periodo: { id: number; estado: string; fechaPago: string; tipo: string } | null;
   periodos: { id: number; desde: string; hasta: string }[];
   empleados: Empleado[];
   parametrosPendientes: number;
@@ -572,6 +573,12 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                         )}
                       </strong>
                     </div>
+                    {empleado.remuneracion === "MENSUAL" && !empleado.liquidacion && (!datos.periodo || datos.periodo.tipo === "CICLOS") && (
+                      <div className={s.amountLine}>
+                        <span>Base prevista del corte · mensual ÷ 4<br /><small>Antes de novedades y descuentos; el último corte ajusta redondeos</small></span>
+                        <strong>{formatCOP(salarioDelCiclo(empleado.salarioMensual, datos.rango.desde))}</strong>
+                      </div>
+                    )}
                     <div className={s.amountLine}>
                       <span>Vales autorizados por descontar</span>
                       <strong>{formatCOP(empleado.valesAutorizados)}</strong>

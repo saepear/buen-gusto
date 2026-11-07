@@ -26,6 +26,11 @@ export default async function PaginaPagos() {
         subtitulo="Saldos aprobados y pagos efectivamente realizados"
       />
       <NavegacionNomina actual="/admin/nomina/pagos" />
+      <p className="mb-4 text-sm text-texto-muted">
+        Para preparar un pago, selecciona el corte y el empleado en <Link className="underline" href="/admin/nomina">Resumen</Link>.
+        Al liquidar un corte, el salario mensual se divide automáticamente entre 4; después se aplican novedades y descuentos.
+        Revisa y aprueba el resultado para registrar el pago aquí.
+      </p>
       <div className="mb-6 rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app">
         <p className="text-xs text-texto-muted">
           Saldo aprobado pendiente de pago

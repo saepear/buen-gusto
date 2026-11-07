@@ -249,6 +249,7 @@ export async function liquidarEmpleadoEnPeriodo(
     novedades: novedadesResumen,
     periodoDesde: periodo.fechaDesde,
     periodoHasta: periodo.fechaHasta,
+    periodoTipo: periodo.tipo,
   });
 
   // LABORAL: los vales ya restan en el cálculo. INDEPENDIENTE: honorarios

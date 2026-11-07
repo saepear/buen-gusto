@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useActionState } from "react";
 import { ChevronDown } from "lucide-react";
+import { formatCOP } from "@/lib/format";
 import {
   actualizarContrato,
   crearEmpleado,
@@ -82,6 +83,9 @@ function CamposContrato({ inicial }: { inicial?:
     metodoPago: string;
     arpClase: number;
   }> }) {
+  const [salario, setSalario] = useState(String(inicial?.salarioMensual ?? ""));
+  const [periodicidad, setPeriodicidad] = useState(inicial?.periodicidadPago ?? "CICLOS");
+  const [remuneracion, setRemuneracion] = useState(inicial?.remuneracion ?? "MENSUAL");
   return (
     <>
       <label className={ETIQUETA}>
@@ -93,7 +97,7 @@ function CamposContrato({ inicial }: { inicial?:
       </label>
       <label className={ETIQUETA}>
         REMUNERACIÓN *
-        <select name="remuneracion" defaultValue={inicial?.remuneracion ?? "MENSUAL"} className={CAMPO}>
+        <select name="remuneracion" value={remuneracion} onChange={e => setRemuneracion(e.target.value)} className={CAMPO}>
           <option value="MENSUAL">Mensual</option>
           <option value="DIARIO">Por día</option>
           <option value="HORARIO">Por hora</option>
@@ -101,7 +105,10 @@ function CamposContrato({ inicial }: { inicial?:
       </label>
       <label className={ETIQUETA}>
         SALARIO MENSUAL (COP)
-        <input name="salarioMensual" inputMode="numeric" className={CAMPO} placeholder="$0" defaultValue={inicial?.salarioMensual ?? ""} />
+        <input name="salarioMensual" inputMode="numeric" className={CAMPO} placeholder="$0" value={salario} onChange={e => setSalario(e.target.value)} />
+        {periodicidad === "CICLOS" && remuneracion === "MENSUAL" && <span className="mt-2 block font-normal text-texto-muted" aria-live="polite">
+          {formatCOP(Number(salario.replace(/[^0-9]/g, "")))} ÷ 4 = {formatCOP(Math.round(Number(salario.replace(/[^0-9]/g, "")) / 4))} de base por corte, antes de novedades y descuentos. Pagos: 7, 14, 21 y fin de mes. El último corte ajusta el redondeo.
+        </span>}
       </label>
       <label className={ETIQUETA}>
         VALOR POR DÍA (si se paga por día)
@@ -125,7 +132,7 @@ function CamposContrato({ inicial }: { inicial?:
       </label>
       <label className={ETIQUETA}>
         PERIODICIDAD DE PAGO *
-        <select name="periodicidadPago" defaultValue={inicial?.periodicidadPago ?? "CICLOS"} className={CAMPO}>
+        <select name="periodicidadPago" value={periodicidad} onChange={e => setPeriodicidad(e.target.value)} className={CAMPO}>
           <option value="CICLOS">Cortes 7 / 14 / 21 / fin de mes</option>
           <option value="QUINCENAL">Quincenal</option>
           <option value="MENSUAL">Mensual</option>

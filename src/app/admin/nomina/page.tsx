@@ -138,6 +138,7 @@ export default async function PaginaNomina({
         periodo: periodo
           ? {
               id: periodo.id,
+              tipo: periodo.tipo,
               estado: periodo.estado,
               fechaPago: periodo.fechaPagoPrevista ?? periodo.fechaHasta,
             }

@@ -12,6 +12,7 @@
 //  • No se inventan fórmulas: lo dudoso queda documentado con
 //    pendienteVerificar y no se usa hasta confirmarse.
 import { CLAVE_PARAM, FACTORES_PRESTACIONES } from "./parametros-data";
+import { salarioDelCiclo } from "./salario-ciclo";
 
 // ─────────────────────────── Helpers de dinero ───────────────────────────
 
@@ -247,12 +248,20 @@ export function liquidarEmpleado(args: {
   novedades: NovedadResumen[];
   periodoDesde: string;
   periodoHasta: string;
+  periodoTipo: string;
 }): CalculoLiquidacion {
   const { contrato, parametros, jornadas, novedades, periodoDesde, periodoHasta } = args;
   const conceptos: ConceptoLiquidacion[] = [];
   const notas: string[] = [];
 
   const diasPeriodo = diasEntre(periodoDesde, periodoHasta);
+  const esCiclo = args.periodoTipo === "CICLOS";
+  const basePeriodo = esCiclo
+    ? salarioDelCiclo(contrato.salarioMensual, periodoDesde)
+    : contrato.salarioMensual;
+  const detalleBase = esCiclo
+    ? `Salario mensual ${contrato.salarioMensual} ÷ 4: ${basePeriodo} COP (ajuste de redondeo en el último corte)`
+    : "Salario mensual del período";
   const valorAuxilio = parametros[CLAVE_PARAM.AUXILIO_TRANSPORTE] ?? 0;
   const smmlv = parametros[CLAVE_PARAM.SALARIO_MINIMO] ?? 0;
 
@@ -279,13 +288,13 @@ export function liquidarEmpleado(args: {
     // deducciones, SIN aportes del empleador, SIN prestaciones sociales
     // (es la razón de ser de esta modalidad; los impuestos van por UVT
     // fuera de la nómina del trabajador natural).
-    salarioBase = redondearCOP(contrato.salarioMensual, diasDevengados, diasPeriodo);
+    salarioBase = redondearCOP(basePeriodo, diasDevengados, diasPeriodo);
     conceptos.push({
       tipo: "DEVENGADO",
       clave: "SALARIO",
       etiqueta: "Honorarios",
       valor: salarioBase,
-      detalle: `${diasDevengados} de ${diasPeriodo} días del período`,
+      detalle: `${detalleBase} · ${diasDevengados} de ${diasPeriodo} días del período`,
     });
   } else if (contrato.remuneracion === "DIARIO") {
     // Salario DIARIO: se paga por cada jornada registrada. Sin horas
@@ -314,11 +323,8 @@ export function liquidarEmpleado(args: {
       detalle: `${formatMinutos(m.minutosTrabajados)} × ${contrato.valorHora}/h`,
     });
   } else {
-    // MENSUAL (contrato): salario proporcional por días sin pago.
-    // salarioBase = salarioMensual − (díasSinPago × salario/díasDelPeriodo),
-    // con redondeo UNA sola vez.
-    salarioBase =
-      contrato.salarioMensual - redondearCOP(contrato.salarioMensual, diasSinPago, diasPeriodo);
+    // La base mensual se reparte antes de aplicar novedades del corte.
+    salarioBase = redondearCOP(basePeriodo, diasDevengados, diasPeriodo);
     conceptos.push({
       tipo: "DEVENGADO",
       clave: "SALARIO",
@@ -326,8 +332,8 @@ export function liquidarEmpleado(args: {
       valor: salarioBase,
       detalle:
         diasSinPago > 0
-          ? `Salario mensual − ${diasSinPago} días sin pago (${diasDevengados}/${diasPeriodo} devengados)`
-          : "Salario mensual del período",
+          ? `${detalleBase} · ${diasSinPago} días sin pago (${diasDevengados}/${diasPeriodo} devengados)`
+          : detalleBase,
     });
 
     // Valor del minuto ordinario (factor mensual = jornada semanal × 5:
