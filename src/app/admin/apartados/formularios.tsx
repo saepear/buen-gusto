@@ -3,18 +3,30 @@
 import {
   CalendarClock,
   CookingPot,
+  Drumstick,
   Minus,
   Plus,
+  Salad,
   ShoppingBag,
+  Soup,
+  Star,
   StickyNote,
   Trash2,
   UserPlus,
   UserRound,
+  Wheat,
   X,
 } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { formatCOP } from "@/lib/format";
+import {
+  ChipCantidad,
+  FichaMenu,
+  NotaVacia,
+  PildoraModalidad,
+  TituloSeccion,
+} from "@/components/constructor-plato";
 import {
   buscarClientesApartado,
   crearApartado,
@@ -58,23 +70,9 @@ type Linea = {
 
 type Otro = { nombre: string; precio: string; cantidad: number; nota: string };
 
-const nuevaLinea = (proteinaProductoId: number): Linea => ({
-  conSopa: true,
-  proteinaProductoId,
-  principios: [],
-  ensaladas: [],
-  sopa: null,
-  adicionales: {},
-  cantidad: 1,
-  nota: "",
-});
-
-/** Píldora de elección (sopa, principios, ensaladas) */
-const CHIP = (elegido: boolean) =>
-  "rounded-xl px-2.5 py-1.5 text-xs font-bold ring-1 transition " +
-  (elegido
-    ? "bg-amber-brand text-brown-950 ring-amber-brand"
-    : "bg-panel-app text-texto-app ring-borde-app hover:ring-amber-brand/50");
+/** Prende/apaga una porción incluida (principio o ensalada) */
+const alternar = (lista: number[], id: number) =>
+  lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id];
 
 function Stepper({
   cantidad,
@@ -146,6 +144,16 @@ export function FormularioApartado({
   const [paraLlevar, setParaLlevar] = useState(false);
   const [observaciones, setObservaciones] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([]);
+  // ── Constructor del plan: se arman de uno en uno, como en el mesero
+  const [conSopa, setConSopa] = useState(true);
+  const [proteina, setProteina] = useState<number | null>(null);
+  const [principios, setPrincipios] = useState<number[]>([]);
+  const [ensaladas, setEnsaladas] = useState<number[]>([]);
+  const [sopa, setSopa] = useState<number | null>(null);
+  const [adicionalesPlato, setAdicionalesPlato] = useState<
+    Record<number, number>
+  >({});
+  const [cantidadPlato, setCantidadPlato] = useState(1);
   const [extrasCant, setExtrasCant] = useState<Record<number, number>>({});
   const [otros, setOtros] = useState<Otro[]>([]);
 
@@ -263,6 +271,13 @@ export function FormularioApartado({
       return;
     }
     fechaCargada.current = efectiva;
+    // El plan en construcción era del menú anterior: se descarta
+    setProteina(null);
+    setPrincipios([]);
+    setEnsaladas([]);
+    setSopa(null);
+    setAdicionalesPlato({});
+    setCantidadPlato(1);
     if (lineas.length > 0) {
       // Los planes eran del menú de otra fecha: se quitan y se rearman
       setLineas([]);
@@ -349,11 +364,138 @@ export function FormularioApartado({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineas, extrasCant, otros, extras, menuFecha, paraLlevar]);
 
+  // ── Piezas del plan en construcción (mismas reglas que el mesero)
+  const hayEspecialFecha = proteinasMenu.some((p) => p.precioPropio > 0);
+  /** Precio de la píldora sopa/bandeja: manda el especial de ESA fecha */
+  const precioPildora = (con: boolean): string => {
+    const prot =
+      proteina !== null ? porProductoDelMenu.get(proteina) : undefined;
+    if (prot && prot.precioPropio > 0) {
+      return formatCOP(precioEspecialDelDia(prot.precioPropio, con, paraLlevar));
+    }
+    if (hayEspecialFecha) return "Según la proteína";
+    return formatCOP(precioAlmuerzo(con, paraLlevar));
+  };
+  const nombresDeMenu = (ids: number[]) =>
+    ids.map((id) => porProductoDelMenu.get(id)?.nombre ?? "").filter(Boolean);
+  const nombresAdicionalesPlato = Object.entries(adicionalesPlato)
+    .filter(([, n]) => n > 0)
+    .map(([id, n]) => {
+      const nombre = extrasPorProducto.get(Number(id))?.nombre ?? "";
+      return nombre ? (n > 1 ? `${nombre} ×${n}` : nombre) : "";
+    })
+    .filter(Boolean);
+  const resumenPlan =
+    proteina === null
+      ? null
+      : `${conSopa ? "Con sopa" : "Bandeja"} · ${
+          porProductoDelMenu.get(proteina)?.nombre ?? ""
+        }${
+          conSopa
+            ? sopa !== null
+              ? ` · ${porProductoDelMenu.get(sopa)?.nombre ?? "Sopa"}`
+              : " · sopa del día"
+            : ""
+        }${
+          [...nombresDeMenu(principios), ...nombresDeMenu(ensaladas), ...nombresAdicionalesPlato]
+            .length
+            ? ` · ${[
+                ...nombresDeMenu(principios),
+                ...nombresDeMenu(ensaladas),
+                ...nombresAdicionalesPlato,
+              ].join(", ")}`
+            : ""
+        }`;
+
+  const mismoConjunto = (a: number[], b: number[]) => {
+    const x = [...a].sort((p, q) => p - q);
+    const y = [...b].sort((p, q) => p - q);
+    return x.length === y.length && x.every((v, i) => v === y[i]);
+  };
+  const mismoAdicionales = (
+    a: Record<number, number>,
+    b: Record<number, number>,
+  ) => {
+    const claves = new Set([...Object.keys(a), ...Object.keys(b)]);
+    return [...claves].every((k) => (a[Number(k)] ?? 0) === (b[Number(k)] ?? 0));
+  };
+
+  /** Suma el plan en construcción a la lista (fusiona si es idéntico) */
+  const anadirPlan = () => {
+    if (proteina === null) return;
+    const nueva: Linea = {
+      conSopa,
+      proteinaProductoId: proteina,
+      principios,
+      ensaladas,
+      sopa: conSopa ? sopa : null,
+      adicionales: { ...adicionalesPlato },
+      cantidad: cantidadPlato,
+      nota: "",
+    };
+    setLineas((previas) => {
+      const index = previas.findIndex(
+        (l) =>
+          l.conSopa === nueva.conSopa &&
+          l.proteinaProductoId === nueva.proteinaProductoId &&
+          (l.sopa ?? null) === (nueva.sopa ?? null) &&
+          mismoConjunto(l.principios, nueva.principios) &&
+          mismoConjunto(l.ensaladas, nueva.ensaladas) &&
+          mismoAdicionales(l.adicionales, nueva.adicionales),
+      );
+      if (index >= 0) {
+        const copia = [...previas];
+        copia[index] = {
+          ...copia[index],
+          cantidad: copia[index].cantidad + nueva.cantidad,
+        };
+        return copia;
+      }
+      return [...previas, nueva];
+    });
+    setProteina(null);
+    setPrincipios([]);
+    setEnsaladas([]);
+    setSopa(null);
+    setAdicionalesPlato({});
+    setCantidadPlato(1);
+  };
+
+  /** Lo que acompaña al plan (principios, ensaladas y sopa) */
+  const porcionesDe = (l: Linea) => {
+    const nombres = [...nombresDeMenu(l.principios), ...nombresDeMenu(l.ensaladas)];
+    if (l.conSopa) {
+      nombres.push(
+        l.sopa !== null
+          ? (porProductoDelMenu.get(l.sopa)?.nombre ?? "Sopa")
+          : "Sopa del día",
+      );
+    }
+    return nombres.join(" · ");
+  };
+
+  /** Adicionales dentro de un plan, con su cantidad */
+  const adicionalesDe = (l: Linea) =>
+    Object.entries(l.adicionales)
+      .filter(([, n]) => n > 0)
+      .map(([id, n]) => {
+        const nombre = extrasPorProducto.get(Number(id))?.nombre ?? "";
+        return nombre ? (n > 1 ? `${nombre} ×${n}` : nombre) : "";
+      })
+      .filter(Boolean)
+      .join(", ") || null;
+
   // El apartado se despachó bien: limpiar el constructor para el siguiente
   const okPrevio = useRef<string | null>(null);
   useEffect(() => {
     if (estado.ok && estado.ok !== okPrevio.current) {
       setLineas([]);
+      setProteina(null);
+      setPrincipios([]);
+      setEnsaladas([]);
+      setSopa(null);
+      setAdicionalesPlato({});
+      setCantidadPlato(1);
       setExtrasCant({});
       setOtros([]);
       setObservaciones("");
@@ -361,7 +503,6 @@ export function FormularioApartado({
       setAvisoMenu(null);
     }
     if (estado.ok) okPrevio.current = estado.ok;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado.ok]);
 
   const hayExtras = Object.values(extrasCant).some((n) => n > 0);
@@ -700,296 +841,270 @@ export function FormularioApartado({
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap gap-1.5">
-              {lineas.map((_, i) => (
-                <span
-                  key={i}
-                  className="rounded-full bg-fondo-app px-2 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app"
-                >
-                  Plan {i + 1}
-                </span>
-              ))}
+            {/* Mismo constructor que usa el mesero: un plan a la vez */}
+            <section className="rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <TituloSeccion
+                Icono={Soup}
+                clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
+                titulo="¿El almuerzo lleva sopa?"
+                sub="La bandeja es el mismo almuerzo sin sopa"
+              />
+              <PildoraModalidad
+                valor={conSopa}
+                onElegir={setConSopa}
+                opciones={[
+                  {
+                    valor: true,
+                    texto: "Con sopa",
+                    detalle: precioPildora(true),
+                    Icono: Soup,
+                  },
+                  {
+                    valor: false,
+                    texto: "Bandeja (sin sopa)",
+                    detalle: precioPildora(false),
+                    Icono: Soup,
+                  },
+                ]}
+              />
+            </section>
+
+            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <TituloSeccion
+                Icono={Wheat}
+                clase="bg-success/10 text-success-text ring-1 ring-success/20"
+                titulo="Principios"
+                sub="Los que pidan · frijoles, papa, pasta…"
+              />
+              {principiosMenu.length === 0 ? (
+                <NotaVacia texto="El menú de esa fecha no tiene principios." />
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {principiosMenu.map((item) => (
+                    <FichaMenu
+                      key={item.productoId}
+                      item={item}
+                      elegido={principios.includes(item.productoId)}
+                      onClick={() =>
+                        setPrincipios((prev) => alternar(prev, item.productoId))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <TituloSeccion
+                Icono={Drumstick}
+                clase="bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20"
+                titulo="Proteína"
+                sub="Elige una · el especial de esa fecha muestra su precio"
+              />
+              {proteinasMenu.length === 0 ? (
+                <NotaVacia texto="El menú de esa fecha no tiene proteína…" />
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {proteinasMenu.map((item) => (
+                    <FichaMenu
+                      key={item.productoId}
+                      item={item}
+                      precioVisible
+                      elegido={proteina === item.productoId}
+                      onClick={() => setProteina(item.productoId)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <TituloSeccion
+                Icono={Salad}
+                clase="bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20"
+                titulo="Ensalada"
+                sub="Elige una o varias · incluida en la bandeja"
+              />
+              {ensaladasMenu.length === 0 ? (
+                <NotaVacia texto="El menú de esa fecha no tiene ensalada…" />
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {ensaladasMenu.map((item) => (
+                    <FichaMenu
+                      key={item.productoId}
+                      item={item}
+                      elegido={ensaladas.includes(item.productoId)}
+                      onClick={() =>
+                        setEnsaladas((prev) => alternar(prev, item.productoId))
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {conSopa ? (
+              <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+                <TituloSeccion
+                  Icono={Soup}
+                  clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
+                  titulo="Sopa del día"
+                  sub="Opcional · si no eliges, la cocina pone la del día"
+                />
+                {sopasMenu.length === 0 ? (
+                  <NotaVacia texto="El menú de esa fecha no trae sopa: se llevará la sopa del día de la entrega." />
+                ) : (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {sopasMenu.map((item) => (
+                      <FichaMenu
+                        key={item.productoId}
+                        item={item}
+                        elegido={sopa === item.productoId}
+                        onClick={() => setSopa(item.productoId)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ) : null}
+
+            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <TituloSeccion
+                Icono={Star}
+                clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
+                titulo="Adicionales"
+                sub="Huevo, carne extra… · entran en el plan y se cobran aparte"
+              />
+              {adicionalesCatalogo.length === 0 ? (
+                <NotaVacia texto="No hay adicionales con precio en el catálogo." />
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {adicionalesCatalogo.map((e) => (
+                    <ChipCantidad
+                      key={e.productoId}
+                      etiqueta={e.nombre}
+                      precio={e.precio}
+                      cantidad={adicionalesPlato[e.productoId] ?? 0}
+                      onSumar={() =>
+                        setAdicionalesPlato((prev) => ({
+                          ...prev,
+                          [e.productoId]: (prev[e.productoId] ?? 0) + 1,
+                        }))
+                      }
+                      onRestar={() =>
+                        setAdicionalesPlato((prev) => {
+                          const n = (prev[e.productoId] ?? 0) - 1;
+                          const copia = { ...prev };
+                          if (n <= 0) delete copia[e.productoId];
+                          else copia[e.productoId] = n;
+                          return copia;
+                        })
+                      }
+                      ariaQuitar={`Quitar ${e.nombre} del plan`}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Barra del plan en construcción */}
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-panel-app p-3 ring-1 ring-amber-brand/30">
+              <p className="min-w-0 flex-1 basis-full text-sm font-bold text-texto-app sm:basis-0">
+                {resumenPlan ?? "Falta la proteína del nuevo plan"}
+              </p>
+              <Stepper cantidad={cantidadPlato} set={setCantidadPlato} min={1} />
+              <button
+                type="button"
+                onClick={anadirPlan}
+                disabled={proteina === null}
+                className={
+                  "flex items-center gap-1.5 rounded-xl px-4 py-2 font-display text-md transition active:scale-95 " +
+                  (proteina === null
+                    ? "cursor-not-allowed bg-campo-app text-texto-muted/60"
+                    : "bg-amber-brand text-brown-950 hover:bg-orange-brand hover:text-texto-app")
+                }
+              >
+                <Plus aria-hidden className="h-4 w-4" /> Añadir plan
+              </button>
             </div>
-            <ul className="space-y-2.5">
-              {lineas.map((l, i) => {
-                const guarda = (cambios: Partial<Linea>) =>
-                  setLineas(
-                    lineas.map((x, j) => (j === i ? { ...x, ...cambios } : x)),
-                  );
-                return (
-                  <li
-                    key={i}
-                    className="rounded-xl bg-fondo-app p-3 ring-1 ring-borde-app"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value={l.proteinaProductoId}
-                        onChange={(e) =>
-                          guarda({ proteinaProductoId: Number(e.target.value) })
-                        }
-                        aria-label={`Proteína del plan ${i + 1}`}
-                        className="rounded-xl bg-fondo-app px-2.5 py-2 text-sm font-bold text-texto-app ring-1 ring-borde-app"
-                      >
-                        {proteinasMenu.map((pr) => (
-                          <option key={pr.productoId} value={pr.productoId}>
-                            {pr.nombre}
-                            {pr.disponibles !== null && pr.disponibles <= 8
-                              ? ` · quedan ${pr.disponibles}`
-                              : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="inline-flex overflow-hidden rounded-xl ring-1 ring-borde-app">
-                        <button
-                          type="button"
-                          onClick={() => guarda({ conSopa: true })}
-                          className={
-                            "px-3 py-2 text-xs font-bold transition " +
-                            (l.conSopa
-                              ? "bg-amber-brand text-brown-950"
-                              : "bg-fondo-app text-texto-muted/60")
-                          }
-                        >
-                          Completo
-                        </button>
+
+            {/* Planes ya armados */}
+            {lineas.length === 0 ? (
+              <p className="mt-3 rounded-xl bg-panel-app p-3 text-sm text-texto-muted/60">
+                Aun no hay planes de almuerzo en la lista.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2.5">
+                {lineas.map((l, i) => {
+                  const prot = porProductoDelMenu.get(l.proteinaProductoId);
+                  const nombre = prot?.nombre ?? "—";
+                  const porciones = porcionesDe(l);
+                  const extras = adicionalesDe(l);
+                  return (
+                    <li
+                      key={i}
+                      className="rounded-xl bg-fondo-app p-3 ring-1 ring-borde-app"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-texto-app">
+                            {l.cantidad}× {nombre}
+                          </p>
+                          <p className="truncate text-[11px] text-texto-muted/45">
+                            {l.conSopa ? "con sopa" : "bandeja"}
+                            {porciones ? ` · ${porciones}` : ""}
+                          </p>
+                          {extras ? (
+                            <p className="truncate text-[11px] font-bold text-orange-brand/95">
+                              + {extras}
+                            </p>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           onClick={() =>
-                            guarda({ conSopa: false, sopa: null })
+                            setLineas(lineas.filter((_, j) => j !== i))
                           }
-                          className={
-                            "px-3 py-2 text-xs font-bold transition " +
-                            (!l.conSopa
-                              ? "bg-amber-brand text-brown-950"
-                              : "bg-fondo-app text-texto-muted/60")
-                          }
+                          aria-label={`Quitar plan ${i + 1}`}
+                          className="shrink-0 rounded-lg p-1.5 text-texto-muted/35 transition hover:text-danger-text"
                         >
-                          Bandeja
+                          <Trash2 aria-hidden className="h-6 w-6" />
                         </button>
-                      </span>
-                      <Stepper cantidad={l.cantidad} set={(n) => guarda({ cantidad: n })} />
-                      <strong className="font-display text-md text-texto-app">
-                        {formatCOP(precioPlato(l) * l.cantidad)}
-                      </strong>
-                      <button
-                        type="button"
-                        onClick={() => setLineas(lineas.filter((_, j) => j !== i))}
-                        aria-label={`Quitar plan ${i + 1}`}
-                        className="ml-auto rounded-xl bg-panel-app p-1.5 text-danger-text/70 ring-1 ring-borde-app transition hover:text-danger-text"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* Sopa exacta del menú (o «sopa del día») */}
-                    {l.conSopa ? (
-                      sopasMenu.length > 0 ? (
-                        <div className="mt-2.5">
-                          <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
-                            SOPA
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => guarda({ sopa: null })}
-                              className={CHIP(l.sopa === null)}
-                            >
-                              Sopa del día
-                            </button>
-                            {sopasMenu.map((s) => (
-                              <button
-                                key={s.productoId}
-                                type="button"
-                                onClick={() => guarda({ sopa: s.productoId })}
-                                className={CHIP(l.sopa === s.productoId)}
-                              >
-                                {s.nombre}
-                                {s.disponibles !== null && s.disponibles <= 8
-                                  ? ` · ${s.disponibles}`
-                                  : ""}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-xs text-texto-muted/55">
-                          El menú de esa fecha no trae sopa: se llevará la sopa
-                          del día de la entrega.
-                        </p>
-                      )
-                    ) : null}
-
-                    {/* Principios incluidos */}
-                    <div className="mt-2">
-                      <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
-                        PRINCIPIOS (incluidos)
-                      </p>
-                      {principiosMenu.length === 0 ? (
-                        <p className="text-xs text-texto-muted/55">
-                          El menú de esa fecha no tiene principios.
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {principiosMenu.map((p) => {
-                            const elegido = l.principios.includes(p.productoId);
-                            return (
-                              <button
-                                key={p.productoId}
-                                type="button"
-                                onClick={() =>
-                                  guarda({
-                                    principios: elegido
-                                      ? l.principios.filter(
-                                          (x) => x !== p.productoId,
-                                        )
-                                      : [...l.principios, p.productoId],
-                                  })
-                                }
-                                className={CHIP(elegido)}
-                              >
-                                {p.nombre}
-                                {p.disponibles !== null && p.disponibles <= 8
-                                  ? ` · ${p.disponibles}`
-                                  : ""}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Ensaladas incluidas */}
-                    <div className="mt-2">
-                      <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
-                        ENSALADAS (incluidas)
-                      </p>
-                      {ensaladasMenu.length === 0 ? (
-                        <p className="text-xs text-texto-muted/55">
-                          El menú de esa fecha no tiene ensaladas.
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {ensaladasMenu.map((e) => {
-                            const elegido = l.ensaladas.includes(e.productoId);
-                            return (
-                              <button
-                                key={e.productoId}
-                                type="button"
-                                onClick={() =>
-                                  guarda({
-                                    ensaladas: elegido
-                                      ? l.ensaladas.filter(
-                                          (x) => x !== e.productoId,
-                                        )
-                                      : [...l.ensaladas, e.productoId],
-                                  })
-                                }
-                                className={CHIP(elegido)}
-                              >
-                                {e.nombre}
-                                {e.disponibles !== null && e.disponibles <= 8
-                                  ? ` · ${e.disponibles}`
-                                  : ""}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Adicionales DENTRO del plato (se cobran aparte) */}
-                    {adicionalesCatalogo.length > 0 ? (
-                      <div className="mt-2">
-                        <p className="mb-1 text-[10px] font-bold tracking-wide text-texto-muted/50">
-                          ADICIONALES EN EL PLATO (se cobran aparte)
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {adicionalesCatalogo.map((e) => {
-                            const n = l.adicionales[e.productoId] ?? 0;
-                            return (
-                              <span
-                                key={e.productoId}
-                                className={
-                                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold ring-1 transition " +
-                                  (n > 0
-                                    ? "bg-amber-brand/15 text-amber-brand ring-amber-brand/40"
-                                    : "bg-panel-app text-texto-app ring-borde-app")
-                                }
-                              >
-                                <button
-                                  type="button"
-                                  aria-label={`Quitar un ${e.nombre} del plan ${i + 1}`}
-                                  onClick={() =>
-                                    guarda({
-                                      adicionales: {
-                                        ...l.adicionales,
-                                        [e.productoId]: Math.max(0, n - 1),
-                                      },
-                                    })
-                                  }
-                                  className="opacity-60 transition hover:opacity-100"
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </button>
-                                {e.nombre}
-                                {n > 0 ? (
-                                  <b className="text-amber-brand">×{n}</b>
-                                ) : (
-                                  <span className="opacity-70">
-                                    {formatCOP(e.precio)}
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  aria-label={`Agregar un ${e.nombre} al plan ${i + 1}`}
-                                  onClick={() =>
-                                    guarda({
-                                      adicionales: {
-                                        ...l.adicionales,
-                                        [e.productoId]: n + 1,
-                                      },
-                                    })
-                                  }
-                                  className="opacity-60 transition hover:opacity-100"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </button>
-                              </span>
-                            );
-                          })}
-                        </div>
                       </div>
-                    ) : null}
-
-                    <input
-                      value={l.nota}
-                      onChange={(e) => guarda({ nota: e.target.value })}
-                      maxLength={60}
-                      placeholder="Nota para cocina (ej: sin cebolla)…"
-                      className={CAMPO + " mt-2 text-xs"}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-            {lineas.length === 0 ? (
-              <p className="mb-2 text-sm text-texto-muted/60">
-                Aun no hay planes de almuerzo en la lista.
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={() =>
-                setLineas([
-                  ...lineas,
-                  nuevaLinea(proteinasMenu[0].productoId),
-                ])
-              }
-              disabled={proteinasMenu.length === 0}
-              className="mt-3 flex items-center gap-2 rounded-xl bg-panel-app px-4 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover disabled:opacity-40"
-            >
-              <Plus className="h-4 w-4 text-amber-brand" /> Añadir almuerzo
-            </button>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Stepper
+                          cantidad={l.cantidad}
+                          set={(n) =>
+                            setLineas(
+                              lineas.map((x, j) =>
+                                j === i ? { ...x, cantidad: n } : x,
+                              ),
+                            )
+                          }
+                          min={1}
+                        />
+                        <strong className="ml-auto font-display text-md tabular-nums text-texto-app">
+                          {formatCOP(precioPlato(l) * l.cantidad)}
+                        </strong>
+                      </div>
+                      <input
+                        value={l.nota}
+                        onChange={(e) =>
+                          setLineas(
+                            lineas.map((x, j) =>
+                              j === i ? { ...x, nota: e.target.value } : x,
+                            ),
+                          )
+                        }
+                        maxLength={60}
+                        placeholder="Nota para cocina (ej: sin cebolla)…"
+                        className={CAMPO + " mt-2 text-xs"}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </>
         )}
       </section>

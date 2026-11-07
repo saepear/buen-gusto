@@ -29,6 +29,14 @@ import type { CategoriaPropia } from "@/lib/config";
 import type { ClienteResumen } from "@/lib/clientes";
 import { iconoDeCategoria } from "@/lib/iconos";
 import type { ItemMenuHoy } from "@/lib/pedido";
+import {
+  ChipCantidad,
+  FichaMenu,
+  NotaVacia,
+  PildoraModalidad,
+  TituloSeccion,
+  claseDeCategoria,
+} from "@/components/constructor-plato";
 import { tomarPedido } from "@/app/mesero/actions";
 
 /** error/ok del envío + coincidencias que piden decisión (solo domicilios) */
@@ -89,22 +97,6 @@ type LineaPlato = {
 
 const ordenarNumeros = (lista: number[]) => [...lista].sort((x, y) => x - y);
 
-/** Tintes en el orden del solar: cada categoría propia revive un color
-    propio y estático calculado de su nombre */
-const TINTES_CATEGORIA = [
-  "bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20",
-  "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
-  "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
-  "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
-  "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-];
-const claseDeCategoria = (nombre: string) => {
-  let suma = 0;
-  for (let i = 0; i < nombre.length; i++)
-    suma = (suma * 31 + nombre.charCodeAt(i)) >>> 0;
-  return TINTES_CATEGORIA[suma % TINTES_CATEGORIA.length];
-};
-
 /** ¿Dos selecciones son el mismo plato? (para fusionar en una línea) */
 const mismoSet = (a: number[], b: number[]) => {
   if (a.length !== b.length) return false;
@@ -112,38 +104,6 @@ const mismoSet = (a: number[], b: number[]) => {
   const ordenB = ordenarNumeros(b);
   return ordenA.every((v, i) => v === ordenB[i]);
 };
-
-/** Encabezado de cada sección, con ícono en píldora de color */
-function TituloSeccion({
-  Icono,
-  clase,
-  titulo,
-  sub,
-}: {
-  Icono: LucideIcon;
-  clase: string;
-  titulo: string;
-  sub: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span
-        aria-hidden
-        className={
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl " + clase
-        }
-      >
-        <Icono className="h-4.5 w-4.5" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-          {titulo}
-        </p>
-        <p className="text-[11px] text-texto-muted/35">{sub}</p>
-      </div>
-    </div>
-  );
-}
 
 /** Campo de texto accesible con ícono, usado en los datos del cliente */
 function Campo({
@@ -194,24 +154,6 @@ function Campo({
     </label>
   );
 }
-
-/** Aviso hundido para las secciones en las que hoy no hay nada */
-function NotaVacia({ texto }: { texto: string }) {
-  return (
-    <p className="mt-3 rounded-2xl bg-campo-app px-3.5 py-3 text-sm text-texto-muted/45">
-      {texto}
-    </p>
-  );
-}
-
-const ICONO_TIPO: Record<string, LucideIcon> = {
-  PROTEINA: Drumstick,
-  PRINCIPIO: Wheat,
-  ENSALADA: Salad,
-  SOPA: Soup,
-  BEBIDA: CupSoda,
-  ADICIONAL: Star,
-};
 
 export function FormularioPedido({
   mesa,
@@ -584,194 +526,6 @@ export function FormularioPedido({
       else copia[id] = n;
       return copia;
     });
-  };
-
-  const FichaMenu = ({
-    item,
-    elegido,
-    onClick,
-    precioVisible = false,
-  }: {
-    item: ItemMenuHoy;
-    elegido: boolean;
-    onClick: () => void;
-    /** true solo en la sección de proteína: cuando el ítem trae precio
-     *  especial de HOY (domingo), la ficha muestra cuánto cobra */
-    precioVisible?: boolean;
-  }) => {
-    const agotado = item.disponibles === 0;
-    const Icono = ICONO_TIPO[item.tipo] ?? UtensilsCrossed;
-    return (
-      <button
-        type="button"
-        disabled={agotado}
-        onClick={onClick}
-        aria-pressed={elegido}
-        className={
-          "flex items-center gap-2.5 rounded-2xl px-2.5 py-2 text-left transition active:scale-95 sm:px-3 sm:py-2.5 " +
-          (agotado
-            ? "bg-campo-app text-texto-muted/35 ring-1 ring-borde-app"
-            : elegido
-              ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-              : "bg-campo-app text-texto-app ring-1 ring-borde-app hover:ring-amber-brand/60")
-        }
-      >
-        <span
-          aria-hidden
-          className={
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-xl sm:h-8 sm:w-8 " +
-            (agotado
-              ? "bg-fondo-app/40 text-texto-muted/25"
-              : elegido
-                ? "bg-fondo-app/60 text-brown-950"
-                : "bg-fondo-app/60 text-texto-muted/45")
-          }
-        >
-          <Icono className="h-4 w-4" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm leading-tight font-bold">
-            {item.nombre}
-          </span>
-          <span
-            className={
-              "text-[10px] font-bold " +
-              (agotado
-                ? "text-danger-text"
-                : item.disponibles === null
-                  ? elegido
-                    ? "text-brown-950/70"
-                    : "text-texto-muted/35"
-                  : item.disponibles <= 5
-                    ? "text-warning-text"
-                    : elegido
-                      ? "text-brown-950/70"
-                      : "text-texto-muted/35")
-            }
-          >
-            {(precioVisible && item.precioPropio > 0
-              ? `${formatCOP(item.precioPropio)} · `
-              : "") +
-              (agotado
-                ? "Agotado"
-                : item.disponibles === null
-                  ? "Ilimitado"
-                  : `Quedan ${item.disponibles}`)}
-          </span>
-        </span>
-      </button>
-    );
-  };
-
-  const ChipExtra = ({ e }: { e: Extra }) => {
-    const n = cantidades[e.id] ?? 0;
-    const activo = n > 0;
-    return (
-      <span
-        className={
-          "flex items-center overflow-hidden rounded-2xl transition " +
-          (activo
-            ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-            : "bg-campo-app ring-1 ring-borde-app")
-        }
-      >
-        {activo ? (
-          <button
-            type="button"
-            aria-label={`Quitar ${e.nombre}`}
-            onClick={() => pedirExtra(e.id, -1)}
-            className="flex h-full items-center px-2.5 transition hover:bg-danger/80"
-          >
-            <Minus aria-hidden className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => pedirExtra(e.id, 1)}
-          className="flex flex-1 items-center gap-2 px-2.5 py-2.5 text-left"
-        >
-          {!activo ? (
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-fondo-app/60 text-texto-muted/45"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </span>
-          ) : null}
-          <span className="min-w-0">
-            <span className="block text-sm leading-tight font-bold">
-              {e.nombre}
-              {activo && n > 1 ? ` ×${n}` : ""}
-            </span>
-            <span
-              className={
-                "text-[10px] font-bold tabular-nums " +
-                (activo ? "text-brown-950/70" : "text-texto-muted/35")
-              }
-            >
-              {e.precio > 0 ? formatCOP(e.precio) : "Gratis"}
-            </span>
-          </span>
-        </button>
-      </span>
-    );
-  };
-
-  /** Chip de adicional para el PLATO de la vez: con + / − se acumulan las
-   *  unidades y entran al plato al darle «Añadir». En la comanda se
-   *  imprimen dentro del «PEDIDO n» del plato, no en Extras. */
-  const ChipAdicional = ({ e }: { e: Extra }) => {
-    const n = adicionales[e.id] ?? 0;
-    const activo = n > 0;
-    return (
-      <span
-        className={
-          "flex items-center overflow-hidden rounded-2xl transition " +
-          (activo
-            ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-            : "bg-campo-app ring-1 ring-borde-app")
-        }
-      >
-        {activo ? (
-          <button
-            type="button"
-            aria-label={`Quitar ${e.nombre} del plato`}
-            onClick={() => pedirAdicional(e.id, -1)}
-            className="flex h-full items-center px-2.5 transition hover:bg-danger/80"
-          >
-            <Minus aria-hidden className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => pedirAdicional(e.id, 1)}
-          className="flex flex-1 items-center gap-2 px-2.5 py-2.5 text-left"
-        >
-          {!activo ? (
-            <span
-              aria-hidden
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-fondo-app/60 text-texto-muted/45"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </span>
-          ) : null}
-          <span className="min-w-0">
-            <span className="block text-sm leading-tight font-bold">
-              {e.nombre}
-              {activo && n > 1 ? ` ×${n}` : ""}
-            </span>
-            <span
-              className={
-                "text-[10px] font-bold tabular-nums " +
-                (activo ? "text-brown-950/70" : "text-texto-muted/35")
-              }
-            >
-              {e.precio > 0 ? formatCOP(e.precio) : "Gratis"}
-            </span>
-          </span>
-        </button>
-      </span>
-    );
   };
 
   /** El panel de la comanda: escritorio (fijo a la derecha) y móvil (modal).
@@ -1222,34 +976,24 @@ export function FormularioPedido({
               titulo="¿El almuerzo lleva sopa?"
               sub="La bandeja es el mismo almuerzo sin sopa"
             />
-            <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-1.5 ring-1 ring-borde-app">
-              {(
-                [
-                  { ok: true, txt: "Con sopa" },
-                  { ok: false, txt: "Bandeja (sin sopa)" },
-                ] as const
-              ).map((o) => (
-                <button
-                  key={o.txt}
-                  type="button"
-                  onClick={() => setConSopa(o.ok)}
-                  aria-pressed={conSopa === o.ok}
-                  className={
-                    "flex flex-col items-center justify-center gap-0.5 rounded-xl py-2 font-display text-md transition active:scale-95 sm:py-2.5 " +
-                    (conSopa === o.ok
-                      ? "bg-amber-brand text-brown-950 shadow-lg shadow-amber-brand/20"
-                      : "text-texto-muted/70 hover:bg-panel-hover")
-                  }
-                >
-                  <span className="flex items-center gap-2">
-                    <Soup aria-hidden className="h-4 w-4" /> {o.txt}
-                  </span>
-                  <span className="text-[10px] font-bold tabular-nums normal-case">
-                    {precioPildora(o.ok)}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <PildoraModalidad
+              valor={conSopa}
+              onElegir={setConSopa}
+              opciones={[
+                {
+                  valor: true,
+                  texto: "Con sopa",
+                  detalle: precioPildora(true),
+                  Icono: Soup,
+                },
+                {
+                  valor: false,
+                  texto: "Bandeja (sin sopa)",
+                  detalle: precioPildora(false),
+                  Icono: Soup,
+                },
+              ]}
+            />
           </section>
 
           {/* 2. Principios: se piden antes de la proteína */}
@@ -1393,7 +1137,15 @@ export function FormularioPedido({
             ) : (
               <div className="mt-3 flex flex-wrap gap-2">
                 {adicionalesMenu.map((e) => (
-                  <ChipAdicional key={e.id} e={e} />
+                  <ChipCantidad
+                    key={e.id}
+                    etiqueta={e.nombre}
+                    precio={e.precio}
+                    cantidad={adicionales[e.id] ?? 0}
+                    onSumar={() => pedirAdicional(e.id, 1)}
+                    onRestar={() => pedirAdicional(e.id, -1)}
+                    ariaQuitar={`Quitar ${e.nombre} del plato`}
+                  />
                 ))}
               </div>
             )}
@@ -1416,7 +1168,15 @@ export function FormularioPedido({
               ) : (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {s.items.map((e) => (
-                    <ChipExtra key={e.id} e={e} />
+                    <ChipCantidad
+                      key={e.id}
+                      etiqueta={e.nombre}
+                      precio={e.precio}
+                      cantidad={cantidades[e.id] ?? 0}
+                      onSumar={() => pedirExtra(e.id, 1)}
+                      onRestar={() => pedirExtra(e.id, -1)}
+                      ariaQuitar={`Quitar ${e.nombre}`}
+                    />
                   ))}
                 </div>
               )}
