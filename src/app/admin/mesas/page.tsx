@@ -1,5 +1,4 @@
 import { LayoutGrid } from "lucide-react";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
@@ -72,15 +71,11 @@ export default async function PaginaMesas() {
 
   // Hora de la solicitud: el reloj del tablero nace sincronizado desde el
   // primer pintado, sin estado «null» ni contenido que arranca después
+  // eslint-disable-next-line react-hooks/purity -- Server Component: fija la hora de esta solicitud para hidratar el reloj.
   const ahoraServidor = Date.now();
 
   return (
     <>
-      <EncabezadoPagina
-        titulo="Mesas"
-        subtitulo="Filtra por estado, busca por nombre y abre una mesa para ver su cuenta en vivo"
-      />
-
       <TableroMesas mesas={tablero} ahoraServidor={ahoraServidor} />
 
       <p className="mt-6 flex items-center gap-2 text-sm text-texto-muted/45">

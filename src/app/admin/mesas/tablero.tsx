@@ -3,6 +3,9 @@
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import {
+  ArrowUpRight,
+  LayoutGrid,
+  Check,
   Banknote,
   Clock,
   CupSoda,
@@ -25,6 +28,8 @@ import { createPortal } from "react-dom";
 import { formatCOP } from "@/lib/format";
 import type { EstadoMesa } from "@/lib/roles";
 import { ModalFlip } from "@/components/modal-flip";
+
+import "./mesas.css";
 
 gsap.registerPlugin(useGSAP);
 
@@ -148,46 +153,25 @@ function TarjetaMesa({
       ref={registrar}
       type="button"
       onClick={(e) => onAbrir(e.currentTarget.getBoundingClientRect())}
-      className="tarjeta-mesa group flex flex-col rounded-2xl bg-panel-app p-5 text-left ring-1 ring-borde-app transition duration-200 hover:-translate-y-0.5 hover:ring-amber-brand/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand active:translate-y-0 active:scale-[0.99]"
+      className="tarjeta-mesa mesas-card group"
+      data-estado={estado}
+      aria-label={mesa.nombre + ", " + TEXTO_ESTADO[estado] + ". Ver detalle"}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-display text-2xl text-texto-app">
-          {mesa.nombre}
-        </span>
-        <span
-          className={
-            "shrink-0 rounded-full px-3 py-1 text-xs font-bold " +
-            ESTILO_ESTADO[estado]
-          }
-        >
-          {TEXTO_ESTADO[estado]}
-        </span>
+      <div className="mesas-card-top">
+        <span className="mesas-card-icon"><UtensilsCrossed size={21} aria-hidden /></span>
+        <span className={"mesas-status " + ESTILO_ESTADO[estado]}><span className="mesas-dot" />{TEXTO_ESTADO[estado]}</span>
       </div>
-
-      {ocupada ? (
-        <>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-texto-muted/60">
-            <span className="flex items-center gap-1">
-              <Utensils className="h-3.5 w-3.5" /> {mesa.platos}{" "}
-              {mesa.platos === 1 ? "plato" : "platos"}
-            </span>
-            {minutos !== null ? (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" /> {minutos} min
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-3 font-display text-xl text-texto-app">
-            {formatCOP(mesa.total)}
-          </p>
-        </>
-      ) : (
-        <p className="mt-3 text-sm text-texto-muted/45">
-          Disponible para clientes
-        </p>
-      )}
-
-      <span className="mt-4 h-1 w-8 rounded-full bg-amber-brand/30 transition-all duration-200 group-hover:w-14 group-hover:bg-amber-brand" />
+      <span className="mesas-card-name">{mesa.nombre}</span>
+      <span className="mesas-card-meta">
+        {ocupada ? <><span><Utensils size={14} aria-hidden />{mesa.platos} {mesa.platos === 1 ? "plato" : "platos"}</span>
+          {minutos !== null && <span><Clock size={14} aria-hidden />{minutos} min</span>}</>
+          : <span>{estado === "LIBRE" ? "Lista para recibir clientes" : "Sin comandas activas"}</span>}
+      </span>
+      <span className="mesas-card-bottom">
+        <span><span className="mesas-card-caption">{ocupada ? "Cuenta actual" : "Sin consumo registrado"}</span>
+          <strong>{ocupada ? formatCOP(mesa.total) : estado === "LIBRE" ? "Disponible" : "Ver detalle"}</strong></span>
+        <span className="mesas-card-arrow"><ArrowUpRight size={19} aria-hidden /></span>
+      </span>
     </button>
   );
 }
@@ -483,34 +467,33 @@ export function TableroMesas({
         }}
       />
 
-      {/* Resumen del salón: cuatro cifras, un solo acento */}
-      <div className="mb-5 flex flex-wrap items-stretch gap-x-7 gap-y-4">
+      <header className="mesas-heading">
+        <div><p className="mesas-eyebrow">GESTIÓN DEL SALÓN</p><h1>Mesas</h1>
+          <p>Todo tu salón, de un vistazo. Selecciona una mesa para ver su cuenta.</p></div>
+        <Link href="/admin/caja" className="mesas-caja"><Wallet size={18} aria-hidden /> Ir a caja <ArrowUpRight size={16} aria-hidden /></Link>
+      </header>
+      <section className="mesas-stats" aria-label="Resumen del salón">
         {[
-          { etiqueta: "Ocupadas", valor: `${ocupadas} de ${mesas.length}` },
-          { etiqueta: "Por pagar", valor: String(porPagar) },
-          { etiqueta: "Platos en mesas", valor: String(platosVivos) },
-        ].map(({ etiqueta, valor }) => (
-          <div key={etiqueta} className="min-w-[7.5rem] border-l border-borde-app pl-4 first:border-l-0 first:pl-0">
-            <p className="font-display text-2xl leading-none text-texto-app">
-              {valor}
-            </p>
-            <p className="mt-1.5 text-xs text-texto-muted/70">{etiqueta}</p>
+          { etiqueta: "Mesas disponibles", valor: String(libres), detalle: mesas.length + " mesas en el salón", Icono: Check, tono: "libres" },
+          { etiqueta: "Mesas en servicio", valor: String(ocupadas + porPagar), detalle: platosVivos + " platos en mesas", Icono: Utensils, tono: "servicio" },
+          { etiqueta: "Por pagar", valor: String(porPagar), detalle: "Pendientes de cobro", Icono: Banknote, tono: "pagar" },
+          { etiqueta: "Total en mesas", valor: formatCOP(totalVivo), detalle: "Consumo activo del salón", Icono: Wallet, tono: "total" },
+        ].map(({ etiqueta, valor, detalle, Icono, tono }) => (
+          <div key={etiqueta} className="mesas-stat" data-tono={tono}>
+            <span className="mesas-stat-icon"><Icono size={21} aria-hidden /></span>
+            <div><p>{etiqueta}</p><strong>{valor}</strong><span>{detalle}</span></div>
           </div>
         ))}
-        <div className="min-w-[9.5rem] border-l border-borde-app pl-4">
-          <p className="font-display text-2xl leading-none text-amber-brand">
-            {formatCOP(totalVivo)}
-          </p>
-          <p className="mt-1.5 text-xs text-texto-muted/70">Total en mesas</p>
-        </div>
-      </div>
+      </section>
+      <div className="mesas-section-heading"><h2><LayoutGrid size={18} aria-hidden /> Mesas del salón</h2>
+        <span aria-live="polite">{visibles.length} de {mesas.length} mesas</span></div>
 
       {/* Filtrado y búsqueda */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mesas-toolbar">
         <div
           role="group"
           aria-label="Filtrar mesas por estado"
-          className="inline-flex flex-wrap gap-1 rounded-xl bg-campo-app p-1 ring-1 ring-borde-app"
+          className="mesas-filters"
         >
           {FILTROS.map(({ valor, etiqueta }) => {
             const activo = filtro === valor;
@@ -540,7 +523,7 @@ export function TableroMesas({
           })}
         </div>
 
-        <div className="relative min-w-0 flex-1 sm:max-w-56">
+        <div className="mesas-search relative">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-texto-muted/50"
             aria-hidden
@@ -551,7 +534,7 @@ export function TableroMesas({
             type="search"
             placeholder="Buscar mesa…"
             aria-label="Buscar mesa por nombre"
-            className="h-9 w-full rounded-xl border-0 bg-panel-app pl-9 pr-3 text-sm font-bold text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/30 focus:ring-2 focus:ring-amber-brand/60"
+            className="h-11 w-full rounded-xl border-0 bg-panel-app pl-9 pr-3 text-sm font-bold text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/30 focus:ring-2 focus:ring-amber-brand/60"
           />
         </div>
       </div>
@@ -559,7 +542,7 @@ export function TableroMesas({
       {visibles.length > 0 ? (
         <div
           ref={gridRef}
-          className="escenario-cascada grid items-start gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+          className="escenario-cascada mesas-grid"
         >
           {visibles.map((mesa) => (
             <TarjetaMesa
@@ -589,6 +572,7 @@ export function TableroMesas({
               ? "Cambiar el filtro o el término de búsqueda vuelve a traer todas las mesas."
               : "Crea el salón desde Configuración en la sección Mesas del salón."}
           </p>
+          {mesas.length > 0 && <button type="button" className="mesas-reset" onClick={() => { setFiltro("TODAS"); setTexto(""); }}>Ver todas las mesas</button>}
         </div>
       )}
 
