@@ -1,176 +1,169 @@
-// ═════════ Nómina · Panel general ═════════
-// Foto del estado del personal y del pendiente de pago. Cada carta lleva
-// a su sección con la navegación compartida.
-import { UserRound } from "lucide-react";
-import Link from "next/link";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
-import { formatCOP } from "@/lib/format";
 import { requerirRol } from "@/lib/session";
-import { NavegacionNomina } from "./navegacion";
+import { ciclosDeMes } from "@/lib/nomina/helpers";
+import { PanelNomina } from "./panel-nomina";
+import { fechaColombia, resumenEmpleado } from "@/lib/nomina/resumen";
 
 export const metadata = { title: "Nómina · El Buen Gusto" };
 
-export default async function PaginaNomina() {
+export default async function PaginaNomina({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    mes?: string;
+    corte?: string;
+    periodo?: string;
+    empleado?: string;
+  }>;
+}) {
   await requerirRol("ADMIN");
-
-  const [activos, inactivos, periodosAbiertos, pendientes, prestaciones] = await Promise.all([
-    db.empleado.count({ where: { estado: "ACTIVO" } }),
-    db.empleado.count({ where: { estado: "INACTIVO" } }),
-    db.periodoNomina.findMany({ where: { estado: "ABIERTO" }, orderBy: { fechaDesde: "desc" }, take: 3, include: { _count: { select: { liquidaciones: true } } } }),
-    db.liquidacionNomina.aggregate({
-      where: { estado: "APROBADA", estadoPago: { not: "PAGADO" } },
-      _sum: { netoAPagar: true, pagado: true },
-    }),
-    db.liquidacionNomina.aggregate({
-      _sum: {
-        prestacionPrima: true,
-        prestacionCesantias: true,
-        prestacionIntereses: true,
-        prestacionVacaciones: true,
+  const params = await searchParams;
+  const hoy = fechaColombia(new Date());
+  const mes =
+    typeof params.mes === "string" &&
+    /^20\d{2}-(0[1-9]|1[0-2])$/.test(params.mes)
+      ? params.mes
+      : hoy.slice(0, 7);
+  const [anio, numeroMes] = mes.split("-").map(Number);
+  const cortes = ciclosDeMes(anio, numeroMes);
+  const dia = Number(hoy.slice(8));
+  const corte = /^[1-4]$/.test(params.corte ?? "")
+    ? Number(params.corte) - 1
+    : mes === hoy.slice(0, 7)
+      ? Math.min(Math.floor((dia - 1) / 7), 3)
+      : 0;
+  const periodos = await db.periodoNomina.findMany({
+    where: {
+      fechaDesde: { lte: `${mes}-31` },
+      fechaHasta: { gte: `${mes}-01` },
+    },
+    orderBy: { fechaDesde: "asc" },
+  });
+  const periodo =
+    periodos.find((p) => String(p.id) === params.periodo) ??
+    periodos.find(
+      (p) =>
+        p.fechaDesde === cortes[corte].desde &&
+        p.fechaHasta === cortes[corte].hasta,
+    );
+  const rango = periodo
+    ? { desde: periodo.fechaDesde, hasta: periodo.fechaHasta }
+    : cortes[corte];
+  const [
+    empleados,
+    liquidaciones,
+    vales,
+    jornadas,
+    parametrosPendientes,
+    parametrosTotal,
+  ] = await Promise.all([
+    db.empleado.findMany({
+      orderBy: [{ estado: "asc" }, { nombre: "asc" }],
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        cargo: true,
+        estado: true,
+        documentoTipo: true,
+        documentoNumero: true,
+        fechaIngreso: true,
+        remuneracion: true,
+        salarioMensual: true,
+        salarioDiario: true,
+        valorHora: true,
+        diaDescanso: true,
+        metodoPago: true,
       },
     }),
+    periodo
+      ? db.liquidacionNomina.findMany({
+          where: { periodoId: periodo.id },
+          select: {
+            id: true,
+            empleadoId: true,
+            estado: true,
+            estadoPago: true,
+            salarioBase: true,
+            totalDevengado: true,
+            totalDeducciones: true,
+            netoAPagar: true,
+            pagado: true,
+          },
+        })
+      : Promise.resolve([]),
+    db.valeNomina.findMany({
+      where: {
+        OR: [
+          ...(periodo ? [{ cicloId: periodo.id }] : []),
+          { cicloId: null, fecha: { gte: rango.desde, lte: rango.hasta } },
+        ],
+      },
+      orderBy: [{ fecha: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        empleadoId: true,
+        productoNombre: true,
+        cantidad: true,
+        precioUnitario: true,
+        total: true,
+        fecha: true,
+        estado: true,
+        liquidacionId: true,
+      },
+    }),
+    db.jornadaLaboral.groupBy({
+      by: ["empleadoId"],
+      where: { fecha: { gte: rango.desde, lte: rango.hasta } },
+      _sum: { minutosTrabajados: true, descansoMinutos: true },
+    }),
+    db.parametroLaboral.count({ where: { pendienteVerificar: true } }),
+    db.parametroLaboral.count(),
   ]);
-
-  // Prestaciones pagadas (por concepto) para mostrar el pendiente real
-  const pagosPrestaciones = await db.pagoPrestacion.groupBy({
-    by: ["concepto"],
-    _sum: { monto: true },
-  });
-  const pagadoPor = Object.fromEntries(
-    pagosPrestaciones.map((p) => [p.concepto, p._sum.monto ?? 0]),
-  );
-
-  const totalCausado =
-    (prestaciones._sum.prestacionPrima ?? 0) +
-    (prestaciones._sum.prestacionCesantias ?? 0) +
-    (prestaciones._sum.prestacionIntereses ?? 0) +
-    (prestaciones._sum.prestacionVacaciones ?? 0);
-  const totalPagadoPrestaciones = pagosPrestaciones.reduce((s, p) => s + (p._sum.monto ?? 0), 0);
-  const pendientePrestaciones = totalCausado - totalPagadoPrestaciones;
-
-  const netoPendiente =
-    Math.max((pendientes._sum.netoAPagar ?? 0) - (pendientes._sum.pagado ?? 0), 0);
-
   return (
-    <>
-      <EncabezadoPagina
-        titulo="Nómina"
-        subtitulo="Quién trabaja, cuánto debe recibir, cómo se calculó y qué se ha pagado"
-      />
-
-      <div className="mb-6">
-        <NavegacionNomina actual="/admin/nomina" />
-      </div>
-
-      {/* Resumen */}
-      <div className="mb-6 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Personal
-          </p>
-          <p className="font-display text-2xl text-texto-app">
-            {activos} activos
-            {inactivos > 0 ? ` · ${inactivos} inactivos` : ""}
-          </p>
-          <p className="text-[11px] text-texto-muted/55">
-            El historial se conserva aunque se desactive
-          </p>
-        </div>
-        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Neto por pagar (aprobado)
-          </p>
-          <p className="font-display text-2xl text-amber-brand">
-            {formatCOP(netoPendiente)}
-          </p>
-          <p className="text-[11px] text-texto-muted/55">
-            Los períodos abiertos aún no tocan caja
-          </p>
-        </div>
-        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Prestaciones causadas
-          </p>
-          <p className="font-display text-2xl text-info-text">
-            {formatCOP(pendientePrestaciones)}
-          </p>
-          <p className="text-[11px] text-texto-muted/55">
-            prima · cesantías · intereses · vacaciones
-          </p>
-        </div>
-        <div className="rounded-2xl bg-panel-app px-4 py-3 ring-1 ring-borde-app">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-texto-muted/55">
-            Períodos abiertos
-          </p>
-          <p className="font-display text-2xl text-texto-app">
-            {periodosAbiertos.length}
-          </p>
-          {periodosAbiertos.map((p) => (
-            <p key={p.id} className="text-[11px] text-texto-muted/55">
-              {p.fechaDesde} → {p.fechaHasta} ({p._count.liquidaciones} liqu.)
-            </p>
-          ))}
-        </div>
-      </div>
-
-      {/* Qué se hace aquí */}
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-        {[
-          {
-            href: "/admin/nomina/empleados",
-            titulo: "Empleados",
-            texto: "Registrar personal, cambiar salarios con historial de contrato, desactivar y consultar fichas.",
-          },
-          {
-            href: "/admin/nomina/asistencia",
-            titulo: "Asistencia",
-            texto: "Jornadas con entrada/salida y descanso: el sistema clasifica ordinarias, nocturnas, festivos y extras.",
-          },
-          {
-            href: "/admin/nomina/novedades",
-            titulo: "Novedades",
-            texto: "Comisiones, bonos, ausencias, permisos, incapacidades, vacaciones y descuentos (se aprueban para liquidar).",
-          },
-          {
-            href: "/admin/nomina/periodos",
-            titulo: "Períodos y liquidaciones",
-            texto: "Crear quincena o mes, liquidar, aprobar y cerrar: cada liquidación queda congelada con su foto.",
-          },
-          {
-            href: "/admin/nomina/obligaciones",
-            titulo: "Obligaciones",
-            texto: "Prima, cesantías, intereses y vacaciones: causado, pagado y pendiente por empleado.",
-          },
-          {
-            href: "/admin/nomina/reportes",
-            titulo: "Reportes",
-            texto: "Nómina por período o empleado, pagos y aportes con exportación a Excel.",
-          },
-        ].map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app transition hover:bg-panel-hover"
-          >
-            <p className="font-display text-lg text-texto-app">{c.titulo}</p>
-            <p className="mt-1 text-sm text-texto-muted/70">{c.texto}</p>
-          </Link>
-        ))}
-      </div>
-
-      {activos === 0 ? (
-        <div className="mt-8 flex min-h-[180px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-8 text-center">
-          <UserRound className="h-9 w-9 text-texto-muted/40" />
-          <p className="mt-4 font-display text-xl text-texto-app">
-            Aún no hay empleados registrados
-          </p>
-          <p className="mt-1.5 max-w-md text-sm text-texto-muted/70">
-            Empieza en «Empleados»: registra a tu personal con su contrato
-            inicial y la información de seguridad social.
-          </p>
-        </div>
-      ) : null}
-    </>
+    <PanelNomina
+      key={`${rango.desde}-${rango.hasta}`}
+      datos={{
+        hoy,
+        mes,
+        corte,
+        rango,
+        cortes: cortes.map((r) => ({
+          ...r,
+          periodoId:
+            periodos.find(
+              (p) => p.fechaDesde === r.desde && p.fechaHasta === r.hasta,
+            )?.id ?? null,
+        })),
+        periodo: periodo
+          ? {
+              id: periodo.id,
+              estado: periodo.estado,
+              fechaPago: periodo.fechaPagoPrevista ?? periodo.fechaHasta,
+            }
+          : null,
+        periodos: periodos.map((p) => ({
+          id: p.id,
+          desde: p.fechaDesde,
+          hasta: p.fechaHasta,
+        })),
+        empleados: empleados.map((e) => ({
+          ...e,
+          fechaIngreso: e.fechaIngreso.toISOString(),
+          liquidacion: liquidaciones.find((l) => l.empleadoId === e.id) ?? null,
+          vales: vales.filter((v) => v.empleadoId === e.id),
+          minutos:
+            jornadas.find((j) => j.empleadoId === e.id)?._sum
+              .minutosTrabajados ?? 0,
+          ...resumenEmpleado(
+            liquidaciones.find((l) => l.empleadoId === e.id) ?? null,
+            vales.filter((v) => v.empleadoId === e.id),
+          ),
+        })),
+        parametrosPendientes,
+        parametrosTotal,
+        empleadoInicial: Number(params.empleado) || null,
+      }}
+    />
   );
 }

@@ -20,12 +20,12 @@ const ETIQUETA = "text-xs font-bold tracking-wide text-texto-muted/60";
 
 export function FormularioCrearPeriodo() {
   const [estado, accion, pendiente] = useActionState(crearPeriodo, INICIAL);
-  const [tipo, setTipo] = useState("QUINCENAL");
+  const [tipo, setTipo] = useState("CICLOS");
 
   return (
     <details className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
       <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95">
-        <Plus className="h-5 w-5" /> Crear período
+        <Plus className="h-5 w-5" /> Crear ciclo de pago
       </summary>
       <form action={accion} className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {estado.error ? (
@@ -42,14 +42,16 @@ export function FormularioCrearPeriodo() {
           TIPO *
           <select
             name="tipo"
-            defaultValue="QUINCENAL"
+            defaultValue="CICLOS"
             className={CAMPO}
             onChange={(e) => setTipo(e.target.value)}
           >
-            <option value="QUINCENAL">Quincenal</option>
+            <option value="CICLOS">Restaurante: 7 / 14 / 21 / fin de mes</option>
+            <option value="QUINCENAL">Quincenal (excepcional)</option>
             <option value="MENSUAL">Mensual</option>
           </select>
         </label>
+        {tipo === "CICLOS" ? <label className={ETIQUETA}>CORTE *<select name="corte" defaultValue="1" className={CAMPO}><option value="1">1–7 · pago el 7</option><option value="2">8–14 · pago el 14</option><option value="3">15–21 · pago el 21</option><option value="4">22–fin · pago el último día</option></select></label> : null}
         {tipo === "QUINCENAL" ? (
           <label className={ETIQUETA}>
             QUINCENA *
@@ -72,7 +74,7 @@ export function FormularioCrearPeriodo() {
           <input name="anio" required inputMode="numeric" defaultValue={new Date().getFullYear()} className={CAMPO} />
         </label>
         <label className={ETIQUETA}>
-          FECHA PREVISTA DE PAGO
+          FECHA PREVISTA DE PAGO (opcional; por defecto, el corte)
           <input type="date" name="fechaPagoPrevista" className={CAMPO} />
         </label>
         <button

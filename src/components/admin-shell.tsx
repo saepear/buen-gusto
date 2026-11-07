@@ -114,7 +114,7 @@ export function AdminShell({
   }, [abierto]);
 
   return (
-    <div className="flex min-h-screen bg-fondo-app text-texto-app">
+    <div className="flex min-h-screen flex-col bg-fondo-app text-texto-app lg:flex-row">
       <SidebarAdmin ref={sidebarRef} nombre={nombre} />
 
       <button

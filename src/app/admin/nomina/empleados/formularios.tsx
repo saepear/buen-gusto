@@ -5,7 +5,7 @@
 // actualizar contrato (nace versión nueva) · desactivar.
 import { useState } from "react";
 import { useActionState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import {
   actualizarContrato,
   crearEmpleado,
@@ -125,7 +125,8 @@ function CamposContrato({ inicial }: { inicial?:
       </label>
       <label className={ETIQUETA}>
         PERIODICIDAD DE PAGO *
-        <select name="periodicidadPago" defaultValue={inicial?.periodicidadPago ?? "QUINCENAL"} className={CAMPO}>
+        <select name="periodicidadPago" defaultValue={inicial?.periodicidadPago ?? "CICLOS"} className={CAMPO}>
+          <option value="CICLOS">Cortes 7 / 14 / 21 / fin de mes</option>
           <option value="QUINCENAL">Quincenal</option>
           <option value="MENSUAL">Mensual</option>
         </select>

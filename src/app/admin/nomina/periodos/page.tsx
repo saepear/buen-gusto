@@ -7,6 +7,7 @@ import { formatCOP } from "@/lib/format";
 import { requerirRol } from "@/lib/session";
 import { NavegacionNomina } from "../navegacion";
 import { FormularioCrearPeriodo } from "./formularios";
+import { TIPO_PERIODO_LABEL } from "@/lib/nomina/helpers";
 
 export const metadata = { title: "Períodos · Nómina · El Buen Gusto" };
 
@@ -29,8 +30,8 @@ export default async function PaginaPeriodos() {
   return (
     <>
       <EncabezadoPagina
-        titulo="Períodos de nómina"
-        subtitulo="Quincena o mes: crear, liquidar a cada empleado, aprobar y cerrar"
+        titulo="Ciclos de pago"
+        subtitulo="Cortes del 7, 14, 21 y fin de mes: crear, liquidar, revisar y pagar"
       />
 
       <div className="mb-6">
@@ -50,7 +51,7 @@ export default async function PaginaPeriodos() {
           <CalendarRange className="h-9 w-9 text-texto-muted/40" />
           <p className="mt-4 font-display text-xl text-texto-app">Aún no hay períodos</p>
           <p className="mt-1.5 max-w-md text-sm text-texto-muted/70">
-            Crea la quincena o el mes: luego liquidas a cada empleado desde el
+            Crea un ciclo de pago: luego liquidas a cada empleado desde el
             detalle del período.
           </p>
         </div>
@@ -71,7 +72,7 @@ export default async function PaginaPeriodos() {
                     <p className="font-bold text-texto-app">
                       {p.fechaDesde} → {p.fechaHasta}{" "}
                       <span className="text-xs font-normal text-texto-muted/60">
-                        ({p.tipo === "MENSUAL" ? "mensual" : "quincenal"})
+                        ({TIPO_PERIODO_LABEL[p.tipo] ?? p.tipo})
                       </span>
                     </p>
                     <p className="text-[11px] text-texto-muted/60">
