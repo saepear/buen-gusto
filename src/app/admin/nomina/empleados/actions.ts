@@ -93,7 +93,7 @@ function datosContratoDeFormulario(
     salarioDiario: Math.max(entero(form.get("salarioDiario")) ?? 0, 0),
     valorHora: Math.max(entero(form.get("valorHora")) ?? 0, 0),
     jornadaSemanalMinutos: Math.min(Math.max(jornada, 120), 4800),
-    periodicidadPago: ["QUINCENAL", "MENSUAL"].includes(texto(form.get("periodicidadPago"), 20))
+    periodicidadPago: ["QUINCENAL", "MENSUAL", "CICLOS"].includes(texto(form.get("periodicidadPago"), 20))
       ? texto(form.get("periodicidadPago"), 20)
       : "QUINCENAL",
     diaDescanso: Math.min(Math.max(entero(form.get("diaDescanso")) ?? 0, 0), 6),

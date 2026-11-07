@@ -47,6 +47,8 @@ model Usuario {
   liquidacionesAprobadas  LiquidacionNomina[]  @relation("LiquidacionAprobadaPor")
   pagosNominaRegistrados  PagoNomina[]         @relation("PagoNominaRegistradoPor")
   pagosPrestacionRegistrados PagoPrestacion[]  @relation("PagoPrestacionRegistradoPor")
+  valesCreados            ValeNomina[]         @relation("ValeCreadoPor")
+  valesAutorizados        ValeNomina[]         @relation("ValeAutorizadoPor")
 
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
 }
@@ -64,6 +66,7 @@ model Producto {
   apartadoItems    ApartadoItem[]
   reservasApartado ApartadoReserva[] @relation("ReservasDeProducto")
   cuentaItems      CuentaPorCobrarItem[]
+  vales            ValeNomina[]
 }
 
 // Menú del día: que comidas se ofrecen HOY (proteínas, principios, sopas)
@@ -537,6 +540,7 @@ model Empleado {
   novedades         NovedadNomina[]
   liquidaciones     LiquidacionNomina[]
   pagosPrestaciones PagoPrestacion[]
+  vales             ValeNomina[]
 
   @@index([estado])
 }
@@ -637,7 +641,7 @@ model PeriodoNomina {
   fechaDesde  String  // yyyy-mm-dd inclusivo
   fechaHasta  String  // yyyy-mm-dd inclusivo
   fechaPagoPrevista String?
-  tipo        String  // QUINCENAL | MENSUAL
+  tipo        String  // QUINCENAL | MENSUAL | CICLOS (cortes 7/14/21/fin de mes)
   estado      String  @default("ABIERTO") // ABIERTO | CERRADO
   cerradoById Int?
   cerradoPor  Usuario? @relation("PeriodoCerradoPor", fields: [cerradoById], references: [id])
@@ -647,6 +651,7 @@ model PeriodoNomina {
   createdAt   DateTime @default(now())
 
   liquidaciones LiquidacionNomina[]
+  vales         ValeNomina[]
 
   @@unique([fechaDesde, fechaHasta])
 }
@@ -705,6 +710,7 @@ model LiquidacionNomina {
 
   conceptos LiquidacionConcepto[]
   pagos     PagoNomina[]
+  vales     ValeNomina[]
 
   @@unique([periodoId, empleadoId])
   @@index([empleadoId])
@@ -761,5 +767,42 @@ model PagoPrestacion {
   createdAt   DateTime @default(now())
 
   @@index([empleadoId, concepto])
+}
+
+// Vale de consumo: producto entregado a un empleado A CUENTA de su sueldo.
+// Se registra EXPRESAMENTE (jamás se descuentan compras de un Cliente).
+// El precio queda congelado al entregar; el nombre del producto también (el
+// vale sobrevive aunque el producto cambie o se retire del catálogo).
+// Estados: PENDIENTE (registrado) → AUTORIZADO (aprobado por el dueño) →
+// DESCONTADO (marcado al liquidarse el ciclo, con liquidacionId: no se
+// cuenta dos veces) · ANULADO (con motivo, conservando el original).
+model ValeNomina {
+  id             Int      @id @default(autoincrement())
+  empleadoId     Int
+  empleado       Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  productoId     Int? // la fila del catálogo usada al registrar (informativa)
+  producto       Producto? @relation(fields: [productoId], references: [id])
+  productoNombre String // nombre CONGELADO al entregar
+  cantidad       Int      @default(1)
+  precioUnitario Int // COP registrado al entregar (congelado)
+  total          Int // cantidad × precioUnitario
+  fecha          String // yyyy-mm-dd de la entrega
+  observaciones  String?
+  cicloId        Int? // PeriodoNomina al que se asigna el descuento
+  ciclo          PeriodoNomina? @relation(fields: [cicloId], references: [id])
+  liquidacionId  Int? // set al quedar DESCONTADO: NO se cuenta dos veces
+  liquidacion    LiquidacionNomina? @relation(fields: [liquidacionId], references: [id])
+  estado         String   @default("PENDIENTE") // PENDIENTE | AUTORIZADO | DESCONTADO | ANULADO
+  anuladoMotivo  String? // trazabilidad si se anula
+  autorizadoById Int?
+  autorizadoPor  Usuario? @relation("ValeAutorizadoPor", fields: [autorizadoById], references: [id])
+  autorizadoAt   DateTime?
+  creadoById     Int
+  creadoPor      Usuario  @relation("ValeCreadoPor", fields: [creadoById], references: [id])
+  createdAt      DateTime @default(now())
+
+  @@index([empleadoId, estado])
+  @@index([cicloId])
+  @@index([fecha])
 }
 

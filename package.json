@@ -7,6 +7,7 @@
     "build": "set PROD_BUILD=1&& next build",
     "start": "set PROD_BUILD=1&& next start -H 0.0.0.0",
     "lint": "eslint",
+    "test:nomina": "tsx --test scripts/nomina-resumen.test.ts",
     "db:push": "prisma db push",
     "db:nomina": "tsx scripts/instalar-nomina.ts",
     "db:seed": "tsx prisma/seed.ts"

@@ -59,9 +59,12 @@ export async function datosReporteNomina(
   hasta: string,
   empleadoId: number | null = null,
 ): Promise<DatosReporteNomina> {
+  // El rango del reporte vive en el PERÍODO (no en la liquidación)
   const rango = {
-    fechaDesde: { lte: hasta },
-    fechaHasta: { gte: desde },
+    periodo: {
+      fechaDesde: { lte: hasta },
+      fechaHasta: { gte: desde },
+    },
   };
   const dondeEmpleado = empleadoId ? { empleadoId } : {};
 

@@ -1,7 +1,7 @@
 "use server";
 
 // ═════════ Acciones de períodos y liquidaciones ═════════
-// • Un período es QUINCENAL o MENSUAL con rango fijo y SIN superponer otro.
+// • Los cortes del restaurante y los períodos históricos no se superponen.
 // • Liquidar un empleado crea (o refresca, solo en BORRADOR) su fila con
 //   FOTO de contrato, parámetros y conceptos: el cálculo queda congelado.
 // • Aprobar cierra el asunto individual; CERRADO amerita que TODAS estén
@@ -9,13 +9,12 @@
 // • Una nómina pendiente NO toca la caja: los egresos nacen SOLO del pago.
 
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { fechaNominaValida } from "@/lib/nomina/resumen";
 import { fotoParametros } from "@/lib/nomina/parametros";
 import {
-  aplicaAuxilioTransporte,
   contratoVigente,
   parametrosDelPeriodo,
   rangoDePeriodo,
@@ -41,49 +40,53 @@ function revalidar() {
   realtime.broadcast("update");
 }
 
-/** Crear período (QUINCENAL 1|2 o MENSUAL). Sin solapamientos con otro. */
+/** Crear ciclo/período (QUINCENAL 1|2, MENSUAL o CICLOS corte 1–4).
+ *  Sin solapamientos con otro. */
 export async function crearPeriodo(
   _antes: EstadoAccionPeriodo,
   form: FormData,
 ): Promise<EstadoAccionPeriodo> {
   const sesion = await exigirAdmin();
-  const tipo = texto(form.get("tipo"), 20) === "MENSUAL" ? "MENSUAL" : "QUINCENAL";
+  const tipoRaw = texto(form.get("tipo"), 20);
+  const tipo = tipoRaw === "MENSUAL" || tipoRaw === "CICLOS" ? tipoRaw : "QUINCENAL";
   const anio = entero(form.get("anio"));
   const mes = entero(form.get("mes"));
-  const quincena = texto(form.get("quincena"), 10) === "2" ? 2 : 1;
+  // El mismo campo sirve de quincena (1|2) o de corte del ciclo (1–4)
+  let parte = entero(form.get("corte")) ?? (texto(form.get("quincena"), 10) === "2" ? 2 : 1);
+  if (tipo === "QUINCENAL" && parte !== 2) parte = 1;
+  if (tipo === "CICLOS" && (parte < 1 || parte > 4)) parte = 1;
   if (!anio || !mes || mes < 1 || mes > 12) {
     return { error: "Elige un mes y año válidos.", ok: null };
   }
-  const rango = rangoDePeriodo(tipo, anio, mes, quincena as 1 | 2);
-  if (!rango) return { error: "Rango de período inválido.", ok: null };
-
-  const solapa = await db.periodoNomina.findFirst({
-    where: {
-      fechaHasta: { gte: rango.desde },
-      fechaDesde: { lte: rango.hasta },
-    },
-  });
-  if (solapa) {
-    return {
-      error: `Ya existe un período (${solapa.fechaDesde} → ${solapa.fechaHasta}) que se cruza con ese rango.`,
-      ok: null,
-    };
-  }
+  const rango = rangoDePeriodo(tipo, anio, mes, parte as 1 | 2 | 3 | 4);
+  if (!rango) return { error: "Rango de ciclo inválido.", ok: null };
 
   const fechaPagoPrevista = texto(form.get("fechaPagoPrevista"), 10);
-  await db.periodoNomina.create({
-    data: {
-      fechaDesde: rango.desde,
-      fechaHasta: rango.hasta,
-      fechaPagoPrevista: /^\d{4}-\d{2}-\d{2}$/.test(fechaPagoPrevista) ? fechaPagoPrevista : null,
-      tipo,
-      estado: "ABIERTO",
-      creadoById: sesion.id,
-    },
-  });
+  if (fechaPagoPrevista && !fechaNominaValida(fechaPagoPrevista)) {
+    return { error: "La fecha prevista de pago no es válida.", ok: null };
+  }
+  try {
+    const conflicto = await db.$transaction(async tx => {
+      const solapa = await tx.periodoNomina.findFirst({ where: {
+        fechaHasta: { gte: rango.desde }, fechaDesde: { lte: rango.hasta },
+      } });
+      if (solapa) return `Ya existe un período (${solapa.fechaDesde} → ${solapa.fechaHasta}) que se cruza con ese rango.`;
+      await tx.periodoNomina.create({ data: {
+        fechaDesde: rango.desde, fechaHasta: rango.hasta,
+        fechaPagoPrevista: fechaPagoPrevista || rango.hasta,
+        tipo, estado: "ABIERTO", creadoById: sesion.id,
+      } });
+      return null;
+    });
+    if (conflicto) return { error: conflicto, ok: null };
+  } catch (error) {
+    const codigo = (error as { code?: string }).code;
+    if (["P2002", "P2034", "P1008", "P2028"].includes(codigo ?? "")) return { error: "Otro proceso está creando un ciclo. Actualiza la página y vuelve a revisar el rango.", ok: null };
+    throw error;
+  }
 
   revalidar();
-  return { ok: `Período ${rango.desde} → ${rango.hasta} creado (abierto).`, error: null };
+  return { ok: `Ciclo ${rango.desde} → ${rango.hasta} creado (abierto).`, error: null };
 }
 
 /** Refresca (o crea) la liquidación BORRADOR de un empleado en el período,
@@ -127,6 +130,12 @@ export async function liquidarEmpleadoEnPeriodo(
   if (!contrato) {
     return { error: "El empleado no tiene contrato vigente para el período.", ok: null };
   }
+  const anterior = await db.liquidacionNomina.findUnique({
+    where: { periodoId_empleadoId: { periodoId, empleadoId } },
+  });
+  if (anterior && anterior.estado !== "BORRADOR") {
+    return { error: "La liquidación ya está aprobada y no se recalcula.", ok: null };
+  }
 
   const { filas, mapa } = await parametrosDelPeriodo(periodo.fechaDesde, periodo.fechaHasta);
   if (Object.keys(mapa).length === 0) {
@@ -151,8 +160,25 @@ export async function liquidarEmpleadoEnPeriodo(
     where: {
       empleadoId,
       estado: "APROBADA",
-      liquidacionId: null,
+      OR: [{ liquidacionId: null }, ...(anterior ? [{ liquidacionId: anterior.id }] : [])],
       fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta },
+    },
+    orderBy: { fecha: "asc" },
+  });
+
+  // Vales AUTORIZADOS aún SIN descontar: los asignados a ESTE ciclo, más
+  // los sin ciclo cuya fecha cae dentro del rango (nunca se cuentan dos
+  // veces: al quedar DESCONTADOS guardan su liquidacionId).
+  const vales = await db.valeNomina.findMany({
+    where: {
+      empleadoId,
+      OR: [
+        { estado: "AUTORIZADO", liquidacionId: null, OR: [
+          { cicloId: periodoId },
+          { cicloId: null, fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta } },
+        ] },
+        ...(anterior ? [{ estado: "DESCONTADO", liquidacionId: anterior.id }] : []),
+      ],
     },
     orderBy: { fecha: "asc" },
   });
@@ -177,6 +203,33 @@ export async function liquidarEmpleadoEnPeriodo(
     descripcion: n.descripcion,
   }));
 
+  // ── Vales a cuenta del sueldo ──
+  // LABORAL: entran al liquidador como descuentos (el neto sale ya restado).
+  // INDEPENDIENTE: honorarios puros, el liquidador no tiene deducciones;
+  // aquí se ajustan los totales a mano (mismo resultado, sin tocar el cálculo).
+  const esLaboral = contrato.modalidad === "LABORAL";
+  const valesResumen = vales.map((v) => ({
+    id: v.id,
+    productoNombre: v.productoNombre,
+    cantidad: v.cantidad,
+    total: v.total,
+  }));
+  let valesAjuste = 0; // solo INDEPENDIENTE (en LABORAL ya los cuenta el calculo)
+  if (esLaboral) {
+    for (const v of valesResumen) {
+      novedadesResumen.push({
+        id: 0,
+        tipo: "DESCUENTO",
+        fecha: "",
+        dias: null,
+        valor: v.total,
+        descripcion: `Vale: ${v.productoNombre} ×${v.cantidad}`,
+      });
+    }
+  } else {
+    valesAjuste = valesResumen.reduce((s, v) => s + v.total, 0);
+  }
+
   const calculo = liquidarEmpleado({
     contrato: {
       modalidad: contrato.modalidad,
@@ -197,6 +250,20 @@ export async function liquidarEmpleadoEnPeriodo(
     periodoDesde: periodo.fechaDesde,
     periodoHasta: periodo.fechaHasta,
   });
+
+  // LABORAL: los vales ya restan en el cálculo. INDEPENDIENTE: honorarios
+  // puros (el liquidador no tiene deducciones) → se ajustan a mano aquí.
+  const calculoFinal = esLaboral
+    ? calculo
+    : {
+        ...calculo,
+        otrosDescuentos: calculo.otrosDescuentos + valesAjuste,
+        totalDeducciones: calculo.totalDeducciones + valesAjuste,
+        netoAPagar: calculo.netoAPagar - valesAjuste,
+      };
+  if (calculoFinal.netoAPagar < 0) {
+    return { error: "Los descuentos superan el neto disponible. Revisa vales y novedades antes de liquidar.", ok: null };
+  }
 
   // Foto de contrato (de la ContratoVersion, con la clase ARP del empleado)
   const contratoFoto = JSON.stringify({
@@ -225,6 +292,16 @@ export async function liquidarEmpleadoEnPeriodo(
           "La liquidación ya está APROBADA: su foto no se recalcula. Usa un período posterior para ajustes.",
         );
       }
+      // Desmarcar novedades y vales apuntados a ESTE borrador (va a ser
+      // borrado): quedan disponibles para el recálculo, sin perder dinero.
+      await tx.novedadNomina.updateMany({
+        where: { liquidacionId: yaExiste.id },
+        data: { liquidacionId: null },
+      });
+      await tx.valeNomina.updateMany({
+        where: { liquidacionId: yaExiste.id },
+        data: { liquidacionId: null, estado: "AUTORIZADO" },
+      });
       await tx.liquidacionConcepto.deleteMany({ where: { liquidacionId: yaExiste.id } });
       await tx.liquidacionNomina.delete({ where: { id: yaExiste.id } });
     }
@@ -234,7 +311,7 @@ export async function liquidarEmpleadoEnPeriodo(
         periodoId,
         empleadoId,
         estado: "BORRADOR",
-        diasTrabajados: calculo.diasTrabajados,
+        diasTrabajados: calculoFinal.diasTrabajados,
         contratoFoto,
         parametrosFoto: fotoParametros(filas),
         novedadesFoto: JSON.stringify(
@@ -247,41 +324,59 @@ export async function liquidarEmpleadoEnPeriodo(
             descripcion: n.descripcion,
           })),
         ),
-        salarioBase: calculo.salarioBase,
-        horasExtraRecargos: calculo.horasExtrasRecargos,
-        comisionesBonos: calculo.comisionesBonos,
-        auxilioTransporte: calculo.auxilioTransporte,
-        otrosDevengados: calculo.otrosDevengados,
-        totalDevengado: calculo.totalDevengado,
-        deduccionSalud: calculo.deduccionSalud,
-        deduccionPension: calculo.deduccionPension,
-        otrosDescuentos: calculo.otrosDescuentos,
-        totalDeducciones: calculo.totalDeducciones,
-        netoAPagar: calculo.netoAPagar,
-        empresaSalud: calculo.empresaSalud,
-        empresaPension: calculo.empresaPension,
-        empresaRiesgos: calculo.empresaRiesgos,
-        empresaCaja: calculo.empresaCaja,
-        costoEmpleador: calculo.costoEmpleador,
-        prestacionPrima: calculo.prestacionPrima,
-        prestacionCesantias: calculo.prestacionCesantias,
-        prestacionIntereses: calculo.prestacionIntereses,
-        prestacionVacaciones: calculo.prestacionVacaciones,
+        salarioBase: calculoFinal.salarioBase,
+        horasExtraRecargos: calculoFinal.horasExtrasRecargos,
+        comisionesBonos: calculoFinal.comisionesBonos,
+        auxilioTransporte: calculoFinal.auxilioTransporte,
+        otrosDevengados: calculoFinal.otrosDevengados,
+        totalDevengado: calculoFinal.totalDevengado,
+        deduccionSalud: calculoFinal.deduccionSalud,
+        deduccionPension: calculoFinal.deduccionPension,
+        otrosDescuentos: calculoFinal.otrosDescuentos,
+        totalDeducciones: calculoFinal.totalDeducciones,
+        netoAPagar: calculoFinal.netoAPagar,
+        empresaSalud: calculoFinal.empresaSalud,
+        empresaPension: calculoFinal.empresaPension,
+        empresaRiesgos: calculoFinal.empresaRiesgos,
+        empresaCaja: calculoFinal.empresaCaja,
+        costoEmpleador: calculoFinal.costoEmpleador,
+        prestacionPrima: calculoFinal.prestacionPrima,
+        prestacionCesantias: calculoFinal.prestacionCesantias,
+        prestacionIntereses: calculoFinal.prestacionIntereses,
+        prestacionVacaciones: calculoFinal.prestacionVacaciones,
         estadoPago: "PENDIENTE",
         creadoById: sesion.id,
-        notas: calculo.notasCalculo.join(" · ") || null,
+        notas: calculoFinal.notasCalculo.join(" · ") || null,
       },
     });
 
+    // Conceptos del liquidador. Los descuentos de vales aparecen con detalle
+    // «Vale: …»: se rotulan con su propia etiqueta en el comprobante.
+    const conceptosVales = esLaboral
+      ? []
+      : valesResumen.map((v) => ({
+          liquidacionId: liquidacion.id,
+          tipo: "DEDUCCION",
+          clave: "DESCUENTO",
+          etiqueta: "Vale de empleado",
+          valor: v.total,
+          detalle: `Vale: ${v.productoNombre} ×${v.cantidad}`,
+        }));
     await tx.liquidacionConcepto.createMany({
-      data: calculo.conceptos.map((c) => ({
-        liquidacionId: liquidacion.id,
-        tipo: c.tipo,
-        clave: c.clave,
-        etiqueta: c.etiqueta,
-        valor: c.valor,
-        detalle: c.detalle,
-      })),
+      data: [
+        ...calculoFinal.conceptos.map((c) => ({
+          liquidacionId: liquidacion.id,
+          tipo: c.tipo,
+          clave: c.clave,
+          etiqueta:
+            c.clave === "DESCUENTO" && c.detalle?.startsWith("Vale: ")
+              ? "Vale de empleado"
+              : c.etiqueta,
+          valor: c.valor,
+          detalle: c.detalle,
+        })),
+        ...conceptosVales,
+      ],
     });
 
     // Marca de no-duplicidad: estas novedades ya quedaron contadas aquí
@@ -291,11 +386,22 @@ export async function liquidarEmpleadoEnPeriodo(
         data: { liquidacionId: liquidacion.id },
       });
     }
+
+    // Los vales pasaron a DESCONTADO: conservan producto, cantidad, precio
+    // y autorización; el vínculo a la liquidación evita contarlos dos veces.
+    if (vales.length > 0) {
+      await tx.valeNomina.updateMany({
+        where: { id: { in: vales.map((v) => v.id) } },
+        data: { estado: "DESCONTADO", liquidacionId: liquidacion.id, cicloId: periodoId },
+      });
+    }
   });
 
   revalidar();
   return {
-    ok: `Liquidación de ${empleado.nombre} ${empleado.apellidos} generada (borrador).`,
+    ok: `Liquidación de ${empleado.nombre} ${empleado.apellidos} generada (borrador)${
+      vales.length > 0 ? ` · ${vales.length} vale(s) descontado(s)` : ""
+    }.`,
     error: null,
   };
 }

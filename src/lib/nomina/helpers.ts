@@ -71,25 +71,58 @@ export function aplicaAuxilioTransporte(
   return smmlv > 0 && salarioMensual > 0 && salarioMensual <= 2 * smmlv;
 }
 
-/** Límites de un período QUINCENAL o MENSUAL:
+/** Límites de un período QUINCENAL, MENSUAL o CICLOS:
  *  • MENSUAL: del 1 al último día del mes.
- *  • QUINCENA 1: del 1 al 15   ·  QUINCENA 2: del 16 al último día. */
+ *  • QUINCENA 1: del 1 al 15   ·  QUINCENA 2: del 16 al último día.
+ *  • CICLOS (cortes del 7 / 14 / 21 y fin de mes):
+ *      corte 1: 1–7 · corte 2: 8–14 · corte 3: 15–21 · corte 4: 22–fin.
+ *  Responde nulo con datos fuera de rango. */
 export function rangoDePeriodo(
-  tipo: "QUINCENAL" | "MENSUAL",
+  tipo: "QUINCENAL" | "MENSUAL" | "CICLOS",
   anio: number,
   mes: number, // 1–12
-  quincena: 1 | 2 = 1,
+  parte: 1 | 2 | 3 | 4 = 1, // quincena 1|2, o corte del ciclo 1–4
 ): { desde: string; hasta: string } | null {
   if (mes < 1 || mes > 12 || anio < 2000 || anio > 2200) return null;
   const ultimo = new Date(anio, mes, 0).getDate();
   const mm = String(mes).padStart(2, "0");
+  const dd = (n: number) => String(n).padStart(2, "0");
   if (tipo === "MENSUAL") {
-    return { desde: `${anio}-${mm}-01`, hasta: `${anio}-${mm}-${String(ultimo).padStart(2, "0")}` };
+    return { desde: `${anio}-${mm}-01`, hasta: `${anio}-${mm}-${dd(ultimo)}` };
   }
-  return quincena === 1
+  if (tipo === "CICLOS") {
+    const inicios = [1, 8, 15, 22] as const;
+    const finales = [7, 14, 21, ultimo] as const;
+    if (parte < 1 || parte > 4) return null;
+    return {
+      desde: `${anio}-${mm}-${dd(inicios[parte - 1])}`,
+      hasta: `${anio}-${mm}-${dd(finales[parte - 1])}`,
+    };
+  }
+  return parte === 1
     ? { desde: `${anio}-${mm}-01`, hasta: `${anio}-${mm}-15` }
-    : { desde: `${anio}-${mm}-16`, hasta: `${anio}-${mm}-${String(ultimo).padStart(2, "0")}` };
+    : { desde: `${anio}-${mm}-16`, hasta: `${anio}-${mm}-${dd(ultimo)}` };
 }
+
+/** Los 4 cortes CICLOS de un mes: 1–7, 8–14, 15–21 y 22–fin. */
+export function ciclosDeMes(
+  anio: number,
+  mes: number,
+): { desde: string; hasta: string }[] {
+  const res: { desde: string; hasta: string }[] = [];
+  for (const corte of [1, 2, 3, 4] as const) {
+    const r = rangoDePeriodo("CICLOS", anio, mes, corte);
+    if (r) res.push(r);
+  }
+  return res;
+}
+
+/** Etiquetas de TIPO de ciclo (páginas y fichas) */
+export const TIPO_PERIODO_LABEL: Record<string, string> = {
+  QUINCENAL: "Quincena",
+  MENSUAL: "Mes",
+  CICLOS: "Ciclo (7/14/21/fin)",
+};
 
 /** Formato de dinero común de las páginas de nómina */
 export const fmtCOP = formatCOP;
