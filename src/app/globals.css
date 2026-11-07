@@ -257,6 +257,74 @@ select option:checked {
   }
 }
 
+/* Solo el ticket de venta participa en el documento impreso. Se eliminan
+   los hermanos de sus ancestros con display:none para no dejar páginas
+   vacías, y también el espacio que reserva el sidebar animado por GSAP. */
+@page pos-ticket {
+  size: auto;
+  margin: 4mm;
+}
+
+@media print {
+  body:has([data-print-ticket]) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    color-scheme: light;
+  }
+
+  body:has([data-print-ticket]) *:not(:has([data-print-ticket])):not([data-print-ticket]):not([data-print-ticket] *) {
+    display: none !important;
+  }
+
+  body:has([data-print-ticket]) *:has([data-print-ticket]) {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    overflow: visible !important;
+    background: white !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  [data-print-ticket] {
+    page: pos-ticket;
+    box-sizing: border-box;
+    width: 72mm !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    background: white !important;
+    color: black !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-family: monospace;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    overflow-wrap: anywhere;
+  }
+
+  [data-print-ticket] * {
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  [data-print-ticket] li,
+  [data-print-ticket] tr {
+    break-inside: avoid;
+  }
+}
+
 /* Lista de pasos con numeral de la casa (se usan solo cuando el contenido
    ES una secuencia, como la guía de la impresora) */
 .lista-pasos {

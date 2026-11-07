@@ -57,7 +57,7 @@ export default async function PaginaRecibo(
 
   return (
     <div className="min-h-screen bg-fondo-app py-8">
-      <div className="mx-auto w-full max-w-[340px] bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
+      <div data-print-ticket="" className="mx-auto w-full max-w-[340px] bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl print:shadow-none">
         <div className="text-center">
           <p className="font-display text-xl font-bold tracking-wide">
             EL BUEN GUSTO

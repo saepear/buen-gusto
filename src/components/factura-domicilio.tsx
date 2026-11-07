@@ -74,7 +74,7 @@ export function FacturaDomicilio({
   const totalPagado = pago ? pago.total + pago.propina : null;
 
   return (
-    <section className="mx-auto w-full max-w-md bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl lg:mx-0 lg:max-w-none">
+    <section data-print-ticket={pago ? "" : undefined} className="mx-auto w-full max-w-md bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl lg:mx-0 lg:max-w-none">
       <div className="text-center">
         <p className="font-display text-xl font-bold tracking-wide">
           EL BUEN GUSTO
