@@ -195,7 +195,7 @@ export function FormularioPedido({
     esDomicilio && (estado.coincidencias?.length ?? 0) > 0;
 
   // ---- Constructor del plato (se arman de uno en uno) ----
-  const [conSopa, setConSopa] = useState(true);
+  const [conSopa, setConSopa] = useState(false);
   const [proteina, setProteina] = useState<number | null>(null);
   const [principios, setPrincipios] = useState<number[]>([]);
   const [ensaladas, setEnsaladas] = useState<number[]>([]);
