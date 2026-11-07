@@ -25,7 +25,7 @@ const METODO_KEYS = Object.keys(ETIQUETA_METODO); // EFECTIVO, TARJETA, TRANSFER
 
 type Hoja = ExcelJS.Worksheet;
 /** Una fila de tabla: solo cadenas, números o nulos */
-type Valor = string | number | null;
+type Valor = string | number | Date | null;
 
 /** Celda de encabezado de tabla: ámbar de la marca con letra marrón */
 function cabeceraTabla(
@@ -92,6 +92,11 @@ function filaResumen(
   valor: Valor,
   opciones: { dinero?: boolean; fuerte?: boolean; advertencia?: boolean } = {},
 ): void {
+  // Los resúmenes no comparten la columna ID de las tablas inferiores.
+  const columnas = hoja.columnCount;
+  const columnaValor = columnas > 2 ? columnas - 1 : 2;
+  if (columnaValor > 2) hoja.mergeCells(fila, 1, fila, columnaValor - 1);
+  if (columnas > 2) hoja.mergeCells(fila, columnaValor, fila, columnas);
   const et = hoja.getCell(fila, 1);
   et.value = etiqueta;
   et.font = {
@@ -99,7 +104,7 @@ function filaResumen(
     color: { argb: opciones.advertencia ? COLOR_SUBTITULO : COLOR_TINTA },
   };
 
-  const va = hoja.getCell(fila, 2);
+  const va = hoja.getCell(fila, columnaValor);
   va.value = valor ?? "—";
   va.alignment = { horizontal: "right" };
   if (opciones.dinero && typeof valor === "number") va.numFmt = COP;
@@ -128,6 +133,17 @@ function tablaSimple(
   cuerpo: Valor[][],
   opciones: { colDinero?: number[]; total?: Valor[] } = {},
 ): number {
+  if (cuerpo.length > 0) {
+    hoja.addTable({
+      name: `Datos_${hoja.id}_${filaInicio}`,
+      ref: `A${filaInicio}`,
+      headerRow: true,
+      style: { theme: "TableStyleMedium9", showRowStripes: true },
+      columns: cabeceras.map(name => ({ name, filterButton: true })),
+      rows: cuerpo.map(fila => fila.map(valor => valor ?? null)),
+    });
+  }
+  if (hoja.views[0]?.state !== "frozen") hoja.views = [{ state: "frozen", ySplit: filaInicio > 8 ? 4 : filaInicio, showGridLines: false }];
   cabeceraTabla(hoja, filaInicio, cabeceras);
 
   cuerpo.forEach((filaDatos, i) => {
@@ -135,6 +151,7 @@ function tablaSimple(
     filaDatos.forEach((valor, j) => {
       const celda = hoja.getCell(f, j + 1);
       celda.value = valor ?? "—";
+      if (valor instanceof Date) celda.numFmt = "dd/mm/yyyy";
       celda.font = { color: { argb: COLOR_TINTA } };
       if ((opciones.colDinero ?? []).includes(j + 1) && typeof valor === "number") {
         celda.numFmt = COP;
@@ -167,6 +184,10 @@ function tablaSimple(
       celda.border = bordeSuave();
       if ((opciones.colDinero ?? []).includes(j + 1)) celda.numFmt = COP;
     });
+    // Extiende «Total» por las celdas vacías adyacentes, nunca sobre cifras.
+    let ultimaEtiqueta = 1;
+    while (ultimaEtiqueta < opciones.total.length && (opciones.total[ultimaEtiqueta] === "" || opciones.total[ultimaEtiqueta] === null)) ultimaEtiqueta++;
+    if (ultimaEtiqueta > 1) hoja.mergeCells(filaFin, 1, filaFin, ultimaEtiqueta);
   }
   return filaFin;
 }
@@ -890,7 +911,7 @@ export async function construirLibroExcel(
       fuerte: true,
     });
 
-    let fina = 11;
+    const fina = 11;
     notaHoja(domHoja, fina, "Detalle de cada domicilio", 10);
     tablaSimple(
       domHoja,
@@ -990,5 +1011,58 @@ export async function construirLibroExcel(
     }
   }
 
+  const historial = libro.addWorksheet("Últimos 7 días");
+  historial.columns = [{ width: 18 }, { width: 18 }, { width: 23 }, { width: 24 }];
+  tituloHoja(historial, "El Buen Gusto · Recaudo de los últimos 7 días", 4, diaLegible, generado);
+  tablaSimple(historial, 5, ["Fecha", "Día", "Pagos y propinas", "Día seleccionado"], datos.dias.map((d, i) => {
+    const fecha = new Date(datos.fechaDia);
+    fecha.setDate(fecha.getDate() - 6 + i);
+    return [new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate())), d.etiqueta, d.valor, d.resaltar ? "Sí" : "No"];
+  }), { colDinero: [3], total: ["Total", "", datos.dias.reduce((s, d) => s + d.valor, 0), ""] });
+
+  const anteriores = libro.addWorksheet("Historial de cierres");
+  anteriores.columns = [18, 24, 14, 15, 20, 20, 20, 20].map(width => ({ width }));
+  tituloHoja(anteriores, "El Buen Gusto · Historial de cierres", 8, diaLegible, generado);
+  tablaSimple(anteriores, 5, ["Fecha", "Cerrado por", "Pagos", "Comandas", "Pagos y propinas", "Efectivo registrado", "Efectivo contado", "Diferencia"], datos.cierres.map(c => [
+    new Date(`${c.fecha}T00:00:00Z`), c.cerradoPor.nombre, c.numeroPagos, c.numeroComandas,
+    c.totalPagos + c.totalPropinas, c.totalEfectivo, c.efectivoContado,
+    c.efectivoContado === null ? null : c.efectivoContado - c.totalEfectivo,
+  ]), { colDinero: [5, 6, 7, 8] });
+  if (!datos.cierres.length) notaHoja(anteriores, 7, "No hay cierres registrados en el historial consultado.", 8);
+
+  libro.eachSheet(hoja => {
+    hoja.properties.defaultRowHeight = 21;
+    hoja.properties.tabColor = { argb: COLOR_AMBAR };
+    hoja.pageSetup = { paperSize: 9, orientation: hoja.columnCount > 5 ? "landscape" : "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+    hoja.headerFooter.oddFooter = "El Buen Gusto · Página &P de &N";
+    ajustarPresentacion(hoja);
+  });
   return libro.xlsx.writeBuffer();
+}
+
+/** Alturas explícitas: Excel y Sheets no autoajustan igual las celdas combinadas. */
+function ajustarPresentacion(hoja: Hoja): void {
+  hoja.columns.forEach(columna => {
+    columna.width = Math.max(columna.width ?? 12, 12);
+  });
+  hoja.eachRow(fila => {
+    let lineas = 1;
+    fila.eachCell(celda => {
+      if (celda.isMerged && celda.master.address !== celda.address) return;
+      celda.font = { name: "Calibri", size: 11, ...celda.font };
+      celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: typeof celda.value === "string" };
+      let ancho = hoja.getColumn(celda.col).width ?? 12;
+      if (celda.isMerged) {
+        for (let col = Number(celda.col) + 1; col <= hoja.columnCount; col++) {
+          const siguiente = hoja.getCell(fila.number, col);
+          if (!siguiente.isMerged || siguiente.master.address !== celda.address) break;
+          ancho += hoja.getColumn(col).width ?? 12;
+        }
+      }
+      const texto = typeof celda.value === "string" ? celda.value : "";
+      const capacidad = Math.max(6, Math.floor((ancho - 3) * 11 / (celda.font.size ?? 11)));
+      lineas = Math.max(lineas, texto.split("\n").reduce((s, linea) => s + Math.max(1, Math.ceil(linea.length / capacidad)), 0));
+    });
+    if (fila.number !== 4) fila.height = Math.max(fila.number === 1 ? 30 : 24, lineas * 16 + 10);
+  });
 }

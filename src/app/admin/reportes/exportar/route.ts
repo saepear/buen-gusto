@@ -33,9 +33,13 @@ export async function GET(request: Request): Promise<Response> {
   const fechaParam =
     new URL(request.url).searchParams.get("fecha") ?? claveDia(new Date());
   let fechaFila = inicioDeHoy();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaParam)) {
+    return NextResponse.json({ error: "Fecha inválida." }, { status: 400 });
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(fechaParam)) {
     const [y, m, d] = fechaParam.split("-").map(Number);
     fechaFila = new Date(y, m - 1, d);
+    if (claveDia(fechaFila) !== fechaParam) return NextResponse.json({ error: "Fecha inexistente." }, { status: 400 });
   }
 
   const datos = await datosReporte(fechaFila);

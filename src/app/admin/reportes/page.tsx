@@ -101,11 +101,12 @@ export default async function PaginaReportes(
             {/* Exporta EXACTAMENTE el día que se está mirando */}
             <Link
               prefetch={false}
+              download
               href={`/admin/reportes/exportar?fecha=${claveDia(fechaFila)}`}
               className="flex items-center gap-2 rounded-2xl bg-success/10 px-4 py-2.5 text-sm font-bold text-success-text ring-1 ring-success/25 transition hover:bg-success/20"
             >
               <FileSpreadsheet aria-hidden className="h-4 w-4" />
-              Exportar a Excel
+              Descargar reporte Excel
             </Link>
             <form
               method="get"
