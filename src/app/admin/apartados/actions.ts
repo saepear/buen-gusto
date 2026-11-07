@@ -925,6 +925,17 @@ export async function entregarApartado(
   if (apartado.estado !== ESTADO_APARTADO.PENDIENTE) {
     return { error: "Ese apartado ya se entregó o se canceló.", ok: null };
   }
+  // Si el apartado ya se FIO desde «Cuentas por cobrar», la entrega solo
+  // nace fiada (esa deuda es la misma promesa): no se cobra aquí — el dinero
+  // entra con abonos — ni se crea otra deuda (no se cuenta doble).
+  if (apartado.cuentaId !== null && !fiado) {
+    return {
+      error:
+        `Este apartado ya está fiado (deuda en «Cuentas por cobrar»): ` +
+        "se entrega fiado y el cobro se hace con abonos.",
+      ok: null,
+    };
+  }
   if (apartado.items.every((i) => i.cantidad < 1)) {
     return { error: "El apartado no tiene ítems con entrega.", ok: null };
   }
@@ -1251,21 +1262,33 @@ export async function entregarApartado(
           where: { pedidoId: pedido.id },
           include: { producto: { select: { nombre: true, precio: true } } },
         });
-        const cuentaId = await crearCuentaFiadaTx(tx, {
-          clienteId: apartado.clienteId,
-          concepto: `Apartado #${apartado.id}`,
-          valorOriginal: apartado.total,
-          pedidoId: pedido.id,
-          createdById: adminId,
-          items: itemsFoto,
-        });
+        let cuentaId: number;
+        if (apartado.cuentaId !== null) {
+          // Ya se fió ANTES de entregar (cuenta ligada al apartado): la
+          // comanda nace con esa MISMA deuda — no se vuelve a fiar, no se
+          // toca caja. Trazabilidad: la deuda ancla también a la comanda.
+          cuentaId = apartado.cuentaId;
+          await tx.cuentaPorCobrar.update({
+            where: { id: cuentaId },
+            data: { pedidoId: pedido.id },
+          });
+        } else {
+          cuentaId = await crearCuentaFiadaTx(tx, {
+            clienteId: apartado.clienteId,
+            concepto: `Apartado #${apartado.id}`,
+            valorOriginal: apartado.total,
+            pedidoId: pedido.id,
+            createdById: adminId,
+            items: itemsFoto,
+          });
+        }
         // Comanda FIADA: sale de todas las colas (cocina/ordenes/caja); el
         // recaudo entra el día de los abonos, no el día del fiado
         await tx.pedido.update({
           where: { id: pedido.id },
           data: { estado: ESTADO_PEDIDO.FIADO },
         });
-        // Guard idempotente DENTRO de la transacción: si otra pantalla entret
+        // Guard idempotente DENTRO de la transacción: si otra pantalla entregó
         // o canceló primero, la cuenta nace ya no y el rollback deshace todo
         const guardia = await tx.apartado.updateMany({
           where: { id: apartado.id, estado: ESTADO_APARTADO.PENDIENTE },

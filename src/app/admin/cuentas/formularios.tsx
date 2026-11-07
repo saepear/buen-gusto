@@ -2,12 +2,13 @@
 
 import { CircleDollarSign, Search, UserRound, X } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, formatHora } from "@/lib/format";
 import { buscarClientesPicker } from "@/app/admin/clientes/actions";
 import {
   anularCuenta,
   condonarCuenta,
   crearCuenta,
+  desgloseApartadoCuenta,
   desglosePedidoCuenta,
   listarPedidosFiables,
   registrarAbono,
@@ -111,14 +112,19 @@ export function FormularioNuevaCuenta({
   const [seleccion, setSeleccion] = useState<Record<number, number>>({});
   const [concepto, setConcepto] = useState("");
   const [errorPedido, setErrorPedido] = useState<string | null>(null);
-
+  // Lo que el administrador declara que debe (default: el saldo por fiar)
+  const [montoTxt, setMontoTxt] = useState("");
+  const montoFiado =
+    montoTxt === "" && desglose
+      ? desglose.pendiente
+      : Number.parseInt(montoTxt.replace(/[^0-9]/g, ""), 10) || 0;
   const totalSeleccionado = desglose
     ? desglose.lineas.reduce(
         (s, l) => s + (seleccion[l.pedidoItemId] ?? 0) * l.precio,
         0,
       )
     : 0;
-  const lineasSeleccionadas = desglose
+  const lineasSeleccionadas = desglose && desglose.apartadoId === null
     ? desglose.lineas
         .filter((l) => (seleccion[l.pedidoItemId] ?? 0) > 0)
         .map((l) => ({
@@ -126,12 +132,44 @@ export function FormularioNuevaCuenta({
           cantidad: seleccion[l.pedidoItemId],
         }))
     : [];
+  // Comanda: el monto declarado cae dentro del saldo por fiar. Apartado por
+  // entregar: se fía completo (apenas hay desglose, ya es válido).
+  const desgloseEfetivo =
+    desglose !== null &&
+    (desglose.apartadoId !== null ||
+      (montoFiado > 0 && montoFiado <= desglose.pendiente));
+
+  async function cargarPedidosDePersona(clienteId: number) {
+    setCargandoPedidos(true);
+    setErrorPedido(null);
+    try {
+      setPedidos(await listarPedidosFiables(clienteId));
+    } catch {
+      setErrorPedido("No se pudieron cargar los pedidos de esa persona.");
+    } finally {
+      setCargandoPedidos(false);
+    }
+  }
+
+  /** Al elegir persona, sus pedidos por fiar llegan solos */
+  useEffect(() => {
+    const clienteActual = clienteFijo ?? elegido;
+    if (!clienteActual) {
+      setPedidos(null);
+      return;
+    }
+    void cargarPedidosDePersona(clienteActual.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteFijo, elegido?.id]);
 
   async function abrirListaPedidos() {
     setCargandoPedidos(true);
     setErrorPedido(null);
     try {
-      setPedidos(await listarPedidosFiables());
+      const clienteActual = clienteFijo ?? elegido;
+      setPedidos(
+        await listarPedidosFiables(clienteActual?.id ?? undefined),
+      );
     } catch {
       setErrorPedido("No se pudieron cargar los pedidos pendientes.");
     } finally {
@@ -143,17 +181,23 @@ export function FormularioNuevaCuenta({
     setCargandoDesglose(true);
     setErrorPedido(null);
     try {
-      const d = await desglosePedidoCuenta(p.pedidoId);
+      const d =
+        p.apartadoId !== null
+          ? await desgloseApartadoCuenta(p.apartadoId)
+          : await desglosePedidoCuenta(p.pedidoId!);
       if (!d) {
-        setErrorPedido("Ese pedido ya no se puede fiar (cambió su estado).");
+        setErrorPedido(
+          p.apartadoId !== null
+            ? "Ese apartado ya no se puede fiar (se entregó, canceló o ya se fió)."
+            : "Ese pedido ya no se puede fiar (cambió su estado).",
+        );
         return;
       }
       setDesglose(d);
       setSeleccion({});
+      setMontoTxt("");
       setConcepto(
-        d.cliente
-          ? `${d.tipoOrigen} #${d.pedidoId} · ${d.cliente}`
-          : `${d.tipoOrigen} #${d.pedidoId}`,
+        d.cliente ? `${d.tipoOrigen} · ${d.cliente}` : d.tipoOrigen,
       );
     } catch {
       setErrorPedido("No se pudo abrir el desglose de ese pedido.");
@@ -300,13 +344,12 @@ export function FormularioNuevaCuenta({
             placeholder="$0"
           />
         </label>
-      ) : (
+      ) : desglose ? null : (
         <div className={ETIQUETA}>
-          TOTAL FIADO
+          MONTO QUE DEBE
           <p className="mt-1 rounded-xl bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app">
-            {formatCOP(totalSeleccionado)}
-            <span className="ml-2 font-normal text-texto-muted/55">
-              lo calcula el servidor desde los artículos
+            <span className="font-normal text-texto-muted/55">
+              se llena al abrir la comanda que va a fiar
             </span>
           </p>
         </div>
@@ -351,14 +394,25 @@ export function FormularioNuevaCuenta({
         <div className="sm:col-span-2">
           {!desglose ? (
             <>
-              <button
-                type="button"
-                onClick={abrirListaPedidos}
-                disabled={cargandoPedidos}
-                className="rounded-xl bg-panel-app px-3 py-2.5 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover disabled:opacity-40"
-              >
-                {cargandoPedidos ? "Buscando pedidos…" : "Ver pedidos pendientes"}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={abrirListaPedidos}
+                  disabled={cargandoPedidos}
+                  className="rounded-xl bg-panel-app px-3 py-2.5 text-xs font-bold text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover disabled:opacity-40"
+                >
+                  {cargandoPedidos
+                    ? "Buscando pedidos…"
+                    : clienteFijo ?? elegido
+                      ? "Recargar pedidos de la persona"
+                      : "Ver pedidos pendientes"}
+                </button>
+                {clienteFijo ?? elegido ? (
+                  <span className="text-[11px] text-texto-muted/55">
+                    los pedidos de esta persona llegan solos
+                  </span>
+                ) : null}
+              </div>
               {errorPedido ? (
                 <p className="mt-2 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-warning ring-1 ring-warning/25">
                   {errorPedido}
@@ -366,13 +420,15 @@ export function FormularioNuevaCuenta({
               ) : null}
               {pedidos && pedidos.length === 0 ? (
                 <p className="mt-2 text-xs text-texto-muted/55">
-                  No hay pedidos pendientes con saldo por fiar.
+                  {clienteFijo ?? elegido
+                    ? "Esta persona no tiene comandas ni apartados por fiar en este momento. Si igual debe algo, usa «Deuda manual»."
+                    : "No hay pedidos pendientes con saldo por fiar."}
                 </p>
               ) : null}
               {pedidos && pedidos.length > 0 ? (
                 <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto rounded-xl bg-campo-app/60 p-1.5">
                   {pedidos.map((p) => (
-                    <li key={p.pedidoId}>
+                    <li key={p.pedidoId ?? `apartado-${p.apartadoId}`}>
                       <button
                         type="button"
                         onClick={() => elegirPedido(p)}
@@ -381,7 +437,7 @@ export function FormularioNuevaCuenta({
                       >
                         <span className="min-w-0">
                           <b className="block truncate">
-                            {p.tipoOrigen} #{p.pedidoId}
+                            {p.tipoOrigen} · {formatHora(new Date(p.fecha))}
                             {p.cliente ? ` · ${p.cliente}` : ""}
                           </b>
                           <span className="block text-[11px] text-texto-muted/55">
@@ -402,7 +458,7 @@ export function FormularioNuevaCuenta({
             <div className="mt-1 space-y-2 rounded-xl bg-campo-app px-3.5 py-2.5 text-xs text-texto-app ring-1 ring-borde-app">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <p className="font-bold">
-                  {desglose.tipoOrigen} #{desglose.pedidoId}
+                  {desglose.tipoOrigen}
                   {desglose.cliente ? ` · ${desglose.cliente}` : ""}
                 </p>
                 <button
@@ -418,9 +474,9 @@ export function FormularioNuevaCuenta({
                   Cambiar pedido
                 </button>
               </div>
-              <p className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-4">
                 <span>
-                  Total pedido
+                  {desglose.apartadoId !== null ? "Total apartado" : "Total pedido"}
                   <b className="block">{formatCOP(desglose.total)}</b>
                 </span>
                 <span>
@@ -435,46 +491,116 @@ export function FormularioNuevaCuenta({
                   Queda por fiar
                   <b className="block text-danger-text">{formatCOP(desglose.pendiente)}</b>
                 </span>
-              </p>
+              </div>
+              {desglose.apartadoId !== null ? (
+                // Apartado POR ENTREGAR: se fía completo y de una vez
+                <div className="mt-1">
+                  <span className={ETIQUETA}>MONTO QUE DEBE</span>
+                  <p className="mt-1 rounded-xl bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app">
+                    {formatCOP(desglose.pendiente)}
+                    <span className="ml-2 font-normal text-texto-muted/55">
+                      · el apartado se fía completo
+                    </span>
+                  </p>
+                  <span className="mt-0.5 block text-[11px] text-texto-muted/55">
+                    Su comanda aún no existe (nace al entregar): por eso no hay
+                    fiado parcial. La entrega saldrá fiada con esta misma deuda,
+                    sin cobrar de nuevo. Si pagara algo al entregar, se registra
+                    como abono de esta deuda.
+                  </span>
+                </div>
+              ) : (
+                <label className="block">
+                  <span className={ETIQUETA}>MONTO QUE DEBE (máx. {formatCOP(desglose.pendiente)})</span>
+                  <input
+                    name="valorFiado"
+                    inputMode="numeric"
+                    value={montoTxt === "" ? String(desglose.pendiente) : montoTxt}
+                    onChange={(e) => setMontoTxt(e.target.value)}
+                    className={CAMPO + " mt-1 w-36 font-bold"}
+                    placeholder={String(desglose.pendiente)}
+                  />
+                  <span className="mt-0.5 block text-[11px] text-texto-muted/55">
+                    Si fiás menos de lo que vale la comanda, el pedido conserva el
+                    saldo que falta (y sigue en el tablero o en la caja).
+                  </span>
+                </label>
+              )}
               <ul className="space-y-1.5 border-t border-borde-app/60 pt-2">
-                {desglose.lineas.map((l) => (
-                  <li key={l.pedidoItemId} className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 grow">
-                      <b className="block truncate">{l.nombre}</b>
-                      <span className="text-[11px] text-texto-muted/55">
-                        {formatCOP(l.precio)} c/u · {l.cantidad} en el pedido
-                        {l.yaFiadas > 0 ? ` · ${l.yaFiadas} ya fiada(s)` : ""}
-                        {l.disponibles === 0 ? " · sin unidades libres" : ""}
+                {desglose.lineas.map((l) =>
+                  desglose.apartadoId !== null ? (
+                    // Apartado: lista de solo lectura (se fía todo de una vez)
+                    <li key={l.pedidoItemId} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 grow">
+                        <b className="block truncate">
+                          {l.cantidad > 1 ? `${l.cantidad}× ` : ""}
+                          {l.nombre}
+                        </b>
+                        <span className="text-[11px] text-texto-muted/55">
+                          {l.precio > 0 ? `${formatCOP(l.precio)} c/u` : "incluido"}
+                          {l.precio > 0 && l.cantidad > 1
+                            ? ` · ${formatCOP(l.subtotal)}` : ""}
+                          {l.conSopa === true ? " · con sopa" : ""}
+                          {l.conSopa === false ? " · sin sopa" : ""}
+                          {l.nota ? ` · ${l.nota}` : ""}
+                        </span>
                       </span>
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={l.disponibles}
-                      value={seleccion[l.pedidoItemId] ?? 0}
-                      onChange={(e) =>
-                        cambiarCantidad(l.pedidoItemId, e.target.value, l.disponibles)
-                      }
-                      disabled={l.disponibles === 0}
-                      aria-label={`Cantidad de ${l.nombre} a fiar`}
-                      className={CAMPO + " w-20 text-right"}
-                    />
-                    <span className="w-24 text-right font-bold tabular-nums">
-                      {formatCOP((seleccion[l.pedidoItemId] ?? 0) * l.precio)}
-                    </span>
-                  </li>
-                ))}
+                      <span className="w-24 text-right font-bold tabular-nums">
+                        {formatCOP(l.subtotal)}
+                      </span>
+                    </li>
+                  ) : (
+                    <li key={l.pedidoItemId} className="flex flex-wrap items-center gap-2">
+                      <span className="min-w-0 grow">
+                        <b className="block truncate">{l.nombre}</b>
+                        <span className="text-[11px] text-texto-muted/55">
+                          {formatCOP(l.precio)} c/u · {l.cantidad} en el pedido
+                          {l.yaFiadas > 0 ? ` · ${l.yaFiadas} ya fiada(s)` : ""}
+                          {l.disponibles === 0 ? " · sin unidades libres" : ""}
+                        </span>
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={l.disponibles}
+                        value={seleccion[l.pedidoItemId] ?? 0}
+                        onChange={(e) =>
+                          cambiarCantidad(l.pedidoItemId, e.target.value, l.disponibles)
+                        }
+                        disabled={l.disponibles === 0}
+                        aria-label={`Cantidad de ${l.nombre} a fiar`}
+                        className={CAMPO + " w-20 text-right"}
+                      />
+                      <span className="w-24 text-right font-bold tabular-nums">
+                        {formatCOP((seleccion[l.pedidoItemId] ?? 0) * l.precio)}
+                      </span>
+                    </li>
+                  ),
+                )}
               </ul>
-              {totalSeleccionado > desglose.pendiente ? (
+              {desglose.apartadoId === null && totalSeleccionado > desglose.pendiente ? (
                 <p className="rounded-lg bg-danger/10 px-2.5 py-1.5 font-bold text-danger-text">
                   La selección ({formatCOP(totalSeleccionado)}) supera el saldo por fiar.
                 </p>
               ) : null}
-              <p className="flex items-center justify-between border-t border-borde-app/60 pt-2 text-sm font-bold">
-                <span>Total seleccionado</span>
-                <span className="text-danger-text">{formatCOP(totalSeleccionado)}</span>
-              </p>
-              <input type="hidden" name="pedidoId" value={desglose.pedidoId} />
+              {desglose.apartadoId === null ? (
+                <>
+                  <p className="flex items-center justify-between border-t border-borde-app/60 pt-2 text-sm font-bold">
+                    <span>Total seleccionado</span>
+                    <span className="text-danger-text">{formatCOP(totalSeleccionado)}</span>
+                  </p>
+                  {totalSeleccionado === 0 ? (
+                    <p className="text-[11px] text-texto-muted/55">
+                      Sin unidades apartadas, la deuda lleva la foto de TODO lo que
+                      se llevó (y el monto lo dice el campo «MONTO QUE DEBE»).
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+              {desglose.pedidoId !== null ? (
+                <input type="hidden" name="pedidoId" value={desglose.pedidoId} />
+              ) : null}
+              <input type="hidden" name="apartadoId" value={desglose.apartadoId ?? ""} />
               <input
                 type="hidden"
                 name="lineas"
@@ -493,10 +619,7 @@ export function FormularioNuevaCuenta({
           type="submit"
           disabled={
             pendiente ||
-            (modo === "comanda" &&
-              (!desglose ||
-                totalSeleccionado <= 0 ||
-                totalSeleccionado > desglose.pendiente))
+            (modo === "comanda" && (!desglose || !desgloseEfetivo))
           }
           className="w-full rounded-xl bg-amber-brand px-4 py-2.5 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app disabled:opacity-50"
         >

@@ -90,7 +90,10 @@ export async function crearCliente(
 
 /** Búsqueda paginada para el picker de clientes del formulario de fiados:
  *  envuelve la búsqueda en BD (nombre/teléfono/«#ficha») con una página
- *  corta. Solo ADMIN (se usa en formularios sensibles de dinero). */
+ *  corta. Solo ADMIN (se usa en formularios sensibles de dinero).
+ *  La enumeración es la MISMA del listado de Clientes: N.º consecutivo por
+ *  página; el id interno de ficha solo se muestra cuando la búsqueda es
+ *  numérica (quien busca «#12» la está ubicando por ficha). */
 export async function buscarClientesPicker(term: string, pagina = 1) {
   try {
     await exigirAdmin();
@@ -98,11 +101,18 @@ export async function buscarClientesPicker(term: string, pagina = 1) {
     return { filas: [], total: 0, pagina: 1 };
   }
   const r = await buscarClientesPagina(term, pagina, 8);
+  const POR_PAGINA = 8;
+  const busquedaPorFicha = /^\s*#?\s*\d{1,7}\s*$/.test(term);
   return {
-    filas: r.filas.map((c) => ({
-      id: c.id,
-      etiqueta: `#${c.id} · ${c.nombre}${c.telefono ? ` · ${c.telefono}` : ""}`,
-    })),
+    filas: r.filas.map((c, indice) => {
+      const ordinal = ((r.pagina - 1) * POR_PAGINA) + indice + 1;
+      return {
+        id: c.id,
+        etiqueta:
+          `N.º ${ordinal} · ${c.nombre}${c.telefono ? ` · ${c.telefono}` : ""}` +
+          (busquedaPorFicha ? ` · ficha ${c.id}` : ""),
+      };
+    }),
     total: r.total,
     pagina: r.pagina,
   };
