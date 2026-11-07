@@ -191,6 +191,7 @@ export const CATEGORIA_GASTO = {
   SERVICIOS: "SERVICIOS",
   UTENSILIOS: "UTENSILIOS",
   TRANSPORTE: "TRANSPORTE",
+  NOMINA: "NOMINA",
   OTROS: "OTROS",
 } as const;
 
@@ -202,6 +203,7 @@ export const CATEGORIA_GASTO_LABEL: Record<CategoriaGasto, string> = {
   SERVICIOS: "Servicios",
   UTENSILIOS: "Utensilios",
   TRANSPORTE: "Transporte",
+  NOMINA: "Nómina",
   OTROS: "Otros",
 };
 

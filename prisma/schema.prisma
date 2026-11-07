@@ -34,6 +34,20 @@ model Usuario {
   cuentasCondonadas   CuentaPorCobrar[] @relation("CuentaCondonadaPor")
   fusionesHechas      FusionCliente[]   @relation("FusionesHechas")
 
+  // Nómina (quién registró qué)
+  nominaCreados           Empleado[]           @relation("NominaCreadoPor")
+  contratosCreados        ContratoVersion[]    @relation("ContratoVersionCreadoPor")
+  jornadasCreadas         JornadaLaboral[]     @relation("JornadaCreadoPor")
+  jornadasModificadas     JornadaLaboral[]     @relation("JornadaModificadaPor")
+  novedadesCreadas        NovedadNomina[]      @relation("NovedadCreadoPor")
+  novedadesAprobadas      NovedadNomina[]      @relation("NovedadAprobadaPor")
+  periodosCreados         PeriodoNomina[]      @relation("PeriodoCreadoPor")
+  periodosCerrados        PeriodoNomina[]      @relation("PeriodoCerradoPor")
+  liquidacionesCreadas    LiquidacionNomina[]  @relation("LiquidacionCreadoPor")
+  liquidacionesAprobadas  LiquidacionNomina[]  @relation("LiquidacionAprobadaPor")
+  pagosNominaRegistrados  PagoNomina[]         @relation("PagoNominaRegistradoPor")
+  pagosPrestacionRegistrados PagoPrestacion[]  @relation("PagoPrestacionRegistradoPor")
+
   @@unique([pin, rol]) // el mismo PIN puede repetirse entre roles distintos
 }
 
@@ -443,3 +457,309 @@ model Gasto {
   anuladoMotivo String?
   createdAt     DateTime  @default(now())
 }
+
+// ════════ Nómina ════════
+// Todo el conocimiento legal vive en la tabla ParametroLaboral CON VIGENCIA:
+// una modificación normativa entra como una fila nueva desde su fecha y las
+// liquidaciones ya cerradas guardan la FOTO de los parámetros que usaron.
+// El dinero va EN COP ENTEROS (nunca flotantes); los porcentajes van en
+// DIEZMILÉSIMAS (100.00 % = 1_000_000) y los tiempos en MINUTOS.
+
+// Parámetro normativo con vigencia (SMMLV, auxilio, recargos, aportes…)
+model ParametroLaboral {
+  id             Int       @id @default(autoincrement())
+  clave          String // SALARIO_MINIMO, AUXILIO_TRANSPORTE, RECARGO_NOCTURNO…
+  valor          Int // COP salariales / redondeado a COP; % en diezmilésimas
+  unidad         String // COP | PORCENTAJE(diezmilésimas) | MINUTOS
+  vigenciaDesde  DateTime
+  vigenciaHasta  DateTime? // null = sin fecha de fin declarada
+  descripcion    String
+  fuente         String // norma y artículo («Decreto 1470 de 2025», «Art 161 CST + Ley 2466 de 2025»)
+  pendienteVerificar Boolean @default(false) // marca de «día exacto por confirmar»
+  nota           String?
+  categoria      String // INDICADOR (salarios/auxilio) | RECARGO | APOS_TRABAJADOR | APOS_EMPRESA | JORNADA
+  createdAt      DateTime  @default(now())
+
+  @@unique([clave, vigenciaDesde])
+  @@index([clave, vigenciaDesde])
+}
+
+// Calendario de festivos (ley Emiliani): marca fechas de descanso obligatorio
+model Festivo {
+  fecha  String @id // yyyy-mm-dd
+  nombre String
+  anio   Int
+
+  @@index([anio])
+}
+
+// Trabajador. NO se borra físicamente: desactivar (estado INACTIVO) conserva
+// historial de liquidaciones/pagos para siempre.
+model Empleado {
+  id              Int       @id @default(autoincrement())
+  nombre          String // nombres
+  apellidos       String
+  documentoTipo   String // CC | CE | TI | PE | OTRO
+  documentoNumero String @unique
+  telefono        String?
+  direccion       String?
+  cargo           String // «Cocinero», «Mesero»…
+  fechaIngreso    DateTime
+  fechaRetiro     DateTime? // al desactivar (o retiro pactado)
+  estado          String    @default("ACTIVO") // ACTIVO | INACTIVO
+  estadoMotivo    String? // por qué se desactivó (auditoría)
+  // Seguridad social (informativa: los fondos se nombran o se SIEMPRE
+  // consultan manualmente; el sistema calcula PORCENTAJES por parámetro)
+  epsNombre        String?
+  fondoPensionName String? // fondo de pensión (no exige nombre el cálculo)
+  arpClase         Int     @default(2) // clase de riesgo laboral I..VI (tarifa ARP)
+  // Contrato VIGENTE: la verdad operativa. Los cambios salariales NO
+  // editan estas columnas: nacen una ContratoVersion nueva (historial),
+  // y aquí queda espejado lo vigente para consultas rápidas.
+  modalidad        String  @default("LABORAL") // LABORAL (contrato) | INDEPENDIENTE (prestación servicios)
+  remuneracion     String  @default("MENSUAL") // MENSUAL | DIARIO | HORARIO
+  salarioMensual   Int     @default(0) // COP (también resume diario×30 o hora×factor; el detalle va en la versión)
+  salarioDiario    Int     @default(0) // para DIARIO: COP por día laborado
+  valorHora        Int     @default(0) // para HORARIO: COP por hora
+  jornadaSemanalMinutos Int @default(2640) // 44 h (2026 hasta 14 jul); 42 h = 2520 desde 15 jul
+  periodicidadPago String  @default("QUINCENAL") // QUINCENAL | MENSUAL
+  diaDescanso      Int     @default(0) // 0=domingo … 6=sábado: descanso obligatorio semanal
+  auxilioTransporte Boolean @default(false) // auto: base ≤ 2 SMMLV (se recalcula al cambiar salario)
+  metodoPago       String  @default("EFECTIVO") // EFECTIVO | TRANSFERENCIA | OTRO
+  horaLimiteEntradaMinutos Int? // umbral de llegada tarde (min desde medianoche; null = sin control)
+  creadoById       Int
+  creadoPor        Usuario @relation("NominaCreadoPor", fields: [creadoById], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  contratoVersiones ContratoVersion[]
+  jornadas          JornadaLaboral[]
+  novedades         NovedadNomina[]
+  liquidaciones     LiquidacionNomina[]
+  pagosPrestaciones PagoPrestacion[]
+
+  @@index([estado])
+}
+
+// Historial contractual/salarial: una fila por cambio (aumento, cambio de
+// modalidad, cambio de jornada). Las liquidaciones guardan su propia copia,
+// así que editar una versión nueva JAMÁS reescribe nóminas antiguas.
+model ContratoVersion {
+  id                 Int       @id @default(autoincrement())
+  empleadoId         Int
+  empleado           Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  desde              DateTime // fecha desde la que aplica
+  hasta              DateTime? // null = sigue vigente (se cierra al registrar el cambio siguiente)
+  modalidad          String // LABORAL | INDEPENDIENTE
+  remuneracion       String // MENSUAL | DIARIO | HORARIO
+  salarioMensual     Int
+  salarioDiario      Int
+  valorHora          Int
+  jornadaSemanalMinutos Int
+  periodicidadPago   String
+  diaDescanso        Int
+  auxilioTransporte  Boolean
+  metodoPago         String
+  motivo             String // «aumento», «contrato nuevo»…
+  creadoById         Int
+  creadoPor          Usuario   @relation("ContratoVersionCreadoPor", fields: [creadoById], references: [id])
+  createdAt          DateTime  @default(now())
+
+  @@index([empleadoId, desde])
+}
+
+// Asistencia diaria: registro administrativo manual. El clasificado de
+// minutos queda CONGELADO al guardar y se recalcula con una función única.
+model JornadaLaboral {
+  id          Int      @id @default(autoincrement())
+  empleadoId  Int
+  empleado    Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  fecha       String // yyyy-mm-dd del DÍA DE ENTRADA
+  entradaMinutos Int // minutos desde la medianoche
+  salidaMinutos  Int // si <= entrada cruza a medianoche (termina al día siguiente)
+  descansoMinutos Int @default(0) // pausas NO remuneradas (almuerzo) que se restan
+  esFestivo       Boolean @default(false) // marcado del calendario (o a mano si se save tras recorte)
+  esDiaDescanso   Boolean @default(false) // trabajó en su día de descanso semanal
+  // Clasificación CONGELADA (minutos) por clase:
+  minutosOrdinarios         Int @default(0)
+  minutosNocturnos          Int @default(0) // recargo nocturno sobre jornada ordinaria
+  minutosFestivos           Int @default(0) // recargo dominical/festivo (jornada ordinaria)
+  minutosExtraDiurnas       Int @default(0)
+  minutosExtraNocturnas     Int @default(0)
+  minutosExtraFestivasDiurnas   Int @default(0) // HEDF: extra diurna en festivo (dominical + extra)
+  minutosExtraFestivasNocturnas Int @default(0) // HENF: extra nocturna en festivo (dominical + extra)
+  minutosTrabajados         Int @default(0) // total neto (descuento descansos)
+  observaciones    String?
+  // Auditoría de modificaciones manuales
+  modificadoById  Int?
+  modificadoPor   Usuario? @relation("JornadaModificadaPor", fields: [modificadoById], references: [id])
+  modificadoAt    DateTime?
+  modificadoMotivo String?
+  creadoById      Int
+  creadoPor       Usuario   @relation("JornadaCreadoPor", fields: [creadoById], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([empleadoId, fecha])
+  @@index([fecha])
+}
+
+// Novedad que modifica una liquidación (comisiones, ausencias, permisos…).
+// Las horas extras y recargos NO se registran aquí: ya viven en JornadaLaboral
+// (así no se contabilizan dos veces).
+model NovedadNomina {
+  id           Int      @id @default(autoincrement())
+  empleadoId   Int
+  empleado     Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  fecha        String   // yyyy-mm-dd (o inicio del concepto)
+  dias         Int?     // ausencias/permisos/vacaciones (días de salario)
+  valor        Int?     // comisión/bonificación/descuento (COP; DESCUENTO resta)
+  descripcion  String
+  tipo         String // COMISION | BONIFICACION | AUSENCIA | INCAPACIDAD |
+                      // PERMISO_REMUNERADO | PERMISO_NO_REMUNERADO | VACACIO
+  estado       String   @default("PENDIENTE") // PENDIENTE | APROBADA | RECHAZADA
+  liquidacionId Int?    // set al incorporarse a una liquidación: NO se cuenta €. una
+  // Auditoría de aprobación
+  aprobadoById  Int?
+  aprobadoPor   Usuario? @relation("NovedadAprobadaPor", fields: [aprobadoById], references: [id])
+  aprobadoAt    DateTime?
+  rechazoMotivo String?
+  creadoById    Int
+  creadoPor     Usuario  @relation("NovedadCreadoPor", fields: [creadoById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([empleadoId, estado])
+}
+
+// Período de nómina: QUINCENAL (1–15 / 16–fin) o MENSUAL (calendario).
+model PeriodoNomina {
+  id          Int     @id @default(autoincrement())
+  fechaDesde  String  // yyyy-mm-dd inclusivo
+  fechaHasta  String  // yyyy-mm-dd inclusivo
+  fechaPagoPrevista String?
+  tipo        String  // QUINCENAL | MENSUAL
+  estado      String  @default("ABIERTO") // ABIERTO | CERRADO
+  cerradoById Int?
+  cerradoPor  Usuario? @relation("PeriodoCerradoPor", fields: [cerradoById], references: [id])
+  cerradoAt   DateTime?
+  creadoById  Int
+  creadoPor   Usuario @relation("PeriodoCreadoPor", fields: [creadoById], references: [id])
+  createdAt   DateTime @default(now())
+
+  liquidaciones LiquidacionNomina[]
+
+  @@unique([fechaDesde, fechaHasta])
+}
+
+// Liquidación de UN empleado en UN período. Es una FOTO: conceptos, contrato
+// y parámetros quedan congelados al crearse; una APROBADA no se edita nunca
+// (correcciones por liquidación nueva o anulación auditable).
+model LiquidacionNomina {
+  id          Int     @id @default(autoincrement())
+  periodoId   Int
+  periodo     PeriodoNomina @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  empleadoId  Int
+  empleado    Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  estado      String  @default("BORRADOR") // BORRADOR | APROBADA | (cerrada por su período)
+  diasTrabajados Int  @default(0)
+  // FOTO contractual usada (sin ella el aumento cambiaría el pasado)
+  contratoFoto  String // JSON ContratoVersion
+  parametrosFoto String // JSON ParametroLaboral[] usados en el cálculo
+  novedadesFoto  String? // JSON resumen de novedades incorporadas
+
+  // Devengados
+  salarioBase     Int @default(0) // proporcional a los días del período
+  horasExtraRecargos Int @default(0) // HE diurnas/nocturnas/dominicales por jornadas
+  comisionesBonos Int @default(0)
+  auxilioTransporte Int @default(0)
+  otrosDevengados Int @default(0) // permisos remunerados días de salario etc.
+  totalDevengado  Int @default(0)
+  // Deducciones del TRABAJADOR
+  deduccionSalud  Int @default(0)
+  deduccionPension Int @default(0)
+  otrosDescuentos Int @default(0)
+  totalDeducciones Int @default(0)
+  netoAPagar      Int @default(0)
+  pagado          Int @default(0)
+  estadoPago      String @default("PENDIENTE") // PENDIENTE | PARCIALMENTE | PAGADO
+  // Aportes del EMPLEADOR (costo informativo: NUNCA se restan del neto)
+  empresaSalud    Int @default(0)
+  empresaPension  Int @default(0)
+  empresaRiesgos  Int @default(0)
+  empresaCaja     Int @default(0)
+  costoEmpleador  Int @default(0)
+  // Causación de prestaciones del período (acumulan al empleado)
+  prestacionPrima     Int @default(0)
+  prestacionCesantias Int @default(0)
+  prestacionIntereses Int @default(0)
+  prestacionVacaciones Int @default(0)
+  // Auditoría
+  creadoById Int
+  creadoPor  Usuario @relation("LiquidacionCreadoPor", fields: [creadoById], references: [id])
+  aprobadoById Int?
+  aprobadoPor Usuario? @relation("LiquidacionAprobadaPor", fields: [aprobadoById], references: [id])
+  aprobadoAt DateTime?
+  notas      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  conceptos LiquidacionConcepto[]
+  pagos     PagoNomina[]
+
+  @@unique([periodoId, empleadoId])
+  @@index([empleadoId])
+}
+
+// Cada renglón del comprobante (devengado, deducción, aporte, prestación)
+model LiquidacionConcepto {
+  id            Int     @id @default(autoincrement())
+  liquidacionId Int
+  liquidacion   LiquidacionNomina @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  tipo          String // DEVENGADO | DEDUCCION | EMPRESA | PRESTACION
+  clave         String // SALARIO, HORA_EXTRA_D, SALUD, PRIMA…
+  etiqueta      String
+  valor         Int // COP (deducciones guardan el valor POSITIVO; el negativo se	pinta)
+  detalle       String?
+  @@index([liquidacionId])
+}
+
+// Pago real de una liquidación (parcial o total). Dinero que SALÉ: entra a
+// Caja como Gasto(NOMINA) el mismo instante si es EFECTIVO; transferencia
+// toca nómina pero no el efectivo físico.
+model PagoNomina {
+  id            Int    @id @default(autoincrement())
+  liquidacionId Int
+  liquidacion   LiquidacionNomina @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  monto         Int // COP entregado
+  fecha         DateTime @default(now())
+  metodo        String // EFECTIVO | TRANSFERENCIA | OTRO
+  referencia    String? // # de transferencia, mostrado…
+  observaciones String?
+  gastoId       Int? // Gasto generado (solo EFECTIVO): vínculo Nómina ↔ Caja
+  usuarioId     Int
+  registradoPor Usuario @relation("PagoNominaRegistradoPor", fields: [usuarioId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([liquidacionId])
+}
+
+// Pago de una prestación (prima de junio, cesantías…): causa PENDIENTE hasta
+// efectivamente entregarse — el cálculo no significa pagado.
+model PagoPrestacion {
+  id          Int      @id @default(autoincrement())
+  empleadoId  Int
+  empleado    Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  concepto    String   // PRIMA | CESANTIAS | INTERESES_CESANTIAS | VACACIONES
+  monto       Int
+  fecha       DateTime @default(now())
+  metodo      String // EFECTIVO | TRANSFERENCIA | OTRO
+  referencia  String?
+  observaciones String?
+  gastoId     Int? // solo si EFECTIVO (egreso real a Caja)
+  usuarioId   Int
+  registradoPor Usuario @relation("PagoPrestacionRegistradoPor", fields: [usuarioId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([empleadoId, concepto])
+}
+

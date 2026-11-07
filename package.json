@@ -8,6 +8,7 @@
     "start": "set PROD_BUILD=1&& next start -H 0.0.0.0",
     "lint": "eslint",
     "db:push": "prisma db push",
+    "db:nomina": "tsx scripts/instalar-nomina.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

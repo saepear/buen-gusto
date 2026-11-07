@@ -48,3 +48,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Scripts temporales de verificación (pruebas de escenarios, nunca van al repo)
+/scripts/tmp-*.ts

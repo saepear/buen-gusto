@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Banknote,
   BarChart3,
   Bike,
   CalendarClock,
@@ -38,6 +39,7 @@ const NAV_ITEMS: ItemNav[] = [
   // Órdenes: tablero de comandas en vivo del salón
   { href: "/ordenes", etiqueta: "Órdenes", Icono: ClipboardList },
   { href: "/admin/caja", etiqueta: "Caja y recibos", Icono: Wallet },
+  { href: "/admin/nomina", etiqueta: "Nómina", Icono: Banknote },
   { href: "/admin/reportes", etiqueta: "Reportes", Icono: BarChart3 },
   { href: "/admin/configuracion", etiqueta: "Configuración", Icono: Settings },
 ];
