@@ -7,6 +7,7 @@ import {
   ESTADO_CUENTA_LABEL,
   ESTADO_DOMICILIO,
   ESTADO_DOMICILIO_LABEL,
+  ESTADO_PEDIDO,
   ESTADO_PEDIDO_LABEL,
   ESTADOS_ACTIVOS_DOMICILIO,
   METODOS_PAGO,
@@ -274,9 +275,16 @@ export async function datosReporte(fechaFila: Date) {
     pagosHoy.length > 0 ? Math.round(pagadoHoy / pagosHoy.length) : 0;
 
   // ---- Comandas del día ----
+  // Una mesa/domicilio/apartado FIADO es comida que SALIÓ (cuenta como
+  // servida y entra en el conteo de platos), pero su dinero NO es ingreso:
+  // la cobranza llega el día de los abonos y por eso no suma recaudo aquí.
   const servidas = pedidosHoy.filter(
-    (p) => p.estado === "SERVIDO" || p.estado === "COBRADO",
+    (p) =>
+      p.estado === "SERVIDO" ||
+      p.estado === "COBRADO" ||
+      p.estado === ESTADO_PEDIDO.FIADO,
   );
+  const esSinIngreso = (estado: string) => estado === ESTADO_PEDIDO.FIADO;
   const enCocina = pedidosHoy.filter((p) =>
     ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "POR_PAGAR"].includes(
       p.estado,
@@ -294,6 +302,9 @@ export async function datosReporte(fechaFila: Date) {
     { unidades: number; recaudo: number; tipo: string }
   >();
   for (const pedido of servidas) {
+    // Fiada: la comida salió pero el dinero no llegó (o llegó con abonos,
+    // que cuentan por su lado en «Abonos de deudas»): recaudo 0
+    const sinIngreso = esSinIngreso(pedido.estado);
     for (const item of pedido.items) {
       if (item.tipo === "PROTEINA") {
         // Nombre congelado: el reporte no se rompe si el producto ya se
@@ -305,7 +316,9 @@ export async function datosReporte(fechaFila: Date) {
           recaudo: 0,
         };
         fila.unidades += item.cantidad;
-        fila.recaudo += precioUnitarioItem(item) * item.cantidad;
+        fila.recaudo += sinIngreso
+          ? 0
+          : precioUnitarioItem(item) * item.cantidad;
         if (item.conSopa === false) fila.sinSopa += item.cantidad;
         porProteina.set(nombre, fila);
       } else if (precioUnitarioItem(item) > 0) {
@@ -316,7 +329,9 @@ export async function datosReporte(fechaFila: Date) {
           tipo: item.tipo,
         };
         fila.unidades += item.cantidad;
-        fila.recaudo += precioUnitarioItem(item) * item.cantidad;
+        fila.recaudo += sinIngreso
+          ? 0
+          : precioUnitarioItem(item) * item.cantidad;
         extras.set(nombre, fila);
       }
     }
