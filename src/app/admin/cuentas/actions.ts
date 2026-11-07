@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, claveDia } from "@/lib/format";
 import { nombreDeItem, precioUnitarioItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
@@ -877,6 +877,7 @@ export async function registrarAbono(
 
   try {
     await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCuenta("La caja de hoy ya está cerrada: no se pueden registrar abonos posteriores.");
       const cuenta = await tx.cuentaPorCobrar.findUnique({
         where: { id: cuentaId },
         select: { estado: true, valorOriginal: true, pagado: true, saldoCondonado: true },

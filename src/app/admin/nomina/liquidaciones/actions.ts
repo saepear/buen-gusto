@@ -11,7 +11,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, claveDia } from "@/lib/format";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
 
@@ -56,6 +56,9 @@ export async function registrarPagoNomina(
   const observaciones = String(form.get("observaciones") ?? "").trim().slice(0, 200) || null;
 
   const resultado = await db.$transaction(async (tx) => {
+    if (metodo === "EFECTIVO" && await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+      return { error: "La caja de hoy ya está cerrada: no se pueden registrar pagos de nómina en efectivo posteriores.", ok: null };
+    }
     const liquidacion = await tx.liquidacionNomina.findUnique({
       where: { id: liquidacionId },
       include: { empleado: true, periodo: true },

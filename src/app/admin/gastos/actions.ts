@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { formatCOP } from "@/lib/format";
+import { formatCOP, claveDia } from "@/lib/format";
 import {
   CATEGORIA_GASTO,
   ES_METODO_PAGO,
@@ -68,6 +68,9 @@ export async function crearGasto(
   }
   const observaciones = texto(datos.get("observaciones"), 240) || null;
 
+  if (await db.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+    return { error: "La caja de hoy ya está cerrada: no se pueden registrar gastos posteriores.", ok: null };
+  }
   await db.gasto.create({
     data: {
       descripcion,
@@ -118,6 +121,7 @@ export async function anularGasto(
 
   try {
     await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeGasto("La caja de hoy ya está cerrada: no se pueden modificar gastos posteriores.");
       const gasto = await tx.gasto.findUnique({
         where: { id: gastoId },
         select: { anulado: true },

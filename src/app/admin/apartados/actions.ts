@@ -1067,6 +1067,7 @@ export async function entregarApartado(
 
   try {
     pagoCreadoId = await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeApartado("La caja de hoy ya está cerrada: no se pueden cobrar apartados posteriores.");
       // Mesa virtual de apartados (creada la primera vez que se entrega)
       const mesa = await tx.mesa.upsert({
         where: { nombre: MESA_APARTADOS },

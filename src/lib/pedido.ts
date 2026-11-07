@@ -251,6 +251,10 @@ export async function crearPedido(opciones: {
     permitirMesaVirtual = false,
   } = opciones;
 
+  if (await db.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+    throw new ErrorDePedido("La caja de hoy ya está cerrada: no se pueden crear pedidos posteriores.");
+  }
+
   // La mesa puede haber sido ocultada entre el render y el envío del pedido.
   const mesaViva = await db.mesa.findFirst({
     where: { id: mesaId, activa: true },
