@@ -279,6 +279,7 @@ export async function cobrarDomicilio(
   let nuevoPagoId: number;
   try {
     nuevoPagoId = await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCobroDomicilio("La caja de hoy ya está cerrada: no se pueden registrar cobros posteriores.");
       const domicilio = await tx.domicilio.findUnique({
         where: { id: domicilioId },
         select: {
@@ -416,6 +417,7 @@ export async function fiarDomicilio(
 
   try {
     await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCobroDomicilio("La caja de hoy ya está cerrada: no se pueden registrar abonos posteriores.");
       const domicilio = await tx.domicilio.findUnique({
         where: { id: domicilioId },
         select: {

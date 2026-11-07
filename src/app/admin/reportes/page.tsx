@@ -716,12 +716,7 @@ export default async function PaginaReportes(
                 <span>Efectivo disponible al cierre</span>
                 <span className="font-display text-lg text-texto-app">
                   {formatCOP(
-                    Math.max(
-                      0,
-                      (cierreHoy.totalEfectivo + cierreHoy.totalPropinas +
-                        (cierreHoy.abonosEfectivo ?? 0)) -
-                        (cierreHoy.gastosCajaEfectivo ?? 0),
-                    ),
+                    cierreHoy.efectivoEsperado ?? Math.max(0, (cierreHoy.totalEfectivo + cierreHoy.totalPropinas + (cierreHoy.abonosEfectivo ?? 0)) - (cierreHoy.gastosCajaEfectivo ?? 0)),
                   )}
                 </span>
               </p>
@@ -771,9 +766,9 @@ export default async function PaginaReportes(
                   <span>Efectivo contado en caja</span>
                   <span className="font-bold">
                     {formatCOP(cierreHoy.efectivoContado)},{" "}
-                    {cierreHoy.efectivoContado - cierreHoy.totalEfectivo >= 0
-                      ? `sobra ${formatCOP(cierreHoy.efectivoContado - cierreHoy.totalEfectivo)}`
-                      : `faltan ${formatCOP(cierreHoy.totalEfectivo - cierreHoy.efectivoContado)}`}
+                    {cierreHoy.efectivoContado - (cierreHoy.efectivoEsperado ?? cierreHoy.totalEfectivo) >= 0
+                      ? `sobra ${formatCOP(cierreHoy.efectivoContado - (cierreHoy.efectivoEsperado ?? cierreHoy.totalEfectivo))}`
+                      : `faltan ${formatCOP((cierreHoy.efectivoEsperado ?? cierreHoy.totalEfectivo) - cierreHoy.efectivoContado)}`}
                   </span>
                 </p>
               ) : null}
@@ -853,7 +848,7 @@ export default async function PaginaReportes(
               const diff =
                 c.efectivoContado === null
                   ? null
-                  : c.efectivoContado - c.totalEfectivo;
+                  : c.efectivoContado - (c.efectivoEsperado ?? c.totalEfectivo);
               return (
                 <div
                   key={c.id}

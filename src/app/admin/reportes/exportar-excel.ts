@@ -987,7 +987,7 @@ export async function construirLibroExcel(
         "Efectivo disponible al cierre",
         Math.max(
           0,
-          cierre.totalEfectivo + cierre.totalPropinas + (cierre.abonosEfectivo ?? 0) - (cierre.gastosCajaEfectivo ?? 0),
+          cierre.efectivoEsperado ?? (cierre.totalEfectivo + cierre.totalPropinas + (cierre.abonosEfectivo ?? 0) - (cierre.gastosCajaEfectivo ?? 0)),
         ),
         { dinero: true, fuerte: true },
       );
@@ -1005,7 +1005,7 @@ export async function construirLibroExcel(
         cierreHoja,
         30,
         "Diferencia (contado − debería haber en caja)",
-        cierre.efectivoContado - (cierre.totalEfectivo - cierre.totalPropinas),
+        cierre.efectivoContado - (cierre.efectivoEsperado ?? cierre.totalEfectivo),
         { dinero: true },
       );
     }

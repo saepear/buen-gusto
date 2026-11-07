@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { inicioDeHoy } from "@/lib/pedido";
+import { inicioDeHoy, ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { claveDia } from "@/lib/format";
 import { exigirAdmin } from "@/lib/session";
+import { efectivoEsperadoCaja } from "@/lib/caja/conciliacion";
 
 export type EstadoAccionCierre = { error: string | null; ok: string | null };
 
@@ -42,6 +43,12 @@ export async function registrarCierre(
         throw new ErrorDeCierre("El cierre de hoy ya está registrado.");
       }
       const hoy = inicioDeHoy();
+      const pendientes = await tx.pedido.findMany({ where: { estado: { in: ESTADOS_ACTIVOS_PEDIDO }, mesa: { esDomicilio: false, esApartado: false } }, select: { id: true, mesa: { select: { nombre: true } } }, take: 20 });
+      const mesasPendientes = await tx.mesa.findMany({ where: { activa: true, esDomicilio: false, esApartado: false, estado: { in: ["OCUPADA", "POR_PAGAR"] } }, select: { nombre: true }, take: 20 });
+      if (pendientes.length || mesasPendientes.length) {
+        const nombres = [...new Set([...pendientes.map((p) => p.mesa?.nombre ?? `Comanda #${p.id}`), ...mesasPendientes.map((m) => m.nombre)])];
+        throw new ErrorDeCierre(`No se puede cerrar: hay mesas o comandas pendientes (${nombres.slice(0, 5).join(", ")}${nombres.length > 5 ? "…" : ""}). Cobra o resuelve todo antes del cierre.`);
+      }
 
       const pagos = await tx.pago.findMany({
         where: { createdAt: { gte: hoy } },
@@ -105,6 +112,7 @@ export async function registrarCierre(
         .filter((p) => p.metodo === "TRANSFERENCIA")
         .reduce((s, p) => s + p.total, 0);
       const totalPropinas = pagos.reduce((s, p) => s + p.propina, 0);
+      const propinasEfectivo = pagos.filter((p) => p.metodo === "EFECTIVO").reduce((s, p) => s + p.propina, 0);
 
       const numeroComandas = await tx.pedido.count({
         where: { estado: { in: ["SERVIDO", "COBRADO"] }, createdAt: { gte: hoy } },
@@ -139,6 +147,7 @@ export async function registrarCierre(
       const gastosCajaEfectivo = gastos
         .filter((g) => g.origen === "CAJA" && g.metodo === "EFECTIVO")
         .reduce((s, g) => s + g.valor, 0);
+      const efectivoEsperado = efectivoEsperadoCaja({ ventasEfectivo: totalEfectivo, propinasEfectivo, abonosEfectivo, gastosEfectivo: gastosCajaEfectivo });
       const totalGastosExternos = gastos
         .filter((g) => g.origen === "EXTERNO")
         .reduce((s, g) => s + g.valor, 0);
@@ -175,6 +184,8 @@ export async function registrarCierre(
           totalTarjeta,
           totalTransfer,
           totalPropinas,
+          propinasEfectivo,
+          efectivoEsperado,
           numeroPagos: pagos.length,
           numeroComandas,
           totalDomicilios,

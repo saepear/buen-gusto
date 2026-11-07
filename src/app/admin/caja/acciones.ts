@@ -13,6 +13,7 @@ import {
   ESTADO_PEDIDO,
 } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
+import { claveDia } from "@/lib/format";
 import { realtime } from "@/lib/realtime";
 
 export type EstadoAccionCaja = { error: string | null; ok?: string };
@@ -60,6 +61,7 @@ export async function cobrarMesa(
   let nuevoPagoId: number | null = null;
   try {
     nuevoPagoId = await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCaja("La caja de hoy ya está cerrada: no se pueden registrar cobros posteriores.");
       const mesa = await tx.mesa.findUnique({
         where: { id: mesaId },
         select: { nombre: true, estado: true, activa: true },
@@ -203,6 +205,7 @@ export async function fiarCuenta(
 
   try {
     await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCaja("La caja de hoy ya está cerrada: no se pueden registrar abonos posteriores.");
       const mesa = await tx.mesa.findUnique({
         where: { id: mesaId },
         select: {
