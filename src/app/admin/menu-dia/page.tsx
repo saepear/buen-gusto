@@ -19,6 +19,7 @@ import {
   crearMenuHoy,
 } from "./actions";
 import { FilaPorciones } from "./fila";
+import styles from "./menu.module.css";
 
 const ICONO: Record<string, LucideIcon> = {
   PROTEINA: Drumstick,
@@ -103,13 +104,20 @@ export default async function PaginaMenuDia() {
   ];
 
   return (
-    <>
-      <EncabezadoPagina
-        titulo="Menú del día"
-        subtitulo={formatFecha(new Date())}
-      />
+    <div className={styles.shell}>
+      <header className={styles.hero}>
+        <span className={styles.heroIcon}><Soup aria-hidden /></span>
+        <div><p className={styles.eyebrow}>COCINA · DISPONIBILIDAD</p><h1>Menú del día</h1><p className={styles.date}>{formatFecha(new Date())}</p></div>
+        <a href="#categorias-menu" className={styles.heroAction}>Editar opciones ↓</a>
+      </header>
+      <div className={styles.stats}>
+        <article><small>Opciones del día</small><strong>{menu.items.length}</strong><span>En el menú de hoy</span></article>
+        <article><small>Visibles para el equipo</small><strong>{menu.items.filter(i => i.visible).length}</strong><span>Disponibles en el selector</span></article>
+        <article><small>Por agotarse</small><strong>{menu.items.filter(i => i.stockPorciones !== null && i.stockPorciones - i.vendidos > 0 && i.stockPorciones - i.vendidos <= 5).length}</strong><span>Con 5 porciones o menos</span></article>
+        <article><small>Agotadas</small><strong>{menu.items.filter(i => i.stockPorciones !== null && i.stockPorciones <= i.vendidos).length}</strong><span>Revisa las cantidades</span></article>
+      </div>
 
-      <div className="mb-8 flex flex-wrap items-center gap-3">
+      <div className={styles.guide}>
         <span className="rounded-full bg-success/10 px-4 py-1.5 text-sm font-bold text-success-text ring-1 ring-success/20">
           Activo · {menu.items.length} opciones
         </span>
@@ -125,7 +133,7 @@ export default async function PaginaMenuDia() {
 
       {/* Dos columnas vivas (2×2): en pantallas 2xl a zoom 100% el salto a
           4 columnas dejaba cada tarjeta de ~250px y el contenido se pegaba. */}
-      <div className="grid gap-6 xl:gap-7 md:grid-cols-2">
+      <div id="categorias-menu" className={styles.categories}>
         {secciones.map((seccion) => {
           const tipo = seccion.clave;
           const { Icono } = seccion;
@@ -139,13 +147,14 @@ export default async function PaginaMenuDia() {
           return (
             <section
               key={tipo}
-              className="rounded-[2rem] bg-panel-app p-6 ring-1 ring-borde-app lg:p-7"
+              className={styles.category}
             >
               <h2 className="mb-6 flex items-center gap-2.5 font-display text-lg text-texto-app">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
                 </span>
                 {seccion.titulo}
+                <small className={styles.count}>{delTipo.length}</small>
               </h2>
 
               {delTipo.length === 0 ? (
@@ -199,7 +208,7 @@ export default async function PaginaMenuDia() {
         <Trash2 className="h-4 w-4" />
         Tu catálogo nunca se borra: quitar un ítem del menú solo lo deja fuera de HOY.
       </p>
-    </>
+    </div>
   );
 }
 
