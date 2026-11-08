@@ -10,6 +10,7 @@ import { FormularioPedido } from "@/app/mesero/mesa/[mesaId]/nuevo/formulario-pe
 import { crearDomicilio } from "../actions";
 import { ClientesFijos, type ClienteFijo } from "./clientes-fijos";
 import { FlujoDomicilio } from "./flujo-domicilio";
+import { buscarClientesDomicilio } from "./clientes-actions";
 import "../domicilios.css";
 
 export const metadata = { title: "Nuevo domicilio · El Buen Gusto" };
@@ -99,7 +100,7 @@ export default async function PaginaNuevoDomicilio(
   props: PageProps<"/admin/domicilios/nuevo">,
 ) {
   const { para } = await props.searchParams;
-  const [menu, extras, categorias, ultimosDomicilios] = await Promise.all([
+  const [menu, extras, categorias, ultimosDomicilios, clientes] = await Promise.all([
     menuDeHoy(),
     db.producto.findMany({
       // Solo bebidas y adicionales (las categorías propias van en el plato)
@@ -118,6 +119,7 @@ export default async function PaginaNuevoDomicilio(
       include: { pedido: { include: { items: { include: { producto: true } } } } },
       take: 120,
     }),
+    buscarClientesDomicilio(""),
   ]);
 
   // «Realizar pedido» de un cliente del historial: eso precarga su nombre,
@@ -230,6 +232,7 @@ export default async function PaginaNuevoDomicilio(
       </div>
 
       <FormularioPedido
+        clientesDomicilio={clientes}
         key={clientePreseteado ? `domicilio-${clientePreseteado.domicilioId}` : "limpio"}
         clientePreseteado={clientePreseteado}
         mesa={{ id: 0, nombre: "Domicilio" }}

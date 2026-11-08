@@ -39,6 +39,8 @@ import {
 } from "@/components/constructor-plato";
 import { tomarPedido } from "@/app/mesero/actions";
 import { actualizarProgresoDomicilio } from "@/app/admin/domicilios/nuevo/progreso-domicilio";
+import { SelectorClientesDomicilio } from "@/app/admin/domicilios/nuevo/selector-clientes";
+import type { ClienteDomicilio } from "@/app/admin/domicilios/nuevo/clientes-actions";
 
 /** error/ok del envío + coincidencias que piden decisión (solo domicilios) */
 export type EstadoFormularioPedido = {
@@ -164,6 +166,7 @@ export function FormularioPedido({
   modo = "mesa",
   accion: accionPedido = tomarPedido,
   clientePreseteado = null,
+  clientesDomicilio = [],
 }: {
   mesa: { id: number; nombre: string };
   menu: ItemMenuHoy[];
@@ -176,6 +179,7 @@ export function FormularioPedido({
   accion?: AccionPedido;
   /** Solo Admin→Domicilios: cliente del historial con sus datos precargados */
   clientePreseteado?: ClientePreseteado | null;
+  clientesDomicilio?: ClienteDomicilio[];
 }) {
   const [estado, accion, pendiente] = useActionState<
     EstadoFormularioPedido,
@@ -226,8 +230,10 @@ export function FormularioPedido({
     referencia: clientePreseteado?.referencia ?? "",
   });
 
-  const actualizarCliente = (campo: keyof DatosCliente, valor: string) =>
+  const actualizarCliente = (campo: keyof DatosCliente, valor: string) => {
+    if (campo === "cliente" || campo === "telefono") setEleccion(null);
     setDatosCliente((prev) => ({ ...prev, [campo]: valor }));
+  };
 
   const formRef = useRef<HTMLFormElement>(null);
   /** Panel de la comanda en móvil: al abrirlo, el foco entra a él */
@@ -843,6 +849,14 @@ export function FormularioPedido({
     >
       <input type="hidden" name="mesaId" value={mesa.id} />
       <input type="hidden" name="datos" value={datos} />
+
+      {esDomicilio ? <SelectorClientesDomicilio clientes={clientesDomicilio}
+        elegido={eleccion?.tipo === "ficha" ? eleccion.id : null}
+        onElegir={cliente => {
+          setEleccion({ tipo: "ficha", id: cliente.id });
+          setDatosCliente(prev => ({ ...prev, cliente: cliente.nombre, telefono: cliente.telefono,
+            direccion: cliente.direccion, barrio: cliente.barrio, referencia: cliente.referencia }));
+        }} /> : null}
 
       {estado.error ? (
         <p
