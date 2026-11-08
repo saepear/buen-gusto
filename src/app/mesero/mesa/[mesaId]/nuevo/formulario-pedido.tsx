@@ -38,6 +38,7 @@ import {
   claseDeCategoria,
 } from "@/components/constructor-plato";
 import { tomarPedido } from "@/app/mesero/actions";
+import { actualizarProgresoDomicilio } from "@/app/admin/domicilios/nuevo/progreso-domicilio";
 
 /** error/ok del envío + coincidencias que piden decisión (solo domicilios) */
 export type EstadoFormularioPedido = {
@@ -189,6 +190,7 @@ export function FormularioPedido({
     { tipo: "ficha"; id: number } | { tipo: "nueva" } | null
   >(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- una respuesta nueva invalida cualquier elección anterior.
     if (estado.coincidencias) setEleccion(null);
   }, [estado]);
   const hayCoincidencias =
@@ -323,6 +325,13 @@ export function FormularioPedido({
   const totalPlatos = lineas.reduce((suma, l) => suma + l.cantidad, 0);
   const totalComanda =
     lineas.reduce((suma, l) => suma + precioLinea(l) * l.cantidad, 0) + totalExtras;
+
+  useEffect(() => {
+    if (!esDomicilio) return;
+    const tieneCliente = datosCliente.cliente.trim().length > 0;
+    const tienePedido = totalPlatos > 0 || totalBebidas > 0;
+    actualizarProgresoDomicilio(!tieneCliente ? 1 : tienePedido ? 3 : 2);
+  }, [esDomicilio, datosCliente.cliente, totalPlatos, totalBebidas]);
 
   // Se elige una proteína sí o sí: el almuerzo se cobra en esa línea
   const nombreProteina =

@@ -1,8 +1,7 @@
-import { ArrowLeft, User, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, Bike, User, UtensilsCrossed, Zap } from "lucide-react";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { menuDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
@@ -10,6 +9,8 @@ import { ESTADO_DOMICILIO, ESTADO_PEDIDO } from "@/lib/roles";
 import { FormularioPedido } from "@/app/mesero/mesa/[mesaId]/nuevo/formulario-pedido";
 import { crearDomicilio } from "../actions";
 import { ClientesFijos, type ClienteFijo } from "./clientes-fijos";
+import { FlujoDomicilio } from "./flujo-domicilio";
+import "../domicilios.css";
 
 export const metadata = { title: "Nuevo domicilio · El Buen Gusto" };
 
@@ -188,18 +189,19 @@ export default async function PaginaNuevoDomicilio(
   }
 
   return (
-    <>
-      <Link
-        href={VOLVER}
-        className="mb-4 inline-flex items-center gap-1.5 rounded-xl bg-panel-app px-3 py-1.5 text-sm font-bold text-texto-muted/70 ring-1 ring-borde-app transition hover:text-texto-app"
-      >
-        <ArrowLeft aria-hidden className="h-4 w-4" /> Domicilios
-      </Link>
+    <div className="domicilios-nuevo-shell">
+      <header className="domicilios-nuevo-hero">
+        <div className="domicilios-nuevo-title">
+          <span className="domicilios-title-icon"><Bike aria-hidden /></span>
+          <div><p className="domicilios-eyebrow">DOMICILIOS</p><h1>Nuevo domicilio</h1><p>Registra el cliente, arma el pedido y confirma la entrega.</p></div>
+        </div>
+        <div className="domicilios-hero-actions">
+          <span className="domicilios-assist"><Zap aria-hidden /> Flujo guiado</span>
+          <Link href={VOLVER}><ArrowLeft aria-hidden /> Volver</Link>
+        </div>
+      </header>
 
-      <EncabezadoPagina
-        titulo="Nuevo domicilio"
-        subtitulo="Arma el almuerzo paso a paso, o carga con un toque el pedido de los clientes de siempre"
-      />
+      <FlujoDomicilio />
 
       {/* Clientes fijos alineados con el ancho del formulario */}
       <div className="mx-auto w-full max-w-xl px-4 sm:max-w-2xl">
@@ -242,6 +244,6 @@ export default async function PaginaNuevoDomicilio(
         modo="domicilio"
         accion={crearDomicilio}
       />
-    </>
+    </div>
   );
 }

@@ -1,6 +1,5 @@
-import { Banknote, Bike, CheckCircle2, Plus } from "lucide-react";
+import { Banknote, Bike, CheckCircle2, Plus, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatCOP, formatHora } from "@/lib/format";
 import { inicioDeHoy } from "@/lib/pedido";
@@ -11,6 +10,7 @@ import {
   type EstadoDomicilio,
 } from "@/lib/roles";
 import { TableroDomicilios, type DomicilioVista } from "./tablero";
+import "./domicilios.css";
 
 export const metadata = { title: "Domicilios · El Buen Gusto" };
 
@@ -115,21 +115,14 @@ export default async function PaginaDomicilios() {
   const cola = [...vistas].sort(porHora);
 
   return (
-    <>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <EncabezadoPagina
-          titulo="Domicilios"
-          subtitulo="Pedidos a domicilio pendientes de cobro: toca una ficha para revisar la comanda, cobrar e imprimir la factura"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/domicilios/nuevo"
-            className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
-          >
-            <Plus className="h-5 w-5" /> Nuevo domicilio
-          </Link>
-        </div>
-      </div>
+    <div className="domicilios-dashboard">
+      <header className="domicilios-hero">
+        <div className="domicilios-nuevo-title"><span className="domicilios-title-icon"><Bike aria-hidden /></span><div>
+          <p className="domicilios-eyebrow">GESTIÓN DE ENTREGAS</p><h1>Domicilios</h1>
+          <p>Revisa los pedidos pendientes, abre el detalle y registra el cobro.</p>
+        </div></div>
+        <Link href="/admin/domicilios/nuevo" className="domicilios-primary"><Plus aria-hidden /> Nuevo domicilio <ArrowUpRight aria-hidden /></Link>
+      </header>
 
       <div className="mb-8 flex flex-wrap gap-3">
         <span className="flex items-center gap-2 rounded-xl bg-panel-app px-3.5 py-1.5 text-sm ring-1 ring-borde-app">
@@ -158,6 +151,6 @@ export default async function PaginaDomicilios() {
       </div>
 
       <TableroDomicilios pendientes={cola} />
-    </>
+    </div>
   );
 }
