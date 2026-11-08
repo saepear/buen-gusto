@@ -18,7 +18,7 @@ import {
 } from "./actions";
 import { FilaPorciones } from "./fila";
 import { AgregarProducto, CategoriaMenu } from "./categoria";
-import styles from "./menu.module.css";
+import "./menu.css";
 
 const ICONO: Record<string, LucideIcon> = {
   PROTEINA: Drumstick,
@@ -103,14 +103,14 @@ export default async function PaginaMenuDia() {
   ];
 
   return (
-    <div className={styles.shell}>
-      <header className={styles.hero}>
-        <span className={styles.heroIcon}><Soup aria-hidden /></span>
-        <div><p className={styles.eyebrow}>COCINA · DISPONIBILIDAD</p><h1>Menú del día</h1><p className={styles.date}>{formatFecha(new Date())}</p></div>
-        <span className={styles.date}>{menu.items.length} opciones en el menú</span>
+    <div className="menu-dia-shell">
+      <header className="menu-dia-hero">
+        <span className="menu-dia-heroIcon"><Soup aria-hidden /></span>
+        <div><p className="menu-dia-eyebrow">COCINA · DISPONIBILIDAD</p><h1>Menú del día</h1><p className="menu-dia-date">{formatFecha(new Date())}</p></div>
+        <span className="menu-dia-date">{menu.items.length} opciones en el menú</span>
       </header>
-      <p className={styles.intro}>¿Qué vamos a servir hoy? <span>Abre una categoría para elegir productos y ajustar sus porciones.</span></p>
-      <div id="categorias-menu" className={styles.categories}>
+      <p className="menu-dia-intro">¿Qué vamos a servir hoy? <span>Abre una categoría para elegir productos y ajustar sus porciones.</span></p>
+      <div id="categorias-menu" className="menu-dia-categories">
         {secciones.map((seccion) => {
           const tipo = seccion.clave;
           const { Icono } = seccion;
@@ -123,9 +123,9 @@ export default async function PaginaMenuDia() {
 
           return (
             <CategoriaMenu key={tipo} titulo={seccion.titulo} icono={<Icono />} cantidad={delTipo.length} nombres={delTipo.map(i => i.producto.nombre)}>
-              <section className={styles.selectedProducts}>
+              <section className="menu-dia-selectedProducts">
               <h3>En el menú <span>{delTipo.length}</span></h3>
-              <p className={styles.help}>Ajusta porciones, visibilidad y precios. Usa ✓ para guardar cada ajuste.</p>
+              <p className="menu-dia-help">Ajusta porciones, visibilidad y precios. Usa ✓ para guardar cada ajuste.</p>
               {delTipo.length === 0 ? (
                 <p className="mb-4 rounded-xl border-2 border-dashed border-borde-app p-3 text-center text-sm text-texto-muted/45">
                   Todavía no hay {seccion.titulo.toLowerCase()} en el menú.
@@ -143,9 +143,9 @@ export default async function PaginaMenuDia() {
               )}
 
               </section>
-              <section className={styles.catalogProducts}>
+              <section className="menu-dia-catalogProducts">
                 <h3>Agregar productos <span>{faltantes.length}</span></h3>
-                <p className={styles.help}>Pulsa + para incluir una opción del catálogo.</p>
+                <p className="menu-dia-help">Pulsa + para incluir una opción del catálogo.</p>
               {faltantes.length > 0 ? faltantes.map(p => (
                 <form key={p.id} action={agregarAlMenu}>
                   <input type="hidden" name="menuId" value={menu.id} />

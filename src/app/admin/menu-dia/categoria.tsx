@@ -5,13 +5,13 @@ import { useGSAP } from "@gsap/react";
 import { useRef, useState, type ReactNode } from "react";
 import { createPortal, useFormStatus } from "react-dom";
 import { ArrowUpRight, Check, Plus, X } from "lucide-react";
-import styles from "./menu.module.css";
+import "./menu.css";
 
 gsap.registerPlugin(useGSAP);
 
 export function AgregarProducto({ nombre }: { nombre: string }) {
   const { pending } = useFormStatus();
-  return <button type="submit" disabled={pending} className={styles.addProduct}>
+  return <button type="submit" disabled={pending} className="menu-dia-addProduct">
     <span>{nombre}</span><span>{pending ? "Agregando…" : <Plus aria-label="Agregar al menú" size={18} />}</span>
   </button>;
 }
@@ -22,12 +22,12 @@ export function CategoriaMenu({ titulo, icono, nombres, cantidad, children }: {
   const trigger = useRef<HTMLButtonElement>(null);
   const [origen, setOrigen] = useState<DOMRect | null>(null);
   return <>
-    <button ref={trigger} type="button" className={styles.categoryTile} aria-haspopup="dialog"
+    <button ref={trigger} type="button" className="menu-dia-categoryTile" aria-haspopup="dialog"
       onClick={() => setOrigen(trigger.current!.getBoundingClientRect())}>
-      <span className={styles.tileTop}><span className={styles.tileIcon}>{icono}</span><ArrowUpRight size={20} /></span>
+      <span className="menu-dia-tileTop"><span className="menu-dia-tileIcon">{icono}</span><ArrowUpRight size={20} /></span>
       <strong>{titulo}</strong>
-      <span className={styles.tileNames}>{nombres.slice(0, 3).join(" · ") || "Elige qué servirás hoy"}{nombres.length > 3 ? "…" : ""}</span>
-      <span className={styles.tileFooter}><span><Check size={14} /> {cantidad} en el menú</span><span>Elegir productos →</span></span>
+      <span className="menu-dia-tileNames">{nombres.slice(0, 3).join(" · ") || "Elige qué servirás hoy"}{nombres.length > 3 ? "…" : ""}</span>
+      <span className="menu-dia-tileFooter"><span><Check size={14} /> {cantidad} en el menú</span><span>Elegir productos →</span></span>
     </button>
     {origen && createPortal(<EditorCategoria titulo={titulo} icono={icono} origen={origen}
       onClose={() => { setOrigen(null); trigger.current?.focus(); }}>{children}</EditorCategoria>, document.body)}
@@ -65,15 +65,15 @@ function EditorCategoria({ titulo, icono, origen, onClose, children }: {
     })();
   };
 
-  return <dialog ref={dialog} className={styles.editor} aria-labelledby="categoria-menu-titulo"
+  return <dialog ref={dialog} className="menu-dia-editor" aria-labelledby="categoria-menu-titulo"
     onCancel={e => { e.preventDefault(); cerrar(); }}
     onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) cerrar(); } }}>
-    <header className={styles.editorHeader} data-menu-anim>
-      <span className={styles.tileIcon}>{icono}</span>
-      <div><p className={styles.eyebrow}>MENÚ DE HOY</p><h2 id="categoria-menu-titulo">{titulo}</h2></div>
+    <header className="menu-dia-editorHeader" data-menu-anim>
+      <span className="menu-dia-tileIcon">{icono}</span>
+      <div><p className="menu-dia-eyebrow">MENÚ DE HOY</p><h2 id="categoria-menu-titulo">{titulo}</h2></div>
       <button type="button" autoFocus onClick={cerrar} aria-label="Cerrar categoría"><X /></button>
     </header>
-    <div className={styles.editorBody} data-menu-anim>{children}</div>
-    <footer className={styles.editorFooter}><span>Los cambios se guardan con cada acción.</span><button type="button" onClick={cerrar}>Listo <Check size={16} /></button></footer>
+    <div className="menu-dia-editorBody" data-menu-anim>{children}</div>
+    <footer className="menu-dia-editorFooter"><span>Los cambios se guardan con cada acción.</span><button type="button" onClick={cerrar}>Listo <Check size={16} /></button></footer>
   </dialog>;
 }
