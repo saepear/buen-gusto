@@ -1,10 +1,11 @@
+import { ArrowLeft, CalendarClock, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { inicioDeHoy } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
 import { menuDeFechaApartado } from "../actions";
 import { FormularioApartado } from "../formularios";
+import "../apartados.css";
 
 export const metadata = { title: "Nuevo apartado · El Buen Gusto" };
 
@@ -31,17 +32,19 @@ export default async function PaginaNuevoApartado() {
   ]);
 
   return (
-    <>
-      <Link
-        href="/admin/apartados"
-        className="mb-4 inline-block text-sm font-bold text-texto-muted/60 transition hover:text-amber-brand"
-      >
-        ← Volver a los apartados
-      </Link>
-      <EncabezadoPagina
-        titulo="Nuevo apartado"
-        subtitulo="Reserva lo que el cliente pedirá después: el precio queda congelado al apartar"
-      />
+    <div className="apartados-shell apartados-new-shell">
+      <header className="apartados-hero apartados-new-hero">
+        <span className="apartados-hero-icon" aria-hidden><CalendarClock /></span>
+        <div className="min-w-0 flex-1">
+          <p className="apartados-eyebrow">NUEVA RESERVA</p>
+          <h1>Nuevo apartado</h1>
+          <p>Elige el cliente, arma el pedido y deja lista su entrega.</p>
+        </div>
+        <span className="apartados-guide-chip"><Sparkles aria-hidden /> Precio protegido</span>
+        <Link href="/admin/apartados" className="apartados-secondary-action">
+          <ArrowLeft aria-hidden /> Volver
+        </Link>
+      </header>
       <FormularioApartado
         menu={semilla.existeMenu ? semilla.componentes : null}
         fechaHoy={fechaHoy}
@@ -53,6 +56,6 @@ export default async function PaginaNuevoApartado() {
         }))}
         clientes={clientes}
       />
-    </>
+    </div>
   );
 }

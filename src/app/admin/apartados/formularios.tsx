@@ -7,6 +7,7 @@ import {
   Minus,
   Plus,
   Salad,
+  Search,
   ShoppingBag,
   Soup,
   Star,
@@ -280,6 +281,7 @@ export function FormularioApartado({
     setCantidadPlato(1);
     if (lineas.length > 0) {
       // Los planes eran del menú de otra fecha: se quitan y se rearman
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- cambiar la fecha invalida los planes del menú anterior.
       setLineas([]);
       setAvisoMenu(
         `Cambió la fecha de entrega: vuelve a armar los almuerzos con el menú del ${efectiva}.`,
@@ -541,25 +543,21 @@ export function FormularioApartado({
   };
 
   return (
-    <form action={accion} className="grid gap-4">
+    <form action={accion} className="apartados-builder">
       <input type="hidden" name="datos" value={JSON.stringify(carga)} />
+      <div className="apartados-builder-grid">
+        <main className="apartados-builder-main">
 
       {/* Cliente */}
-      <section className="rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
+      <section className="apartados-client-section rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg text-texto-app">
           <UserRound className="h-5 w-5 text-amber-brand" /> ¿Quién aparta?
         </h2>
 
         {clienteId !== null && clienteElegido ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-brand/10 px-3.5 py-2.5 ring-1 ring-amber-brand/40">
-            <p className="text-sm text-texto-app">
-              Apertando para{" "}
-              <strong className="font-bold">
-                {clienteElegido.nombre}
-                {clienteElegido.telefono ? ` · ${clienteElegido.telefono}` : ""}
-              </strong>{" "}
-              <span className="text-texto-muted/60">(#{clienteId})</span>
-            </p>
+          <div className="apartados-client-selected">
+            <span className="apartados-client-avatar"><UserRound aria-hidden /></span>
+            <p><small>CLIENTE SELECCIONADO</small><strong>{clienteElegido.nombre}</strong><span>{clienteElegido.telefono || "Sin teléfono registrado"}</span></p>
             <button
               type="button"
               onClick={() => setClienteId(null)}
@@ -570,14 +568,17 @@ export function FormularioApartado({
           </div>
         ) : (
           <>
-            <input
-              type="search"
-              value={clienteQ}
-              onChange={(e) => setClienteQ(e.target.value)}
-              placeholder="Buscar cliente por nombre o teléfono…"
-              aria-label="Buscar clientes"
-              className={CAMPO + " mb-1"}
-            />
+            <div className="apartados-client-search">
+              <Search aria-hidden />
+              <input
+                type="search"
+                value={clienteQ}
+                onChange={(e) => setClienteQ(e.target.value)}
+                placeholder="Buscar por nombre o teléfono…"
+                aria-label="Buscar clientes"
+              />
+              {buscandoClientes ? <span>Buscando…</span> : null}
+            </div>
             <p aria-live="polite" className="mb-2 min-h-4 text-[11px] text-texto-muted/50">
               {!buscandoClientes &&
               clienteQ.trim() !== "" &&
@@ -585,39 +586,37 @@ export function FormularioApartado({
                 ? "Nadie con ese nombre o teléfono: regístralo abajo."
                 : ""}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="apartados-client-grid">
               {clientesFiltrados.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setClienteId(c.id)}
-                  className={
-                    "rounded-xl px-3.5 py-2 text-sm font-bold ring-1 transition " +
-                    (clienteId === c.id
-                      ? "bg-amber-brand text-brown-950 ring-amber-brand"
-                      : "bg-fondo-app text-texto-app ring-borde-app hover:ring-amber-brand/50")
-                  }
+                  className="apartados-client-card"
                 >
-                  {c.nombre}
-                  {c.telefono ? (
-                    <span className="ml-1.5 font-medium opacity-70">
-                      {c.telefono}
-                    </span>
-                  ) : null}
+                  <span className="apartados-client-avatar is-small">{c.nombre.slice(0, 1).toUpperCase()}</span>
+                  <span><strong>{c.nombre}</strong><small>{c.telefono || "Sin teléfono"}</small></span>
+                  <span aria-hidden className="apartados-client-arrow">→</span>
                 </button>
               ))}
             </div>
 
             {/* Creación rápida: las mismas reglas de Clientes, sin salir de aquí */}
             {panelCrear ? (
-              <div className="mt-3 rounded-xl bg-panel-app p-3.5 ring-1 ring-borde-app">
+              <div className="apartados-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="titulo-cliente-nuevo">
+                <div className="apartados-client-modal">
+                <div className="apartados-modal-heading">
+                  <span className="apartados-client-avatar"><UserPlus aria-hidden /></span>
+                  <div>
                 <p className="text-sm font-bold text-texto-app">
-                  Registrar cliente nuevo
+                  <span id="titulo-cliente-nuevo">Registrar cliente nuevo</span>
                 </p>
                 <p className="text-xs text-texto-muted/60">
                   Si ya existe aparecerá arriba para que decidas: no se crea
                   doble ficha ni se reutiliza en silencio.
                 </p>
+                  </div>
+                </div>
                 <div className="mt-2.5 grid gap-2 sm:grid-cols-2">
                   <label className={ETIQUETA}>
                     NOMBRE *
@@ -774,6 +773,7 @@ export function FormularioApartado({
                     Cancelar
                   </button>
                 </div>
+                </div>
               </div>
             ) : (
               <button
@@ -804,7 +804,7 @@ export function FormularioApartado({
       ) : null}
 
       {/* Almuerzos del menú DE LA FECHA DE ENTREGA */}
-      <section className="rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
+      <section className="apartados-menu-card rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-lg text-texto-app">
             Almuerzos del menú{" "}
@@ -840,9 +840,9 @@ export function FormularioApartado({
             Se puede apartar bebidas y lo narrado a mano (abajo).
           </p>
         ) : (
-          <>
+          <div className="apartados-menu-options">
             {/* Mismo constructor que usa el mesero: un plan a la vez */}
-            <section className="rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+            <section className="apartados-menu-option is-mode rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
               <TituloSeccion
                 Icono={Soup}
                 clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
@@ -869,7 +869,7 @@ export function FormularioApartado({
               />
             </section>
 
-            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+            <section className="apartados-menu-option rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
               <TituloSeccion
                 Icono={Wheat}
                 clase="bg-success/10 text-success-text ring-1 ring-success/20"
@@ -894,7 +894,7 @@ export function FormularioApartado({
               )}
             </section>
 
-            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+            <section className="apartados-menu-option rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
               <TituloSeccion
                 Icono={Drumstick}
                 clase="bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20"
@@ -918,7 +918,7 @@ export function FormularioApartado({
               )}
             </section>
 
-            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+            <section className="apartados-menu-option rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
               <TituloSeccion
                 Icono={Salad}
                 clase="bg-menta-text/10 text-menta-text ring-1 ring-menta-text/20"
@@ -944,7 +944,7 @@ export function FormularioApartado({
             </section>
 
             {conSopa ? (
-              <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+              <section className="apartados-menu-option rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
                 <TituloSeccion
                   Icono={Soup}
                   clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
@@ -968,7 +968,7 @@ export function FormularioApartado({
               </section>
             ) : null}
 
-            <section className="mt-3 rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
+            <section className="apartados-menu-option rounded-2xl bg-panel-app p-3 ring-1 ring-borde-app">
               <TituloSeccion
                 Icono={Star}
                 clase="bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20"
@@ -1008,7 +1008,7 @@ export function FormularioApartado({
             </section>
 
             {/* Barra del plan en construcción */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl bg-panel-app p-3 ring-1 ring-amber-brand/30">
+            <div className="apartados-plan-bar flex flex-wrap items-center gap-2 rounded-2xl bg-panel-app p-3 ring-1 ring-amber-brand/30">
               <p className="min-w-0 flex-1 basis-full text-sm font-bold text-texto-app sm:basis-0">
                 {resumenPlan ?? "Falta la proteína del nuevo plan"}
               </p>
@@ -1034,7 +1034,7 @@ export function FormularioApartado({
                 Aun no hay planes de almuerzo en la lista.
               </p>
             ) : (
-              <ul className="mt-3 space-y-2.5">
+              <ul className="apartados-plan-list space-y-2.5">
                 {lineas.map((l, i) => {
                   const prot = porProductoDelMenu.get(l.proteinaProductoId);
                   const nombre = prot?.nombre ?? "—";
@@ -1105,7 +1105,7 @@ export function FormularioApartado({
                 })}
               </ul>
             )}
-          </>
+          </div>
         )}
       </section>
 
@@ -1215,8 +1215,13 @@ export function FormularioApartado({
         </button>
       </section>
 
+        </main>
+        <aside className="apartados-builder-aside">
       {/* Entrega y notas */}
-      <section className="grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2">
+      <section className="apartados-delivery-card grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2">
+        <div className="apartados-aside-title sm:col-span-2">
+          <span>3</span><div><strong>Entrega</strong><small>Cuándo y cómo lo recibirá</small></div>
+        </div>
         {/* Modalidad de entrega: congela el precio del plato (llevar con
             empaque / en mesa a los platos del salón) */}
         <div className="sm:col-span-2">
@@ -1289,9 +1294,10 @@ export function FormularioApartado({
       </section>
 
       {/* Pie: total + enviar */}
-      <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brown-900/95 px-4 py-3 ring-1 ring-amber-brand/30 backdrop-blur">
+      <div className="apartados-submit-card">
+        <p>RESUMEN DEL APARTADO</p>
         <span className="text-sm text-cream-200/80">
-          Total congelado al apartar:
+          Total congelado
           <strong className="ml-2 font-display text-2xl text-amber-brand">
             {formatCOP(total)}
           </strong>
@@ -1322,6 +1328,8 @@ export function FormularioApartado({
           {estado.ok} Queda en la lista «Por entregar».
         </p>
       ) : null}
+        </aside>
+      </div>
     </form>
   );
 }

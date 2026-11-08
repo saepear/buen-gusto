@@ -1,6 +1,14 @@
-import { CalendarClock, History, PackageOpen } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  History,
+  PackageOpen,
+  Plus,
+  WalletCards,
+} from "lucide-react";
 import Link from "next/link";
-import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { formatCOP, formatHora } from "@/lib/format";
 import { inicioDeHoy } from "@/lib/pedido";
@@ -13,6 +21,7 @@ import {
 } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { AccionesEntregaApartado } from "./acciones-cliente";
+import "./apartados.css";
 
 export const metadata = { title: "Apartados · El Buen Gusto" };
 
@@ -99,43 +108,44 @@ export default async function PaginaApartados() {
   );
 
   return (
-    <>
-      <EncabezadoPagina
-        titulo="Apartados"
-        subtitulo="Almuerzos y pedidos reservados: se apartan con un precio congelado y se entregan cuando llegan"
-      />
-
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+    <div className="apartados-shell">
+      <header className="apartados-hero">
+        <span className="apartados-hero-icon" aria-hidden>
+          <CalendarClock />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="apartados-eyebrow">RESERVAS Y ENTREGAS</p>
+          <h1>Apartados</h1>
+          <p>Organiza los pedidos reservados, conserva su precio y entrégalos sin perder detalle.</p>
+        </div>
         <Link
           href="/admin/apartados/nuevo"
-          className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
+          className="apartados-primary-action"
         >
-          <CalendarClock className="h-5 w-5" /> Nuevo apartado
+          <Plus aria-hidden /> Nuevo apartado <ArrowRight aria-hidden />
         </Link>
-        <span className="rounded-2xl bg-info/10 px-4 py-3 text-sm ring-1 ring-info/25">
-          <strong className="font-display text-info-text">
-            {pendientes.length}
-          </strong>{" "}
-          por entregar ·{" "}
-          <strong className="font-display text-info-text">
-            {formatCOP(totalPorEntregar)}
-          </strong>{" "}
-          comprometidos
-        </span>
-        {entregadosHoy.length > 0 ? (
-          <span className="rounded-2xl bg-success/10 px-4 py-3 text-sm text-success-text ring-1 ring-success/25">
-            <strong className="font-display">
-              {entregadosHoy.length}
-            </strong>{" "}
-            entregados hoy ({formatCOP(entregadosHoy.reduce((s, a) => s + a.total, 0))})
-          </span>
-        ) : null}
+      </header>
+
+      <div className="apartados-overview">
+        <article>
+          <span className="apartados-stat-icon is-pending"><Clock3 /></span>
+          <div><small>Por entregar</small><strong>{pendientes.length}</strong><p>reservas pendientes</p></div>
+        </article>
+        <article>
+          <span className="apartados-stat-icon is-value"><WalletCards /></span>
+          <div><small>Valor comprometido</small><strong>{formatCOP(totalPorEntregar)}</strong><p>precio ya congelado</p></div>
+        </article>
+        <article>
+          <span className="apartados-stat-icon is-done"><CheckCircle2 /></span>
+          <div><small>Entregados hoy</small><strong>{entregadosHoy.length}</strong><p>{formatCOP(entregadosHoy.reduce((s, a) => s + a.total, 0))} cobrados</p></div>
+        </article>
       </div>
 
       {/* ════ Por entregar ════ */}
-      <h2 className="mb-3 font-display text-xl text-texto-app">
-        Por entregar ({pendientes.length})
-      </h2>
+      <div className="apartados-section-heading">
+        <div><p>COLA DE ENTREGA</p><h2>Por entregar <span>{pendientes.length}</span></h2></div>
+        <small>Ordenados por fecha y hora prometida</small>
+      </div>
       {pendientes.length === 0 ? (
         <div className="mb-10 flex min-h-[200px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
           <PackageOpen className="h-9 w-9 text-texto-muted/40" />
@@ -148,7 +158,7 @@ export default async function PaginaApartados() {
           </p>
         </div>
       ) : (
-        <div className="mb-10 grid gap-3 xl:grid-cols-2">
+        <div className="apartados-pending-grid">
           {pendientes.map((a) => {
             const retrasado =
               (a.fechaEntrega ? a.fechaEntrega < hoyClave : false) ||
@@ -241,9 +251,10 @@ export default async function PaginaApartados() {
       )}
 
       {/* ════ Historial ════ */}
-      <h2 className="mb-3 flex items-center gap-2 font-display text-xl text-texto-app">
-        <History className="h-5 w-5 text-amber-brand" /> Entregados y cancelados
-      </h2>
+      <div className="apartados-section-heading is-history">
+        <div><p>TRAZABILIDAD</p><h2><History aria-hidden /> Entregados y cancelados</h2></div>
+        <small>Últimos 40 movimientos</small>
+      </div>
       {historial.length === 0 ? (
         <p className="rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-8 text-center text-sm text-texto-muted/60">
           Todavía no se ha entregado ni cancelado ningún apartado.
@@ -329,6 +340,6 @@ export default async function PaginaApartados() {
           </table>
         </div>
       )}
-    </>
+    </div>
   );
 }

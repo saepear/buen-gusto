@@ -94,14 +94,18 @@ export function AccionesEntregaApartado({
   const noAlcanza = vueltas !== null && vueltas < 0;
 
   return (
-    <div className="mt-3 w-full border-t border-borde-app/60 pt-3">
+    <div className="apartados-action-panel mt-3 w-full border-t border-borde-app/60 pt-3">
       {verCancelar ? (
-        <div className="w-full rounded-xl bg-danger/5 p-3 ring-1 ring-danger/25">
-          <p className="mb-2 text-xs font-bold text-danger-text">
-            ¿Seguro que cancelas? Las porciones que tenía reservadas vuelven al
-            stock del menú de su fecha.
-          </p>
-          <div className="flex items-center gap-2">
+        <div className="apartados-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby={`cancelar-apartado-${apartadoId}`}>
+          <div className="apartados-cancel-modal">
+            <span className="apartados-cancel-icon"><XCircle aria-hidden /></span>
+            <div className="min-w-0 flex-1">
+              <p id={`cancelar-apartado-${apartadoId}`} className="font-display text-xl text-texto-app">Cancelar apartado #{apartadoId}</p>
+              <p className="mt-1 text-sm text-texto-muted/65">
+                Las porciones reservadas volverán al inventario del menú. Esta acción queda registrada en el historial.
+              </p>
+            </div>
+            <div className="apartados-cancel-actions">
             <form action={cancelarAccion}>
               <input type="hidden" name="apartadoId" value={apartadoId} />
               <button
@@ -120,14 +124,15 @@ export function AccionesEntregaApartado({
             >
               Volver
             </button>
-          </div>
+            </div>
           {cancela.error || cancela.ok ? (
             <Mensaje estado={cancela} />
           ) : null}
+          </div>
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="apartados-payment-options">
             {/* Método de pago */}
             <div
               className="flex flex-wrap items-center gap-1.5"
@@ -226,7 +231,7 @@ export function AccionesEntregaApartado({
             </div>
           ) : null}
 
-          <div className="mt-2.5 flex flex-wrap items-end gap-2">
+          <div className="apartados-delivery-actions mt-2.5 flex flex-wrap items-end gap-2">
             <form action={entregarAccion} className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="apartadoId" value={apartadoId} />
               <input type="hidden" name="metodo" value={metodo} />
