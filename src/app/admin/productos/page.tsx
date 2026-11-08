@@ -22,6 +22,7 @@ import {
   PanelCategorias,
   TarjetaProducto,
 } from "./tarjetas";
+import "./productos.css";
 
 const ICONO_TIPO: Record<TipoProducto, LucideIcon> = {
   PROTEINA: Drumstick,
@@ -54,7 +55,7 @@ export default async function PaginaProductos() {
   ];
 
   return (
-    <>
+    <div className="productos-shell">
       <EncabezadoPagina
         titulo="Productos"
         subtitulo="Catálogo del restaurante: lo que va al menú del día y lo que se vende aparte"
@@ -63,6 +64,11 @@ export default async function PaginaProductos() {
       <FormularioNuevoProducto categorias={categorias} />
 
       <PanelCategorias categorias={categorias} />
+
+      <nav className="productos-category-nav" aria-label="Categorías de productos">
+        {ORDEN.map(tipo => <a key={tipo} href={`#productos-${tipo}`}>{TIPO_PRODUCTO_LABEL[tipo]} <span>{productos.filter(p => p.tipo === tipo).length}</span></a>)}
+        {categorias.map(c => <a key={c.nombre} href={`#productos-${encodeURIComponent(c.nombre)}`}>{c.nombre}</a>)}
+      </nav>
 
       <div className="mt-8 space-y-8">
         {ORDEN.map((tipo) => {
@@ -77,7 +83,7 @@ export default async function PaginaProductos() {
             );
           const Icono = ICONO_TIPO[tipo];
           return (
-            <section key={tipo}>
+            <section key={tipo} id={`productos-${tipo}`} className="productos-category-section">
               <h2 className="mb-3 flex items-center gap-2.5 font-display text-xl text-texto-app">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-texto-app">
                   <Icono className="h-5 w-5" />
@@ -123,7 +129,7 @@ export default async function PaginaProductos() {
             );
           const Icono = iconoDeCategoria(categoria.icono);
           return (
-            <section key={categoria.nombre}>
+            <section key={categoria.nombre} id={`productos-${encodeURIComponent(categoria.nombre)}`} className="productos-category-section">
               <h2 className="mb-3 flex items-center gap-2.5 font-display text-xl text-texto-app">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-amber-brand ring-1 ring-borde-app">
                   <Icono className="h-5 w-5" />
@@ -172,7 +178,7 @@ export default async function PaginaProductos() {
         sigue a $13.000); si no se fija ahí, cuenta el precio propio de la
         proteína. Para bebidas y adicionales vale su precio de catálogo.
       </p>
-    </>
+    </div>
   );
 }
 

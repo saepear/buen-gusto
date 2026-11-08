@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Plus, Power, Trash2, TriangleAlert, UtensilsCrossed, X } from "lucide-react";
+import { CheckCircle2, Plus, Power, Trash2, TriangleAlert, UtensilsCrossed } from "lucide-react";
 import gsap from "gsap";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { formatCOP } from "@/lib/format";
@@ -9,7 +9,6 @@ import {
   ICONO_CATEGORIA_DEFECTO,
   ICONOS_CATEGORIA,
   LISTA_ICONOS_CATEGORIA,
-  iconoDeCategoria,
 } from "@/lib/iconos";
 import {
   TIPO_PRODUCTO,
@@ -55,7 +54,7 @@ export function FormularioNuevoProducto({
   return (
     <form
       action={accion}
-      className="rounded-[2rem] bg-glass-app p-6 text-texto-app ring-1 ring-borde-app"
+      className="productos-create rounded-[2rem] bg-glass-app p-6 text-texto-app ring-1 ring-borde-app"
     >
       <h2 className="font-display text-xl text-amber-brand">Nuevo producto</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-end">
@@ -200,14 +199,19 @@ function AccionesTarjetaProducto({
       if (e.key === "Escape") setDialogo(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = anterior;
+    };
   }, [dialogo]);
 
   const bloqueado = (detalle?.apartadosPendientes.length ?? 0) > 0;
 
   return (
     <>
-      <div className="mt-2 grid gap-1.5">
+      <div className="productos-card-actions mt-2 grid gap-1.5">
         <form action={activo ? desactivarProducto : reactivarProducto}>
           <input type="hidden" name="id" value={id} />
           <button
@@ -244,7 +248,7 @@ function AccionesTarjetaProducto({
           title="Eliminar definitivamente: borra la fila del catálogo; las ventas históricas conservan nombre y precios"
           className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold bg-danger/25 text-danger-text ring-1 ring-danger/45 transition hover:bg-danger/40 disabled:opacity-50"
         >
-          <Trash2 className="h-3.5 w-3.5" /> Eliminar definitivamente
+          <Trash2 className="h-3.5 w-3.5" /> Eliminar
         </button>
       </div>
 
@@ -256,7 +260,7 @@ function AccionesTarjetaProducto({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="productos-dialog fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setDialogo(false);
           }}
@@ -417,7 +421,7 @@ export function TarjetaProducto({
   return (
     <div
       className={
-        "rounded-2xl bg-panel-app p-4 ring-1 transition " +
+        "productos-card rounded-2xl bg-panel-app p-4 ring-1 transition " +
         (activo ? "ring-borde-app" : "ring-warning/45")
       }
     >
@@ -427,7 +431,7 @@ export function TarjetaProducto({
       >
         <input type="hidden" name="id" value={id} />
         <label className="block">
-          <span className="sr-only">Nombre</span>
+          <span className="productos-field-label">Nombre</span>
           <input
             name="nombre"
             defaultValue={nombre}
@@ -436,7 +440,7 @@ export function TarjetaProducto({
           />
         </label>
         <label className="block w-28">
-          <span className="sr-only">Precio</span>
+          <span className="productos-field-label">Precio (COP)</span>
           <input
             name="precio"
             type="number"
@@ -498,7 +502,9 @@ export function PanelCategorias({ categorias }: { categorias: CategoriaPropia[] 
   const [icono, setIcono] = useState(ICONO_CATEGORIA_DEFECTO);
 
   return (
-    <div className="mt-4 rounded-[2rem] bg-panel-app p-6 text-texto-app ring-1 ring-borde-app">
+    <details className="productos-custom mt-4 rounded-[2rem] bg-panel-app p-6 text-texto-app ring-1 ring-borde-app">
+      <summary><span><UtensilsCrossed aria-hidden className="h-5 w-5" /> Categorías propias</span><Plus aria-hidden className="h-5 w-5" /></summary>
+      <div className="productos-custom-content">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0 max-w-md">
           <h2 className="flex items-center gap-2 font-display text-xl text-amber-brand">
@@ -583,7 +589,8 @@ export function PanelCategorias({ categorias }: { categorias: CategoriaPropia[] 
           {estado.ok}
         </p>
       )}
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -602,8 +609,8 @@ function ChipCategoria({ nombre, icono }: { nombre: string; icono: string }) {
   const [dialogo, setDialogo] = useState<null | "borrar" | "icono">(null);
   const [iconoElegido, setIconoElegido] = useState(icono);
   const [detalle, setDetalle] = useState<DetalleEliminacionCategoria | null>(null);
-  const IconoActual = iconoDeCategoria(icono);
-  const IconoElegido = iconoDeCategoria(iconoElegido);
+  const IconoActual = ICONOS_CATEGORIA[icono] ?? UtensilsCrossed;
+  const IconoElegido = ICONOS_CATEGORIA[iconoElegido] ?? UtensilsCrossed;
   const cajaRef = useRef<HTMLDivElement>(null);
   const cancelarRef = useRef<HTMLButtonElement>(null);
 
@@ -647,7 +654,12 @@ function ChipCategoria({ nombre, icono }: { nombre: string; icono: string }) {
       if (e.key === "Escape") setDialogo(null);
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = anterior;
+    };
   }, [dialogo]);
 
   const bloqueado = (detalle?.apartadosPendientes.length ?? 0) > 0;
@@ -681,7 +693,7 @@ function ChipCategoria({ nombre, icono }: { nombre: string; icono: string }) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="productos-dialog fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setDialogo(null);
           }}
