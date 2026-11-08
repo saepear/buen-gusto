@@ -1,10 +1,8 @@
 import {
   CalendarPlus,
   Drumstick,
-  Infinity as IconoInfinito,
   Salad,
   Soup,
-  Trash2,
   Wheat,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +17,7 @@ import {
   crearMenuHoy,
 } from "./actions";
 import { FilaPorciones } from "./fila";
+import { AgregarProducto, CategoriaMenu } from "./categoria";
 import styles from "./menu.module.css";
 
 const ICONO: Record<string, LucideIcon> = {
@@ -108,31 +107,9 @@ export default async function PaginaMenuDia() {
       <header className={styles.hero}>
         <span className={styles.heroIcon}><Soup aria-hidden /></span>
         <div><p className={styles.eyebrow}>COCINA · DISPONIBILIDAD</p><h1>Menú del día</h1><p className={styles.date}>{formatFecha(new Date())}</p></div>
-        <a href="#categorias-menu" className={styles.heroAction}>Editar opciones ↓</a>
+        <span className={styles.date}>{menu.items.length} opciones en el menú</span>
       </header>
-      <div className={styles.stats}>
-        <article><small>Opciones del día</small><strong>{menu.items.length}</strong><span>En el menú de hoy</span></article>
-        <article><small>Visibles para el equipo</small><strong>{menu.items.filter(i => i.visible).length}</strong><span>Disponibles en el selector</span></article>
-        <article><small>Por agotarse</small><strong>{menu.items.filter(i => i.stockPorciones !== null && i.stockPorciones - i.vendidos > 0 && i.stockPorciones - i.vendidos <= 5).length}</strong><span>Con 5 porciones o menos</span></article>
-        <article><small>Agotadas</small><strong>{menu.items.filter(i => i.stockPorciones !== null && i.stockPorciones <= i.vendidos).length}</strong><span>Revisa las cantidades</span></article>
-      </div>
-
-      <div className={styles.guide}>
-        <span className="rounded-full bg-success/10 px-4 py-1.5 text-sm font-bold text-success-text ring-1 ring-success/20">
-          Activo · {menu.items.length} opciones
-        </span>
-        <span className="text-sm text-texto-muted/45">
-          Las porciones se agotan solo cuando le pones un límite
-          <IconoInfinito className="ml-1 inline h-3.5 w-3.5" />
-        </span>
-        <span className="text-sm text-texto-muted/45">
-          Un «precio especial» en la proteína — los asados del domingo — hace
-          que por ese día el plato se cobre con ese precio
-        </span>
-      </div>
-
-      {/* Dos columnas vivas (2×2): en pantallas 2xl a zoom 100% el salto a
-          4 columnas dejaba cada tarjeta de ~250px y el contenido se pegaba. */}
+      <p className={styles.intro}>¿Qué vamos a servir hoy? <span>Abre una categoría para elegir productos y ajustar sus porciones.</span></p>
       <div id="categorias-menu" className={styles.categories}>
         {secciones.map((seccion) => {
           const tipo = seccion.clave;
@@ -145,18 +122,10 @@ export default async function PaginaMenuDia() {
           );
 
           return (
-            <section
-              key={tipo}
-              className={styles.category}
-            >
-              <h2 className="mb-6 flex items-center gap-2.5 font-display text-lg text-texto-app">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-orange-brand ring-1 ring-borde-app">
-                  <Icono className="h-5 w-5" />
-                </span>
-                {seccion.titulo}
-                <small className={styles.count}>{delTipo.length}</small>
-              </h2>
-
+            <CategoriaMenu key={tipo} titulo={seccion.titulo} icono={<Icono />} cantidad={delTipo.length} nombres={delTipo.map(i => i.producto.nombre)}>
+              <section className={styles.selectedProducts}>
+              <h3>En el menú <span>{delTipo.length}</span></h3>
+              <p className={styles.help}>Ajusta porciones, visibilidad y precios. Usa ✓ para guardar cada ajuste.</p>
               {delTipo.length === 0 ? (
                 <p className="mb-4 rounded-xl border-2 border-dashed border-borde-app p-3 text-center text-sm text-texto-muted/45">
                   Todavía no hay {seccion.titulo.toLowerCase()} en el menú.
@@ -173,41 +142,27 @@ export default async function PaginaMenuDia() {
                 </ul>
               )}
 
-              {faltantes.length > 0 ? (
-                <form action={agregarAlMenu} className="mt-5 flex gap-2">
+              </section>
+              <section className={styles.catalogProducts}>
+                <h3>Agregar productos <span>{faltantes.length}</span></h3>
+                <p className={styles.help}>Pulsa + para incluir una opción del catálogo.</p>
+              {faltantes.length > 0 ? faltantes.map(p => (
+                <form key={p.id} action={agregarAlMenu}>
                   <input type="hidden" name="menuId" value={menu.id} />
-                  <select
-                    name="productoId"
-                    className="min-w-0 flex-1 rounded-xl border-0 bg-panel-app px-3 py-2 text-sm text-texto-app ring-1 ring-borde-app placeholder:text-texto-muted/25 focus:ring-amber-brand/60"
-                  >
-                    {faltantes.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="submit"
-                    title="Agregar al menú"
-                    className="shrink-0 rounded-xl bg-panel-app px-3 py-2 text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:text-texto-app"
-                  >
-                    <span className="font-bold">+</span>
-                  </button>
+                  <input type="hidden" name="productoId" value={p.id} />
+                  <AgregarProducto nombre={p.nombre} />
                 </form>
-              ) : (
+              )) : (
                 <p className="mt-4 rounded-xl bg-panel-app p-2 text-center text-xs text-texto-muted/45">
                   Todo el catálogo de esta categoría ya está en el menú.
                 </p>
               )}
-            </section>
+              </section>
+            </CategoriaMenu>
           );
         })}
       </div>
 
-      <p className="mt-6 flex items-center gap-2 text-sm text-texto-muted/45">
-        <Trash2 className="h-4 w-4" />
-        Tu catálogo nunca se borra: quitar un ítem del menú solo lo deja fuera de HOY.
-      </p>
     </div>
   );
 }
