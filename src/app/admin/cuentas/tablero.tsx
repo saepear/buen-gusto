@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -71,15 +71,21 @@ function iniciales(nombre: string) {
     .join("");
 }
 
-export function TableroCuentas({ cuentas }: { cuentas: CuentaTarjeta[] }) {
+export function TableroCuentas({
+  cuentas,
+  autoOpenId,
+}: {
+  cuentas: CuentaTarjeta[];
+  autoOpenId?: number | null;
+}) {
   const [seleccionada, setSeleccionada] = useState<CuentaTarjeta | null>(null);
   const [detalle, setDetalle] = useState<DetalleCuenta | null>(null);
   const [cargando, setCargando] = useState(false);
   const [origen, setOrigen] = useState<OrigenModal | null>(null);
+  const autoAbierto = useRef(false);
 
-  async function abrir(cuenta: CuentaTarjeta, elemento: HTMLElement) {
-    const rect = elemento.getBoundingClientRect();
-    setOrigen({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+  const abrir = useCallback(async (cuenta: CuentaTarjeta, origenFicha: OrigenModal) => {
+    setOrigen(origenFicha);
     setSeleccionada(cuenta);
     setDetalle(null);
     setCargando(true);
@@ -88,7 +94,24 @@ export function TableroCuentas({ cuentas }: { cuentas: CuentaTarjeta[] }) {
     } finally {
       setCargando(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!autoOpenId || autoAbierto.current) return;
+    const cuenta = cuentas.find((fila) => fila.id === autoOpenId);
+    if (!cuenta) return;
+    autoAbierto.current = true;
+    const w = Math.min(220, window.innerWidth * 0.35);
+    const h = 90;
+    queueMicrotask(() =>
+      void abrir(cuenta, {
+        x: (window.innerWidth - w) / 2,
+        y: (window.innerHeight - h) / 2,
+        w,
+        h,
+      }),
+    );
+  }, [autoOpenId, cuentas, abrir]);
 
   function cerrar() {
     setSeleccionada(null);
@@ -108,7 +131,15 @@ export function TableroCuentas({ cuentas }: { cuentas: CuentaTarjeta[] }) {
             <button
               key={cuenta.id}
               type="button"
-              onClick={(event) => void abrir(cuenta, event.currentTarget)}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                void abrir(cuenta, {
+                  x: rect.left,
+                  y: rect.top,
+                  w: rect.width,
+                  h: rect.height,
+                });
+              }}
               className={`cuentas-card ${cuenta.estado === ESTADO_CUENTA.ANULADA ? "cuentas-card-muted" : ""}`}
             >
               <span className="cuentas-card-topline">

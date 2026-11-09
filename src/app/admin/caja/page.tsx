@@ -397,7 +397,7 @@ export default async function PaginaCaja(
               return (
                 <Link
                   key={cuenta.id}
-                  href={`/admin/clientes/${cuenta.clienteId}`}
+                  href={`/admin/cuentas?cuentaId=${cuenta.id}`}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-panel-app px-4 py-3 ring-1 ring-borde-app transition hover:ring-violeta-text"
                 >
                   <NotebookPen className="h-4 w-4 text-violeta-text" />

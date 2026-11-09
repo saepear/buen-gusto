@@ -1,7 +1,7 @@
 "use client";
 
 import { MinusCircle, Plus, ReceiptText, X } from "lucide-react";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import { anularGasto, crearGasto, type EstadoAccionGasto } from "./actions";
 
@@ -45,6 +45,14 @@ export function FormularioNuevoGasto({ opciones }: { opciones: OpcionesGasto }) 
   const [origenModal, setOrigenModal] = useState<OrigenModal | null>(null);
   const [origen, setOrigen] = useState("CAJA");
   const trigger = useRef<HTMLButtonElement>(null);
+  const cerrarModalRef = useRef<(() => void) | null>(null);
+
+  // Cerrar el formulario con la misma animación del modal cuando el servidor
+  // confirma que el gasto ya fue registrado.
+  useEffect(() => {
+    if (!estado.ok) return;
+    cerrarModalRef.current?.();
+  }, [estado]);
 
   function abrir() {
     const rect = trigger.current?.getBoundingClientRect();
@@ -71,6 +79,10 @@ export function FormularioNuevoGasto({ opciones }: { opciones: OpcionesGasto }) 
         <ModalFlip rapida origen={origenModal} onClose={cerrar} ariaLabel="Registrar nuevo gasto" panelClassName="gastos-new-panel">
           {(cerrarModal) => (
             <div className="gastos-new-modal">
+              {(() => {
+                cerrarModalRef.current = cerrarModal;
+                return null;
+              })()}
               <header className="gastos-new-header" data-anim>
                 <div className="gastos-new-title">
                   <span className="gastos-new-icon"><ReceiptText size={21} /></span>

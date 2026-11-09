@@ -52,6 +52,7 @@ export default async function PaginaCuentas(
     pagina,
     nuevo,
     clienteId,
+    cuentaId,
   } = await props.searchParams;
 
   // ── Validación de cada filtro por separado ──
@@ -66,6 +67,10 @@ export default async function PaginaCuentas(
     1,
     Number.parseInt(typeof pagina === "string" ? pagina : "1", 10) || 1,
   );
+  const autoOpenId =
+    typeof cuentaId === "string"
+      ? Number.parseInt(cuentaId, 10)
+      : Number.NaN;
 
   // ── Contexto de ficha («Gestionar fiados» desde la ficha del cliente) ──
   // Un valor inválido o inexistente NUNCA se descarta en silencio: se avisa
@@ -139,6 +144,11 @@ export default async function PaginaCuentas(
   // ── Ficha fijada: filtro POR IDENTIFICADOR (no por coincidencia con el
   // nombre o el teléfono) y se combina con todos los filtros de arriba ──
   if (fichaFija) donde.clienteId = fichaFija.id;
+  if (Number.isInteger(autoOpenId) && autoOpenId > 0) {
+    // Desde Caja se solicita una deuda concreta: la página se usa como
+    // superficie de fondo y TableroCuentas abre su ficha en modal.
+    donde.id = autoOpenId;
+  }
 
   const salto = (paginaN - 1) * POR_PAGINA;
 
@@ -509,6 +519,7 @@ export default async function PaginaCuentas(
 
       {cuentas.length > 0 ? (
         <TableroCuentas
+          autoOpenId={Number.isInteger(autoOpenId) ? autoOpenId : null}
           cuentas={cuentas.map((cuenta, indice) => ({
             id: cuenta.id,
             clienteId: cuenta.clienteId,

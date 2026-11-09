@@ -56,7 +56,7 @@ export function BotonImprimir({
       </button>
       <Link
         href={volverHref}
-        className="flex items-center gap-2 rounded-xl border border-brown-700/50 px-5 py-3 text-texto-muted/85 transition hover:bg-brown-800"
+        className="flex items-center gap-2 rounded-xl border border-brown-950/30 bg-white px-5 py-3 font-bold text-brown-950 transition hover:bg-brown-100"
       >
         <ArrowLeft className="h-5 w-5" /> Volver
       </Link>
