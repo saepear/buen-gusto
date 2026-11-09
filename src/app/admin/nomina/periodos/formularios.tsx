@@ -2,7 +2,6 @@
 
 // ═════════ Formularios de períodos (client) ═════════
 import { useActionState, useState } from "react";
-import { Plus } from "lucide-react";
 import {
   abrirPeriodo,
   aprobarLiquidacion,
@@ -18,15 +17,16 @@ const CAMPO =
   "w-full rounded-xl border-0 bg-fondo-app px-3 py-2.5 text-sm text-texto-app ring-1 ring-borde-app focus:ring-amber-brand/60";
 const ETIQUETA = "text-xs font-bold tracking-wide text-texto-muted/60";
 
-export function FormularioCrearPeriodo() {
-  const [estado, accion, pendiente] = useActionState(crearPeriodo, INICIAL);
+export function FormularioCrearPeriodo({ onSuccess }: { onSuccess?: () => void } = {}) {
+  const [estado, accion, pendiente] = useActionState(async (prev: EstadoAccionPeriodo, form: FormData) => {
+    const resultado = await crearPeriodo(prev, form);
+    if (resultado.ok) onSuccess?.();
+    return resultado;
+  }, INICIAL);
   const [tipo, setTipo] = useState("CICLOS");
 
   return (
-    <details className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95">
-        <Plus className="h-5 w-5" /> Crear ciclo de pago
-      </summary>
+    <details open className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app">
       <form action={accion} className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {estado.error ? (
           <p aria-live="polite" className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-bold text-danger-text ring-1 ring-danger/20 sm:col-span-2 lg:col-span-4">
