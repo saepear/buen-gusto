@@ -7,12 +7,9 @@ import { claveDia, formatCOP, formatHora } from "@/lib/format";
 import { nombreCanonico, telefonoComparacion } from "@/lib/clientes";
 import { ESTADO_CUENTA, ESTADO_CUENTA_LABEL, type EstadoCuenta } from "@/lib/roles";
 import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
-import {
-  FormularioAbono,
-  FormularioAnularCuenta,
-  FormularioCondonarCuenta,
-  FormularioNuevaCuenta,
-} from "./formularios";
+import { FormularioAbono, FormularioAnularCuenta, FormularioCondonarCuenta, FormularioNuevaCuenta } from "./formularios";
+import { TableroCuentas } from "./tablero";
+import "./cuentas.css";
 
 export const metadata = { title: "Cuentas por cobrar · El Buen Gusto" };
 
@@ -528,6 +525,27 @@ export default async function PaginaCuentas(
         ) : null}
       </div>
 
+      {cuentas.length > 0 ? (
+        <TableroCuentas
+          cuentas={cuentas.map((cuenta, indice) => ({
+            id: cuenta.id,
+            clienteId: cuenta.clienteId,
+            nombre: cuenta.cliente.nombre,
+            telefono: cuenta.cliente.telefono,
+            concepto: cuenta.concepto,
+            valorOriginal: cuenta.valorOriginal,
+            pagado: cuenta.pagado,
+            saldoCondonado: cuenta.saldoCondonado,
+            estado: cuenta.estado,
+            createdAt: cuenta.createdAt.toISOString(),
+            pedidoId: cuenta.pedidoId,
+            itemCount: cuenta.items.length,
+            abonoCount: cuenta.abonos.length,
+            ordinal: (paginaN - 1) * POR_PAGINA + indice + 1,
+          }))}
+        />
+      ) : null}
+
       {cuentas.length === 0 ? (
         <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
           <History className="h-9 w-9 text-texto-muted/40" />
@@ -540,7 +558,7 @@ export default async function PaginaCuentas(
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="hidden space-y-2.5" aria-hidden="true">
           {cuentas.map((cuenta, indice) => {
             const saldo = Math.max(
               0,

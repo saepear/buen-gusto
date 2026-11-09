@@ -90,6 +90,66 @@ export type DesglosePedido = {
   lineas: LineaFiable[];
 };
 
+/** Detalle bajo demanda para la ficha modal de un fiado. */
+export async function obtenerDetalleCuenta(cuentaId: number) {
+  try {
+    await exigirAdmin();
+  } catch {
+    return null;
+  }
+  if (!Number.isInteger(cuentaId) || cuentaId <= 0) return null;
+  const cuenta = await db.cuentaPorCobrar.findUnique({
+    where: { id: cuentaId },
+    include: {
+      cliente: { select: { id: true, nombre: true, telefono: true, direccion: true } },
+      creadoPor: { select: { nombre: true } },
+      anuladaPor: { select: { nombre: true } },
+      condonadoPor: { select: { nombre: true } },
+      abonos: {
+        orderBy: { createdAt: "desc" },
+        include: { registradoPor: { select: { nombre: true } } },
+      },
+      items: { orderBy: { id: "asc" } },
+    },
+  });
+  if (!cuenta) return null;
+  return {
+    id: cuenta.id,
+    clienteId: cuenta.clienteId,
+    cliente: cuenta.cliente,
+    concepto: cuenta.concepto,
+    valorOriginal: cuenta.valorOriginal,
+    pagado: cuenta.pagado,
+    saldoCondonado: cuenta.saldoCondonado,
+    estado: cuenta.estado,
+    pedidoId: cuenta.pedidoId,
+    createdAt: cuenta.createdAt.toISOString(),
+    creadoPor: cuenta.creadoPor,
+    condonadoAt: cuenta.condonadoAt?.toISOString() ?? null,
+    condonadoMotivo: cuenta.condonadoMotivo,
+    condonadoPor: cuenta.condonadoPor,
+    anuladaAt: cuenta.anuladaAt?.toISOString() ?? null,
+    anuladaMotivo: cuenta.anuladaMotivo,
+    anuladaPor: cuenta.anuladaPor,
+    items: cuenta.items.map((item) => ({
+      id: item.id,
+      nombre: item.nombre,
+      cantidad: item.cantidad,
+      precio: item.precio,
+      conSopa: item.conSopa,
+      nota: item.nota,
+    })),
+    abonos: cuenta.abonos.map((abono) => ({
+      id: abono.id,
+      monto: abono.monto,
+      metodo: abono.metodo,
+      nota: abono.nota,
+      createdAt: abono.createdAt.toISOString(),
+      registradoPor: abono.registradoPor,
+    })),
+  };
+}
+
 /** Cómo se originó un pedido (etiqueta legible para el selector) */
 function tipoDePedido(p: {
   paraLlevar: boolean;
