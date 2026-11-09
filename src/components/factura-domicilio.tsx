@@ -1,8 +1,8 @@
-import { MapPin, Phone, Printer } from "lucide-react";
-import Link from "next/link";
+import { MapPin, Phone } from "lucide-react";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
+import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
 export type ItemFacturaDomicilio = {
   id: number;
@@ -47,8 +47,8 @@ const METODO_TXT: Record<string, string> = {
 
 /**
  * La factura del domicilio en estilo ticket (80 mm). Sin `pago` es la
- * pre-cuenta que revisa el admin desde el tablero (con botón para reimpri-
- * mir la comanda); con `pago` es la factura del cobro ya registrado: lleva
+ * factura de venta pendiente que revisa el admin desde Caja; con `pago` es la
+ * factura del cobro ya registrado: lleva
  * método, propina, recibido y vueltas tal como entraron en la caja.
  */
 export function FacturaDomicilio({
@@ -74,13 +74,13 @@ export function FacturaDomicilio({
   const totalPagado = pago ? pago.total + pago.propina : null;
 
   return (
-    <section data-print-ticket={pago ? "" : undefined} className="mx-auto w-full max-w-md bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl lg:mx-0 lg:max-w-none">
+    <section data-print-ticket="" className="mx-auto w-full max-w-md bg-white px-5 py-5 font-mono text-[13px] leading-relaxed text-brown-950 shadow-xl lg:mx-0 lg:max-w-none">
       <div className="text-center">
         <p className="font-display text-xl font-bold tracking-wide">
           EL BUEN GUSTO
         </p>
         <p className="mt-0.5 text-[11px] font-bold tracking-widest">
-          DOMICILIO · FACTURA DE COBRO
+          DOMICILIO · FACTURA DE VENTA
         </p>
       </div>
 
@@ -209,16 +209,10 @@ export function FacturaDomicilio({
         </p>
       )}
 
-      {/* La reimpresión de la comanda solo aplica antes de cobrar: la de
-          cocina ya salió al crear el pedido y el pago sale en factura */}
+      {/* Antes del cobro se imprime la factura de venta con los productos
+          vendidos. La comanda de cocina ya salió al crear el domicilio. */}
       {volverParaImprimir && !pago ? (
-        <Link
-          href={`/ordenes/comanda/${carga.pedidoId}?autoPrint=1&volver=${encodeURIComponent(volverParaImprimir)}`}
-          className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-amber-brand px-4 py-2.5 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app print:hidden"
-          title="Abre la comanda en tamaño ticket e imprime; luego regresa aquí"
-        >
-          <Printer className="h-4 w-4" /> Imprimir comanda
-        </Link>
+        <BotonImprimir leyenda="Imprimir factura" volverHref={volverParaImprimir} />
       ) : null}
     </section>
   );

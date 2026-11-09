@@ -257,8 +257,8 @@ export default async function PaginaCaja(
                 Cobrando domicilio #{domicilioCobro.id}
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
-                {domicilioCobro.cliente} · toca «Cobrar» del panel y va directo
-                a la factura imprimible
+                {domicilioCobro.cliente} · revisa la factura y confirma el pago
+                en el panel para cerrar la venta
               </p>
             </div>
             <Link
