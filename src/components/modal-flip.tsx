@@ -30,6 +30,7 @@ export function ModalFlip({
   onClose,
   ariaLabel,
   rapida = false,
+  animacion = "ficha",
   panelClassName = "",
   children,
 }: {
@@ -38,6 +39,8 @@ export function ModalFlip({
   ariaLabel: string;
   /** Ajusta la cadencia al modal ágil del Menú del día. */
   rapida?: boolean;
+  /** Entrada proporcional para paneles cuyo contenido ya está visible. */
+  animacion?: "ficha" | "suave";
   /** Clase adicional para fichas que necesitan un ancho distinto al estándar. */
   panelClassName?: string;
   /** Contenido del panel; recibe la función de cierre para el botón ✕ */
@@ -46,6 +49,7 @@ export function ModalFlip({
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const cerrandoRef = useRef(false);
+  const aperturaRef = useRef<gsap.core.Timeline | null>(null);
 
   const { contextSafe } = useGSAP(
     () => {
@@ -60,6 +64,17 @@ export function ModalFlip({
 
       if (reducido || !origen) {
         gsap.set([overlay, panel, ...filas], { autoAlpha: 1 });
+        return;
+      }
+
+      if (animacion === "suave") {
+        // La tarjeta y el formulario tienen proporciones distintas. Una
+        // escala uniforme corta evita comprimir texto y controles.
+        gsap.set(panel, { autoAlpha: 0, y: 20, scale: 0.97, transformOrigin: "50% 50%" });
+        gsap.set(overlay, { autoAlpha: 0 });
+        aperturaRef.current = gsap.timeline()
+          .to(overlay, { autoAlpha: 1, duration: 0.2, ease: "power2.out" }, 0)
+          .to(panel, { autoAlpha: 1, y: 0, scale: 1, duration: 0.34, ease: "power3.out" }, 0.03);
         return;
       }
 
@@ -118,6 +133,15 @@ export function ModalFlip({
     }
 
     contextSafe(() => {
+      if (animacion === "suave") {
+        // Interrumpir la entrada también permite cerrar durante la apertura
+        // sin que dos timelines compitan por la transformación del panel.
+        aperturaRef.current?.kill();
+        gsap.timeline({ onComplete: onClose })
+          .to(panel, { autoAlpha: 0, y: 12, scale: 0.98, duration: 0.2, ease: "power2.in", overwrite: "auto" }, 0)
+          .to(overlay, { autoAlpha: 0, duration: 0.2, ease: "power2.in" }, 0.04);
+        return;
+      }
       const filas = panel.querySelectorAll<HTMLElement>("[data-anim]");
       const r = panel.getBoundingClientRect();
       const c = centroDe(r);
@@ -143,7 +167,7 @@ export function ModalFlip({
         )
         .to(overlay, { autoAlpha: 0, duration: rapida ? 0.22 : 0.26, ease: "power2.in" }, rapida ? 0.12 : 0.16);
     })();
-  }, [contextSafe, onClose, origen, rapida]);
+  }, [contextSafe, onClose, origen, rapida, animacion]);
 
   // Escape para cerrar y bloqueo del scroll de fondo mientras está abierto
   useEffect(() => {

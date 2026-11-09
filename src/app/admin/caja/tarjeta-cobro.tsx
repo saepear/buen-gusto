@@ -208,7 +208,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
       </button>
 
       {origenModal ? (
-        <ModalFlip rapida origen={origenModal} onClose={cerrar} ariaLabel={`Cobro de ${mesa.nombre}`} panelClassName="caja-charge-modal">
+        <ModalFlip rapida animacion="suave" origen={origenModal} onClose={cerrar} ariaLabel={`Cobro de ${mesa.nombre}`} panelClassName="caja-charge-modal">
           {(cerrarModal) => (
     <article className="caja-charge-card max-h-[88vh] overflow-y-auto rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
       <div className="flex items-start justify-between gap-3">

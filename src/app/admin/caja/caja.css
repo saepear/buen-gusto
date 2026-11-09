@@ -31,5 +31,9 @@
 .caja-empty-state p { max-width: 38rem; margin: .35rem 0 0; color: color-mix(in srgb, var(--color-texto-muted) 72%, transparent); font-size: .8rem; line-height: 1.5; }
 .caja-empty-check { display: inline-flex; align-items: center; gap: .35rem; margin-left: auto; border-radius: 999px; background: rgb(34 197 94 / 11%); padding: .5rem .7rem; color: #86efac; font-size: .68rem; font-weight: 800; white-space: nowrap; }
 .caja-module .caja-charge-card { border-color: color-mix(in srgb, var(--color-amber-brand) 24%, var(--color-borde-app)); background: linear-gradient(145deg, color-mix(in srgb, var(--color-panel-app) 96%, white 4%), var(--color-panel-app)); box-shadow: 0 16px 34px rgb(0 0 0 / 12%); }
+.caja-module .caja-table-trigger { cursor: pointer; transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease; }
+.caja-module .caja-table-trigger:hover,
+.caja-module .caja-table-trigger:focus-visible { background: linear-gradient(135deg, color-mix(in srgb, var(--color-amber-brand) 17%, var(--color-panel-app)), var(--color-panel-app)); box-shadow: 0 0 0 2px var(--color-amber-brand), 0 18px 36px rgb(0 0 0 / 15%); transform: translateY(-3px); }
+@media (prefers-reduced-motion: reduce) { .caja-module .caja-table-trigger { transition: none; } .caja-module .caja-table-trigger:hover, .caja-module .caja-table-trigger:focus-visible { transform: none; } }
 @media (max-width: 800px) { .caja-command-bar, .caja-empty-state { align-items: flex-start; flex-direction: column; } .caja-command-status, .caja-empty-check { margin-left: 0; } .caja-overview { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .caja-kpis { grid-template-columns: 1fr; } .caja-section-heading { align-items: flex-start; flex-direction: column; } }
