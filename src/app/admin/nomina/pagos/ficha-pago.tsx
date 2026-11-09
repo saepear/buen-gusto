@@ -10,7 +10,7 @@ export function FichaPago({ pago, editable = false }: { editable?: boolean; pago
   const extras = pago.conceptos.filter(c => c.tipo === "DEVENGADO" && c.clave !== "SALARIO" && c.valor !== 0);
   const deducciones = pago.conceptos.filter(c => c.tipo === "DEDUCCION" && c.valor !== 0);
   return <article className="pago-ficha">
-    <header><p className="pago-eyebrow">EL BUEN GUSTO · PAGO #{pago.id}</p><h2>{pago.empleado.nombre} {pago.empleado.apellidos}</h2>
+    <header><p className="pago-eyebrow">EL BUEN GUSTO · COMPROBANTE DE PAGO</p><h2>{pago.empleado.nombre} {pago.empleado.apellidos}</h2>
       <p>{pago.empleado.cargo} · {pago.periodo.fechaDesde} — {pago.periodo.fechaHasta}</p></header>
     <div className="pago-linea"><span>Pago base</span><strong>{formatCOP(pago.salarioBase)}</strong></div>
     <h3>Extras e incentivos</h3>

@@ -26,7 +26,6 @@ import { formatCOP } from "@/lib/format";
 import { salarioDelCiclo } from "@/lib/nomina/salario-ciclo";
 import { NavegacionNomina } from "./navegacion";
 import { crearPeriodo } from "./periodos/actions";
-import { BotonLiquidarEmpleado } from "./periodos/formularios";
 import { FormularioNuevoEmpleado } from "./empleados/formularios";
 import { FormularioRegistroVale } from "./vales/formularios";
 import { ContenidoPago } from "./pagos/contenido-pago";
@@ -557,7 +556,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                           {empleado.liquidacion?.estado === "APROBADA"
                             ? "Pago confirmado"
                             : empleado.liquidacion
-                              ? "Borrador · pendiente de aprobación"
+                              ? "Pago preparado"
                               : "Aún no tiene pago preparado"}
                         </span>
                       </div>
@@ -691,16 +690,16 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                     </>
                   ) : (
                     <p className={s.empty}>
-                      Crea el ciclo y liquida al empleado para consultar el
-                      desglose real.
+                      El pago se prepara automáticamente cuando el empleado
+                      tiene un contrato vigente para este ciclo.
                     </p>
                   ))}
               </div>
               {empleado.requiereRecalculo && (
                 <p className={s.notice}>
                   <AlertTriangle size={17} />
-                  Hay nuevos vales autorizados. Actualiza el borrador para
-                  incorporarlos antes de aprobar.
+                  Hay nuevos vales autorizados. El borrador se actualizará
+                  automáticamente antes de registrar la entrega.
                 </p>
               )}
               {empleado.liquidacion?.estado === "APROBADA" &&
@@ -715,15 +714,6 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                   <Plus size={17} />
                   Registrar vale
                 </button> : <Link className={s.primary} href={enlaceVales}>Consultar vales</Link>}
-                {datos.periodo?.estado === "ABIERTO" &&
-                  empleado.estado === "ACTIVO" &&
-                  empleado.liquidacion?.estado !== "APROBADA" && (
-                    <BotonLiquidarEmpleado
-                      periodoId={datos.periodo.id}
-                      empleadoId={empleado.id}
-                      nombre={empleado.nombre}
-                    />
-                  )}
                 {empleado.liquidacion && (
                   <button
                     type="button"

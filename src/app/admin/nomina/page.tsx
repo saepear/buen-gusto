@@ -4,6 +4,7 @@ import { ciclosDeMes } from "@/lib/nomina/helpers";
 import { PanelNomina } from "./panel-nomina";
 import { seleccionPago, serializarPago } from "./pagos/datos-pago";
 import { fechaColombia, resumenEmpleado } from "@/lib/nomina/resumen";
+import { prepararPeriodoAutomaticamente } from "@/lib/nomina/preparar-liquidacion";
 
 export const metadata = { title: "Nómina · El Buen Gusto" };
 
@@ -17,7 +18,7 @@ export default async function PaginaNomina({
     empleado?: string;
   }>;
 }) {
-  await requerirRol("ADMIN");
+  const sesion = await requerirRol("ADMIN");
   const params = await searchParams;
   const hoy = fechaColombia(new Date());
   const mes =
@@ -47,6 +48,7 @@ export default async function PaginaNomina({
         p.fechaDesde === cortes[corte].desde &&
         p.fechaHasta === cortes[corte].hasta,
     );
+  if (periodo) await prepararPeriodoAutomaticamente(periodo.id, sesion.id);
   const rango = periodo
     ? { desde: periodo.fechaDesde, hasta: periodo.fechaHasta }
     : cortes[corte];

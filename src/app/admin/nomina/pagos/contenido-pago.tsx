@@ -14,7 +14,7 @@ export function ContenidoPago({ pago }: { pago: DatosPago }) {
   const borrador = pago.estado === "BORRADOR" && pago.periodo.estado !== "CERRADO" && pago.pagado === 0;
   const saldo = Math.max(pago.netoAPagar - pago.pagado, 0);
   return <div className="nomina-paymentContent">
-    <div className="nomina-operationStatus"><span>{pago.estadoPago === "PAGADO" ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}{pago.estadoPago === "PAGADO" ? "Pagado" : borrador ? "En preparación" : pago.estado === "APROBADA" ? "Confirmado · pendiente de entrega" : pago.estado}</span><span>Pago #{pago.id}</span></div>
+    <div className="nomina-operationStatus"><span>{pago.estadoPago === "PAGADO" ? <CheckCircle2 size={16} /> : <Clock3 size={16} />}{pago.estadoPago === "PAGADO" ? "Pagado" : borrador ? "En preparación" : pago.estado === "APROBADA" ? "Confirmado · pendiente de entrega" : pago.estado}</span></div>
     <div className="nomina-paymentLayout">
       <FichaPago pago={pago} editable={borrador && pago.interno} />
       <aside className="nomina-paymentAside">

@@ -100,6 +100,28 @@
 .nomina-periodDetailStats strong { display:block; margin-top:6px; font-size:20px; }
 .nomina-periodDetailActions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .nomina-periodDetailActions form { display:inline-block; }
+.nomina-employeePaymentContent { display:grid; gap:16px; }
+.nomina-employeePaymentSummary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.nomina-employeePaymentSummary > div { padding:14px; border:1px solid var(--borde-app); border-radius:15px; background:var(--panel-app); }
+.nomina-employeePaymentSummary span { display:block; color:var(--texto-muted); font-size:11px; }
+.nomina-employeePaymentSummary strong { display:block; margin-top:5px; font-size:18px; }
+.nomina-employeePaymentSummary strong.is-pending { color:var(--color-amber-brand); }
+.nomina-employeePaymentSummary strong.is-paid { color:var(--success-text); }
+.nomina-employeeCycleList { display:grid; gap:10px; }
+.nomina-employeeCycle { overflow:hidden; border:1px solid var(--borde-app); border-radius:18px; background:var(--panel-app); }
+.nomina-employeeCycle > summary { display:flex; align-items:center; gap:14px; padding:16px 18px; cursor:pointer; list-style:none; }
+.nomina-employeeCycle > summary::-webkit-details-marker { display:none; }
+.nomina-employeeCycle > summary > div { display:grid; gap:4px; flex:1; min-width:0; }
+.nomina-employeeCycle > summary strong { font-size:14px; }
+.nomina-employeeCycle > summary span { display:flex; align-items:center; gap:5px; color:var(--texto-muted); font-size:11px; }
+.nomina-employeeCycle > summary b { color:var(--color-amber-brand); font-size:15px; }
+.nomina-employeeCycle > summary > svg { color:var(--texto-muted); transition:transform .2s ease; }
+.nomina-employeeCycle[open] > summary { border-bottom:1px solid var(--borde-app); }
+.nomina-employeeCycle[open] > summary > svg { transform:rotate(180deg); }
+.nomina-employeeCycleBody { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr); gap:16px; padding:16px; }
+.nomina-employeeCycleBody .pago-ficha { min-width:0; }
+.nomina-employeeCycleBody .nomina-paymentAside { display:grid; align-content:start; gap:12px; min-width:0; }
+@media(max-width:750px) { .nomina-employeePaymentSummary { grid-template-columns:1fr; } .nomina-employeeCycleBody { grid-template-columns:1fr; } }
 @media(max-width:1050px) { .nomina-operationGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:750px) { .nomina-paymentLayout { grid-template-columns:minmax(0,1fr); } .nomina-operationHero { align-items:start; flex-direction:column; padding:20px; } .nomina-operationStats { gap:8px; } .nomina-operationStats article { padding:14px; gap:7px; } .nomina-operationStats strong { font-size:20px; } }
 @media(max-width:520px) { .nomina-operationGrid { grid-template-columns:1fr; } .nomina-operationStats { grid-template-columns:1fr; } .nomina-operationStats article { padding:14px 18px; } .nomina-operationStats strong { display:inline-block; margin-left:12px; } .nomina-operationHero h1 { font-size:27px; } .nomina-operationTitle { gap:12px; } .nomina-operationIcon { width:44px; height:44px; } .nomina-operationModalHeader,.nomina-operationModalBody { padding:18px; } .nomina-shortFormRow { grid-template-columns:1fr; } .nomina-operationModalHeader h2 { font-size:22px; } }
