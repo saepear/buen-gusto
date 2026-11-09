@@ -83,7 +83,6 @@ const s = {
   actions: "nomina-actions",
   bottomGrid: "nomina-bottomGrid",
   paymentDate: "nomina-paymentDate",
-  quickActions: "nomina-quickActions",
   legal: "nomina-legal",
   reminder: "nomina-reminder",
   modalShell: "nomina-modalShell",
@@ -772,19 +771,6 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                 Ver ciclos
                 <ChevronRight size={15} />
               </Link>
-            </section>
-            <section className={s.panel}>
-              <h3>Acciones rápidas</h3>
-              <div className={s.quickActions}>
-                <Link href="/admin/nomina/pagos">
-                  <Banknote size={17} />
-                  Pagos
-                </Link>
-                <Link href="/admin/nomina/reportes">
-                  <ShieldCheck size={17} />
-                  Reportes
-                </Link>
-              </div>
             </section>
           </div>
         </div>
