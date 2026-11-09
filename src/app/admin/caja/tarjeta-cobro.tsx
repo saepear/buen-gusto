@@ -5,15 +5,17 @@ import {
   CreditCard,
   HandCoins,
   Landmark,
+  ArrowUpRight,
   Search,
   ShoppingBag,
   UserRound,
   Wallet,
   X,
 } from "lucide-react";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { formatCOP } from "@/lib/format";
 import { buscarClientesPicker } from "@/app/admin/clientes/actions";
+import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import { cobrarMesa, fiarCuenta, type EstadoAccionCaja } from "./acciones";
 
 const SIN_ERROR: EstadoAccionCaja = { error: null };
@@ -99,6 +101,8 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   const [modo, setModo] = useState<"pagar" | "fiado">("pagar");
   const [metodo, setMetodo] = useState<string>("EFECTIVO");
   const [propinaTxt, setPropinaTxt] = useState("");
+  const [origenModal, setOrigenModal] = useState<OrigenModal | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
 
   // ── Picker de cliente para el fiado (búsqueda paginada en BD, igual que
   // en Cuentas por cobrar; 8 fichas por página con debounce de 250 ms) ──
@@ -112,8 +116,9 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   );
   useEffect(() => {
     let cancelada = false;
-    setBuscandoFiado(true);
     const t = setTimeout(async () => {
+      if (cancelada) return;
+      setBuscandoFiado(true);
       try {
         const r = await buscarClientesPicker(terminoFiado, paginaFiado);
         if (cancelada) return;
@@ -151,8 +156,61 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
     (p) => p.estado === "ENVIADO" || p.estado === "EN_PREPARACION" || p.estado === "PARCIAL_SERVIDO",
   ).length;
 
+  const resumenItems = mesa.pedidos
+    .flatMap((pedido) => pedido.items.map((item) => `${item.cantidad > 1 ? `${item.cantidad}× ` : ""}${item.nombre}`))
+    .slice(0, 3);
+  const itemsRestantes = mesa.pedidos.reduce((total, pedido) => total + pedido.items.length, 0) - resumenItems.length;
+
+  function abrir() {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (rect) {
+      setOrigenModal({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+    }
+  }
+
+  function cerrar() {
+    setOrigenModal(null);
+    trigger.current?.focus();
+  }
+
   return (
-    <article className="caja-charge-card rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        onClick={abrir}
+        aria-label={`Abrir cobro de ${mesa.nombre}`}
+        className="caja-table-trigger caja-charge-card w-full rounded-[2rem] bg-panel-app p-5 text-left ring-1 ring-borde-app transition hover:-translate-y-0.5 hover:ring-amber-brand/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
+      >
+        <span className="flex items-start justify-between gap-3">
+          <span>
+            <span className="block font-display text-2xl text-texto-app">{mesa.nombre}</span>
+            <span className={"mt-1 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide " + (ESTILO_MESA[mesa.estado] ?? "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")}>
+              {mesa.estado === "POR_PAGAR" ? "Por pagar" : "Ocupada"}
+            </span>
+          </span>
+          <span className="text-right">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">Total a cobrar</span>
+            <span className="block font-display text-3xl text-texto-app">{formatCOP(mesa.total)}</span>
+          </span>
+        </span>
+        <span className="mt-4 flex items-center gap-2 rounded-xl bg-campo-app px-3.5 py-3 text-sm text-texto-muted/75">
+          <span className="min-w-0 flex-1 truncate">
+            {resumenItems.length > 0 ? resumenItems.join(" · ") : "Sin comandas activas"}
+            {itemsRestantes > 0 ? ` · +${itemsRestantes}` : ""}
+          </span>
+          <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-brand" />
+        </span>
+        <span className="mt-3 flex items-center justify-between text-xs font-bold">
+          <span className="text-texto-muted/55">{mesa.pedidos.length} {mesa.pedidos.length === 1 ? "comanda" : "comandas"}{enCocina > 0 ? " · En cocina" : ""}</span>
+          <span className="text-amber-brand">Abrir cobro</span>
+        </span>
+      </button>
+
+      {origenModal ? (
+        <ModalFlip rapida origen={origenModal} onClose={cerrar} ariaLabel={`Cobro de ${mesa.nombre}`} panelClassName="caja-charge-modal">
+          {(cerrarModal) => (
+    <article className="caja-charge-card max-h-[88vh] overflow-y-auto rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-display text-2xl text-texto-app">
@@ -167,13 +225,23 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
             {mesa.estado === "POR_PAGAR" ? "Por pagar" : "Ocupada"}
           </span>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-            Total a cobrar
-          </p>
-          <p className="font-display text-3xl text-texto-app">
-            {formatCOP(mesa.total)}
-          </p>
+        <div className="flex items-start gap-3 text-right">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+              Total a cobrar
+            </p>
+            <p className="font-display text-3xl text-texto-app">
+              {formatCOP(mesa.total)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={cerrarModal}
+            aria-label="Cerrar cobro"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-panel-app text-texto-muted/70 ring-1 ring-borde-app transition hover:text-texto-app"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -643,6 +711,10 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
         </>
       )}
     </article>
+          )}
+        </ModalFlip>
+      ) : null}
+    </>
   );
 }
 
