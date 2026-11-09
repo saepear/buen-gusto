@@ -1,4 +1,4 @@
-import { Clock, Printer, Search, ShoppingBag } from "lucide-react";
+import { CheckCircle2, ChefHat, Clock, Printer, Search, ShoppingBag, Timer } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
@@ -7,6 +7,8 @@ import { formatHora, claveDia } from "@/lib/format";
 import { requerirRol } from "@/lib/session";
 import { AutoRefresco } from "./refresco";
 import { AccionesComanda } from "./botones-comanda";
+import { TableroOrdenes } from "./tablero";
+import "./ordenes.css";
 
 export const metadata = { title: "Órdenes · El Buen Gusto" };
 
@@ -108,15 +110,39 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
         </div>
 
         {pedidos.length === 0 ? (
-          <div className="flex min-h-[50vh] flex-col items-center justify-center text-center border-2 border-dashed border-borde-app rounded-[40px]">
-            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-panel-app text-amber-brand/50">
-              <ShoppingBag className="h-8 w-8" />
+          <div className="ordenes-empty-layout">
+            <div className="ordenes-empty-hero">
+              <div className="ordenes-empty-icon"><ChefHat size={28} /></div>
+              <div><span className="orden-eyebrow">TABLERO EN VIVO</span><h3>Todo despejado por ahora</h3><p>Las comandas aparecerán aquí en cuanto el equipo envíe un pedido desde una mesa o domicilio.</p></div>
             </div>
-            <h3 className="mt-6 font-display text-2xl text-texto-app">No hay registros</h3>
-            <p className="mt-2 text-texto-muted/40">No se encontraron pedidos para los criterios seleccionados</p>
+            <div className="ordenes-empty-stats">
+              <div><Timer size={18} /><span><small>En preparación</small><b>0 comandas</b></span></div>
+              <div><Clock size={18} /><span><small>Por atender</small><b>0 comandas</b></span></div>
+              <div><CheckCircle2 size={18} /><span><small>Listas hoy</small><b>0 comandas</b></span></div>
+            </div>
+            <div className="ordenes-empty-tip"><ShoppingBag size={17} /><span><b>Tip rápido:</b> usa el buscador para encontrar una comanda por número o mesa.</span></div>
           </div>
         ) : (
-          <div className="relative overflow-hidden rounded-[32px] bg-panel-app p-1 ring-1 ring-borde-app shadow-2xl">
+          <>
+          <TableroOrdenes
+            pedidos={pedidos.map((pedido) => ({
+              id: pedido.id,
+              mesa: pedido.mesa.nombre,
+              mesero: pedido.mesero?.nombre ?? "Sistema",
+              estado: pedido.estado,
+              paraLlevar: pedido.paraLlevar,
+              createdAt: pedido.createdAt.toISOString(),
+              items: pedido.items.map((item) => ({
+                id: item.id,
+                nombre: item.productoNombre ?? item.producto?.nombre ?? "Producto",
+                cantidad: item.cantidad,
+                precio: item.precio ?? item.producto?.precio ?? 0,
+                nota: item.nota,
+                conSopa: item.conSopa,
+              })),
+            }))}
+          />
+          <div className="hidden relative overflow-hidden rounded-[32px] bg-panel-app p-1 ring-1 ring-borde-app shadow-2xl" aria-hidden="true">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
@@ -200,6 +226,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
               </table>
             </div>
           </div>
+          </>
         )}
       </main>
 
