@@ -64,12 +64,8 @@ export async function registrarPagoNomina(
       include: { empleado: true, periodo: true },
     });
     if (!liquidacion) throw new Error("La liquidación no existe.");
-    if (liquidacion.estado !== "APROBADA") {
-      return {
-        error:
-          "Solo se paga una liquidación APROBADA: apruébala primero (sus valores deben quedar congelados antes de entregar dinero).",
-        ok: null,
-      };
+    if (liquidacion.periodo.estado === "CERRADO") {
+      return { error: "El período ya está cerrado: abre un corte nuevo para registrar pagos.", ok: null };
     }
 
     const pendiente = liquidacion.netoAPagar - liquidacion.pagado;

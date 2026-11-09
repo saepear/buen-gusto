@@ -31,7 +31,7 @@ export default async function PaginaPeriodos() {
     <>
       <EncabezadoPagina
         titulo="Ciclos de pago"
-        subtitulo="Cortes del 7, 14, 21 y fin de mes: crear, liquidar, revisar y pagar"
+        subtitulo="Cortes del 7, 14, 21 y fin de mes: preparar y pagar al equipo"
       />
 
       <div className="mb-6">
@@ -51,8 +51,7 @@ export default async function PaginaPeriodos() {
           <CalendarRange className="h-9 w-9 text-texto-muted/40" />
           <p className="mt-4 font-display text-xl text-texto-app">Aún no hay períodos</p>
           <p className="mt-1.5 max-w-md text-sm text-texto-muted/70">
-            Crea un ciclo de pago: luego liquidas a cada empleado desde el
-            detalle del período.
+            Crea un ciclo de pago: luego pagas a cada empleado desde el módulo de Pagos.
           </p>
         </div>
       ) : (

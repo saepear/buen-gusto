@@ -2,10 +2,10 @@
 
 // ═════════ Acciones de períodos y liquidaciones ═════════
 // • Los cortes del restaurante y los períodos históricos no se superponen.
-// • Liquidar un empleado crea (o refresca, solo en BORRADOR) su fila con
+// • Preparar un empleado crea (o refresca, solo en BORRADOR) su fila con
 //   FOTO de contrato, parámetros y conceptos: el cálculo queda congelado.
-// • Aprobar cierra el asunto individual; CERRADO amerita que TODAS estén
-//   aprobadas. Una liquidación APROBADA nunca se recalcula (foto sagrada).
+// • El pago se registra directamente desde la ficha; no hay aprobación
+//   intermedia para el administrador del restaurante.
 // • Una nómina pendiente NO toca la caja: los egresos nacen SOLO del pago.
 
 import { revalidatePath } from "next/cache";
@@ -363,8 +363,8 @@ export async function aprobarLiquidacion(
   };
 }
 
-/** Cerrar el período: exige TODAS las liquidaciones aprobadas. Los valores
- *  históricos quedan intocables (fotos inmutables). */
+/** Cerrar el período. El restaurante registra pagos directamente; no existe
+ *  una aprobación intermedia para poder cerrar el corte. */
 export async function cerrarPeriodo(
   _antes: EstadoAccionPeriodo,
   form: FormData,
@@ -372,15 +372,6 @@ export async function cerrarPeriodo(
   const sesion = await exigirAdmin();
   const periodoId = entero(form.get("periodoId"));
   if (!periodoId) return { error: "Falta el período.", ok: null };
-
-  const liquidaciones = await db.liquidacionNomina.findMany({ where: { periodoId } });
-  const sinAprobar = liquidaciones.filter((l) => l.estado !== "APROBADA");
-  if (sinAprobar.length > 0) {
-    return {
-      error: `Faltan ${sinAprobar.length} liquidación(es) por aprobar antes de cerrar el período.`,
-      ok: null,
-    };
-  }
 
   await db.periodoNomina.update({
     where: { id: periodoId },
