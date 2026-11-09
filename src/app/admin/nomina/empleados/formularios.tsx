@@ -9,6 +9,7 @@ import { ChevronDown } from "lucide-react";
 import { formatCOP } from "@/lib/format";
 import {
   actualizarContrato,
+  activarEmpleado,
   crearEmpleado,
   desactivarEmpleado,
   editarEmpleado,
@@ -364,7 +365,7 @@ export function AccionDesactivarEmpleado({ empleadoId, nombre }: { empleadoId: n
     return (
       <form action={accion} className="mt-3 grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2">
         <h3 className="font-display text-lg text-texto-app sm:col-span-2">
-          Desactivar a {nombre} (se conserva todo el historial)
+          Dar de baja a {nombre} (se conserva todo el historial)
         </h3>
         <Mensaje estado={estadoForm} />
         <input type="hidden" name="empleadoId" value={empleadoId} />
@@ -393,7 +394,21 @@ export function AccionDesactivarEmpleado({ empleadoId, nombre }: { empleadoId: n
       onClick={() => setAbierto(true)}
       className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-bold text-danger-text ring-1 ring-danger/20 transition hover:bg-danger/20"
     >
-      Desactivar
+      Dar de baja
     </button>
+  );
+}
+
+export function AccionActivarEmpleado({ empleadoId }: { empleadoId: number }) {
+  const [estadoForm, accion, pendiente] = useActionState(activarEmpleado, INICIAL);
+
+  return (
+    <form action={accion} className="inline-flex flex-wrap items-center gap-2">
+      <input type="hidden" name="empleadoId" value={empleadoId} />
+      <button type="submit" disabled={pendiente} className="rounded-xl bg-success/10 px-3 py-2 text-xs font-bold text-success-text ring-1 ring-success/20 transition hover:bg-success/20 disabled:opacity-50">
+        {pendiente ? "Reactivando…" : "Reactivar"}
+      </button>
+      {estadoForm.error || estadoForm.ok ? <Mensaje estado={estadoForm} /> : null}
+    </form>
   );
 }

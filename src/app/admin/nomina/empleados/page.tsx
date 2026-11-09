@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/format";
 import { requerirRol } from "@/lib/session";
 import { NavegacionNomina } from "../navegacion";
-import { FormularioNuevoEmpleado } from "./formularios";
+import { AccionActivarEmpleado, AccionDesactivarEmpleado, FormularioNuevoEmpleado } from "./formularios";
 
 export const metadata = { title: "Empleados · Nómina · El Buen Gusto" };
 
@@ -121,6 +121,10 @@ export default async function PaginaEmpleados() {
                     {e._count.liquidaciones} liquidaciones
                   </p>
                 </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-borde-app pt-3">
+                {e.estado === "ACTIVO" ? <AccionDesactivarEmpleado empleadoId={e.id} nombre={`${e.nombre} ${e.apellidos}`} /> : <AccionActivarEmpleado empleadoId={e.id} />}
+                {e.estado === "INACTIVO" && e.fechaRetiro ? <span className="text-[11px] text-texto-muted/60">Retirado {e.fechaRetiro.toISOString().slice(0, 10)}</span> : null}
               </div>
             </article>
           ))}

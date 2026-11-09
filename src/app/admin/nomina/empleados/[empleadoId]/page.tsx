@@ -10,6 +10,7 @@ import { pendienteDeLiquidacion } from "@/lib/nomina/helpers";
 import { NavegacionNomina } from "../../navegacion";
 import {
   AccionActualizarContrato,
+  AccionActivarEmpleado,
   AccionDesactivarEmpleado,
   AccionEditarEmpleado,
 } from "../formularios";
@@ -71,9 +72,10 @@ export default async function PaginaFichaEmpleado(
         {empleado.estado === "ACTIVO" ? (
           <AccionDesactivarEmpleado empleadoId={empleado.id} nombre={empleado.nombre} />
         ) : (
-          <p className="rounded-xl bg-danger/10 px-4 py-3 text-sm font-bold text-danger-text ring-1 ring-danger/20">
-            Desactivo. Motivo: {empleado.estadoMotivo ?? "—"}. Historial conservado.
-          </p>
+          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-danger/10 px-4 py-3 text-sm font-bold text-danger-text ring-1 ring-danger/20">
+            <span>Inactivo. Motivo: {empleado.estadoMotivo ?? "—"}. Historial conservado.</span>
+            <AccionActivarEmpleado empleadoId={empleado.id} />
+          </div>
         )}
       </div>
 
