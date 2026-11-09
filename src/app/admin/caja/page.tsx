@@ -1,4 +1,4 @@
-import { ArrowLeft, Coffee, HandCoins, NotebookPen, Receipt } from "lucide-react";
+import { ArrowLeft, Banknote, CheckCircle2, Coffee, HandCoins, NotebookPen, Receipt, WalletCards } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -11,6 +11,7 @@ import { ordenMesasPorNombre } from "@/lib/mesas";
 import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
 import { PanelCobroDomicilio } from "@/app/admin/domicilios/panel-cobro-domicilio";
 import { FacturaDomicilio } from "@/components/factura-domicilio";
+import "./caja.css";
 
 export const metadata = { title: "Caja y recibos" };
 
@@ -161,6 +162,7 @@ export default async function PaginaCaja(
   // Dinero real de la caja de hoy: pagos (recibos) + abonos de deudas.
   // Las deudas NO suman: son promesa, no efectivo.
   const totalCajaHoy = totalHoy + abonosHoyTotal;
+  const pendienteMesas = paraCobrar.reduce((suma, mesa) => suma + mesa.total, 0);
 
   // ============ La comanda del domicilio, lista para cobrar en la caja ============
   let seccionDomicilio: ReactNode = null;
@@ -287,11 +289,16 @@ export default async function PaginaCaja(
   }
 
   return (
-    <>
+    <div className="caja-module">
       <EncabezadoPagina
-        titulo="Caja"
-        subtitulo="Cobra las mesas y los domicilios, genera el recibo y libéralas en un paso"
+        titulo="Caja y cobros"
+        subtitulo="Un solo lugar para cobrar, entregar recibos y controlar el dinero real del día"
       />
+
+      <section className="caja-command-bar" aria-label="Estado de la caja">
+        <div className="caja-command-copy"><span className="caja-eyebrow">CENTRO DE COBRO</span><h2>Turno de hoy</h2><p>Revisa primero lo pendiente y luego registra cada pago con su método.</p></div>
+        <div className="caja-command-status"><span className="caja-live-dot" /> Caja abierta <small>Actualizada en tiempo real</small></div>
+      </section>
 
       {avisoDomicilio ? (
         <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl bg-warning/10 px-4 py-3 text-sm font-bold text-warning-text ring-1 ring-warning/25">
@@ -308,53 +315,18 @@ export default async function PaginaCaja(
       {seccionDomicilio}
 
       {/* Resumen del día */}
-      <div className="mb-6 rounded-[2rem] bg-glass-app p-6 text-texto-app ring-1 ring-borde-app shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-display text-3xl text-amber-brand">
-              {formatCOP(totalCajaHoy)}
-            </p>
-            <p className="mt-1 text-sm text-texto-muted/80">
-              {cantidadPagos === 0 && cantidadAbonos === 0
-                ? "Aún no hay dinero en caja hoy"
-                : `Entró a la caja hoy · ${cantidadPagos} ${
-                    cantidadPagos === 1 ? "pago" : "pagos"
-                  }`}
-            </p>
-            {cantidadAbonos > 0 ? (
-              <p
-                aria-live="polite"
-                className="mt-1 flex items-center gap-1.5 text-sm font-bold text-violeta-text"
-                title="El pago de deudas SÍ entra a caja el día que se recibe"
-              >
-                <HandCoins className="h-4 w-4" />
-                Abonos de fiados hoy: {formatCOP(abonosHoyTotal)} (
-                {cantidadAbonos} {cantidadAbonos === 1 ? "abono" : "abonos"})
-              </p>
-            ) : null}
-          </div>
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-panel-app text-amber-brand ring-1 ring-borde-app">
-            <Receipt className="h-7 w-7" />
-          </span>
-        </div>
-      </div>
+      <section className="caja-overview">
+        <div className="caja-overview-main"><span className="caja-eyebrow">DINERO RECIBIDO HOY</span><strong>{formatCOP(totalCajaHoy)}</strong><p>{cantidadPagos + cantidadAbonos === 0 ? "Aún no hay movimientos en caja" : `${cantidadPagos + cantidadAbonos} movimientos registrados`}</p><div className="caja-overview-breakdown"><span><Banknote size={15} /> {formatCOP(totalHoy)} en ventas</span><span><HandCoins size={15} /> {formatCOP(abonosHoyTotal)} en abonos</span></div></div>
+        <div className="caja-kpis"><div><WalletCards size={18} /><span><small>Por cobrar</small><b>{formatCOP(pendienteMesas)}</b></span></div><div><Receipt size={18} /><span><small>Pagos emitidos</small><b>{cantidadPagos}</b></span></div><div><HandCoins size={18} /><span><small>Abonos de fiados</small><b>{formatCOP(abonosHoyTotal)}</b></span></div></div>
+      </section>
 
       {/* Mesas por cobrar */}
-      <h2 className="mb-3 font-display text-xl text-texto-app">
-        Mesas por cobrar
-      </h2>
+      <div className="caja-section-heading"><div><span className="caja-eyebrow">COBROS PENDIENTES</span><h2>Mesas por cobrar</h2></div><span className="caja-section-count">{paraCobrar.length} {paraCobrar.length === 1 ? "mesa" : "mesas"}</span></div>
       {paraCobrar.length === 0 ? (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-10 text-center">
-          <span className="flex h-20 w-20 items-center justify-center rounded-2xl bg-panel-app text-texto-muted/45">
-            <Coffee className="h-10 w-10" />
-          </span>
-          <p className="mt-5 font-display text-2xl text-texto-app">
-            Caja en calma
-          </p>
-          <p className="mt-2 max-w-md text-texto-muted/70">
-            Todas las mesas están libres. Cuando el mesero tome un pedido,
-            la mesa aparecerá aquí con su cuenta lista para cobrar.
-          </p>
+        <div className="caja-empty-state">
+          <div className="caja-empty-icon"><Coffee size={28} /></div>
+          <div><h3>No hay cobros pendientes</h3><p>Cuando una mesa pase a “Por pagar”, aparecerá aquí con el total, los productos y los métodos de pago.</p></div>
+          <div className="caja-empty-check"><CheckCircle2 size={17} /> Caja al día</div>
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -367,9 +339,7 @@ export default async function PaginaCaja(
       {/* Recibos emitidos hoy */}
       {pagosHoy.length > 0 ? (
         <>
-          <h2 className="mb-3 mt-8 font-display text-xl text-texto-app">
-            Recibos de hoy
-          </h2>
+          <div className="caja-section-heading caja-section-heading-spaced"><div><span className="caja-eyebrow">HISTORIAL DE INGRESOS</span><h2>Recibos de hoy</h2></div><span className="caja-section-count">{pagosHoy.length} recientes</span></div>
           <div className="space-y-2">
             {pagosHoy.map((pago) => (
               <Link
@@ -410,10 +380,7 @@ export default async function PaginaCaja(
 
       {/* Fiados del día: deudas que nacieron hoy y siguen por recaudar.
           NO suman a la caja (no son dinero): aquí solo se informan. */}
-      <h2 className="mb-3 mt-8 flex items-center gap-2 font-display text-xl text-texto-app">
-        <NotebookPen className="h-5 w-5 text-violeta-text" /> Fiados del día por
-        recaudar
-      </h2>
+      <div className="caja-section-heading caja-section-heading-spaced"><div><span className="caja-eyebrow caja-eyebrow-violeta">SEGUIMIENTO DE DEUDAS</span><h2><NotebookPen className="mr-2 inline h-5 w-5 text-violeta-text" />Fiados del día por recaudar</h2></div><span className="caja-section-count caja-section-count-violeta">{fiadosDelDia.length} pendientes</span></div>
       {fiadosDelDia.length === 0 ? (
         <p className="rounded-[2rem] border-2 border-dashed border-borde-app bg-panel-app p-6 text-center text-sm text-texto-muted/60">
           Hoy nadie fió: los fiados de mesa, domicilios y apartados aparecen aquí
@@ -516,6 +483,6 @@ export default async function PaginaCaja(
           </div>
         </>
       ) : null}
-    </>
+    </div>
   );
 }

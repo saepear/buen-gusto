@@ -152,7 +152,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   ).length;
 
   return (
-    <article className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
+    <article className="caja-charge-card rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-display text-2xl text-texto-app">
