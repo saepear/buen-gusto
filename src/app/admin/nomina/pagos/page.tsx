@@ -1,113 +1,13 @@
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { requerirRol } from "@/lib/session";
-import { formatCOP } from "@/lib/format";
-import { EncabezadoPagina } from "@/components/encabezado";
-import { NavegacionNomina } from "../navegacion";
+import { seleccionPago, serializarPago } from "./datos-pago";
+import { PanelPagos } from "./panel-pagos";
 export const metadata = { title: "Pagos · Nómina · El Buen Gusto" };
 export default async function PaginaPagos() {
   await requerirRol("ADMIN");
-  const [pendientes, pagos, borradores] = await Promise.all([
-    db.liquidacionNomina.findMany({
-      where: { estado: "APROBADA", estadoPago: { not: "PAGADO" } },
-      include: { empleado: true, periodo: true },
-      orderBy: { periodo: { fechaDesde: "desc" } },
-    }),
-    db.pagoNomina.findMany({
-      include: { liquidacion: { include: { empleado: true } } },
-      orderBy: { fecha: "desc" },
-      take: 100,
-    }),
-    db.liquidacionNomina.findMany({ where: { estado: "BORRADOR" }, include: { empleado: true, periodo: true }, orderBy: { createdAt: "desc" } }),
-  ]);
-  return (
-    <>
-      <EncabezadoPagina
-        titulo="Pagos de nómina"
-        subtitulo="Saldos aprobados y pagos efectivamente realizados"
-      />
-      <NavegacionNomina actual="/admin/nomina/pagos" />
-      <p className="mb-4 text-sm text-texto-muted">Prepara el pago desde <Link className="underline" href="/admin/nomina">Resumen</Link>, agrega extras o deducciones, confirma el total y registra el dinero entregado.</p>
-      <h2 className="mb-3 text-xl font-bold">En preparación ({borradores.length})</h2>
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">{borradores.map(p => <Link key={p.id} href={"/admin/nomina/pagos/" + p.id} className="rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app"><strong>{p.empleado.nombre} {p.empleado.apellidos}</strong><p className="my-2 text-xs text-texto-muted">{p.periodo.fechaDesde} — {p.periodo.fechaHasta}</p><span className="font-bold text-amber-brand">{formatCOP(p.netoAPagar)} · Revisar y ajustar →</span></Link>)}</div>
-      <div className="mb-6 rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app">
-        <p className="text-xs text-texto-muted">
-          Saldo aprobado pendiente de pago
-        </p>
-        <strong className="font-display text-3xl text-amber-brand">
-          {formatCOP(
-            pendientes.reduce(
-              (s, l) => s + Math.max(l.netoAPagar - l.pagado, 0),
-              0,
-            ),
-          )}
-        </strong>
-      </div>
-      <h2 className="mb-3 font-display text-xl">Por pagar</h2>
-      <div className="mb-8 space-y-2">
-        {pendientes.map((l) => (
-          <Link
-            key={l.id}
-            href={`/admin/nomina/pagos/${l.id}`}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
-          >
-            <div>
-              <strong>
-                {l.empleado.nombre} {l.empleado.apellidos}
-              </strong>
-              <p className="text-xs text-texto-muted">
-                {l.periodo.fechaDesde} → {l.periodo.fechaHasta} ·{" "}
-                {l.pagado > 0 ? "Pago parcial" : "Pendiente"}
-              </p>
-            </div>
-            <span className="font-bold text-amber-brand">
-              {formatCOP(Math.max(l.netoAPagar - l.pagado, 0))} · Registrar pago
-              →
-            </span>
-          </Link>
-        ))}
-        {!pendientes.length && (
-          <p className="text-sm text-texto-muted">
-            No hay pagos confirmados pendientes de entrega.
-          </p>
-        )}
-      </div>
-      <h2 className="mb-3 font-display text-xl">
-        Últimos pagos ({pagos.length})
-      </h2>
-      <div className="space-y-2">
-        {pagos.map((p) => (
-          <Link
-            key={p.id}
-            href={`/admin/nomina/pagos/${p.liquidacionId}`}
-            className="flex flex-wrap justify-between gap-3 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"
-          >
-            <div>
-              <strong>
-                {p.liquidacion.empleado.nombre}{" "}
-                {p.liquidacion.empleado.apellidos}
-              </strong>
-              <p className="text-xs text-texto-muted">
-                {p.fecha.toLocaleString("es-CO", {
-                  timeZone: "America/Bogota",
-                })}{" "}
-                · {p.metodo}
-                {p.referencia ? ` · ${p.referencia}` : ""}
-              </p>
-            </div>
-            <strong className="text-success-text">{formatCOP(p.monto)}</strong>
-          </Link>
-        ))}
-        {!pagos.length && (
-          <p className="text-sm text-texto-muted">
-            Todavía no se han registrado pagos.
-          </p>
-        )}
-      </div>
-      <p className="mt-6 text-xs text-texto-muted">
-        Solo los pagos en efectivo generan egreso de caja. Un vale o una
-        preparación de pago no equivalen a un pago.
-      </p>
-    </>
-  );
+  const pagos = await db.liquidacionNomina.findMany({
+    select: seleccionPago,
+    orderBy: [{ periodo: { fechaDesde: "desc" } }, { id: "desc" }],
+  });
+  return <PanelPagos pagos={pagos.map(serializarPago)} />;
 }

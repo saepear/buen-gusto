@@ -29,7 +29,8 @@ import { crearPeriodo } from "./periodos/actions";
 import { BotonLiquidarEmpleado } from "./periodos/formularios";
 import { FormularioNuevoEmpleado } from "./empleados/formularios";
 import { FormularioRegistroVale } from "./vales/formularios";
-import { FormularioPagoNomina } from "./liquidaciones/formularios-pago";
+import { ContenidoPago } from "./pagos/contenido-pago";
+import type { DatosPago } from "./pagos/datos-pago";
 import "./panel-nomina.css";
 const s = {
   createCycle: "nomina-createCycle",
@@ -122,16 +123,7 @@ type Empleado = {
   netoEstimado: number | null;
   saldoEstimado: number | null;
   requiereRecalculo: boolean;
-  liquidacion: null | {
-    id: number;
-    estado: string;
-    estadoPago: string;
-    salarioBase: number;
-    totalDevengado: number;
-    totalDeducciones: number;
-    netoAPagar: number;
-    pagado: number;
-  };
+  liquidacion: DatosPago | null;
 };
 type Producto = { id: number; nombre: string; precio: number };
 type Datos = {
@@ -689,13 +681,14 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                         <span>Neto estimado</span>
                         <strong>{formatCOP(empleado.netoEstimado!)}</strong>
                       </div>
-                      <Link
+                      <button
+                        type="button"
                         className={s.textLink}
-                        href={`/admin/nomina/pagos/${empleado.liquidacion.id}`}
+                        onClick={(e) => abrirModal("pago", e)}
                       >
                         Consultar conceptos y comprobante{" "}
                         <ArrowUpRight size={15} />
-                      </Link>
+                      </button>
                     </>
                   ) : (
                     <p className={s.empty}>
@@ -814,7 +807,7 @@ export function PanelNomina({ datos }: { datos: Datos }) {
         <Link href="/admin/nomina/pagos" className={s.secondary}>Ver pagos <ArrowUpRight size={14} /></Link>
       </section>
       {modal && modalOrigen && (
-        <ModalFlip origen={modalOrigen} onClose={cerrarModal} ariaLabel="Acción de nómina" animacion="suave" panelClassName={s.modalShell}>
+        <ModalFlip origen={modalOrigen} onClose={cerrarModal} ariaLabel="Acción de nómina" animacion="suave" panelClassName={modal === "pago" ? "nomina-operationModal nomina-paymentModal" : s.modalShell}>
           {(cerrar) => (
             <div className={s.modalShell}>
               <div className={s.modalHeader} data-anim>
@@ -826,14 +819,8 @@ export function PanelNomina({ datos }: { datos: Datos }) {
               </div>
               <div data-anim>
                 {modal === "empleado" && <FormularioNuevoEmpleado dentroModal />}
-                {modal === "vale" && empleado && <FormularioRegistroVale empleados={datos.empleados.filter((e) => e.estado === "ACTIVO").map((e) => ({ id: e.id, nombre: `${e.nombre} ${e.apellidos}` }))} productos={datos.productos} ciclos={ciclosVale} hoy={datos.hoy} empleadoInicial={empleado.id} cicloInicial={datos.periodo?.id} abiertoInicial />}
-                {modal === "pago" && empleado?.liquidacion && <>
-                  <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-3 text-sm ring-1 ring-borde-app">
-                    <span>Pago preparado<strong className="mt-1 block text-lg">{formatCOP(empleado.liquidacion.netoAPagar)}</strong></span>
-                    <span>Saldo pendiente<strong className="mt-1 block text-lg text-amber-brand">{formatCOP(Math.max(empleado.liquidacion.netoAPagar - empleado.liquidacion.pagado, 0))}</strong></span>
-                  </div>
-                  <FormularioPagoNomina liquidacionId={empleado.liquidacion.id} netoAPagar={empleado.liquidacion.netoAPagar} pagado={empleado.liquidacion.pagado} metodoHabitual={empleado.metodoPago} abiertoInicial />
-                </>}
+                {modal === "vale" && empleado && <FormularioRegistroVale empleados={datos.empleados.filter((e) => e.estado === "ACTIVO").map((e) => ({ id: e.id, nombre: `${e.nombre} ${e.apellidos}` }))} productos={datos.productos} ciclos={ciclosVale} hoy={datos.hoy} empleadoInicial={empleado.id} onSuccess={cerrar} />}
+                {modal === "pago" && empleado?.liquidacion && <ContenidoPago pago={empleado.liquidacion} />}
                 {modal === "ficha" && empleado && <div className="grid gap-2 text-sm">
                   <div className="grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"><span>Documento<strong className="mt-1 block">{empleado.documentoTipo} {empleado.documentoNumero}</strong></span><span>Cargo<strong className="mt-1 block">{empleado.cargo}</strong></span><span>Salario mensual<strong className="mt-1 block">{formatCOP(empleado.salarioMensual)}</strong></span><span>Pago por corte<strong className="mt-1 block text-amber-brand">{formatCOP(salarioDelCiclo(empleado.salarioMensual, datos.rango.desde))}</strong></span></div>
                   <p className={s.footnote}>Los vales, consumos y pagos se gestionan directamente desde la ficha seleccionada.</p>

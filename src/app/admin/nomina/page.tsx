@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requerirRol } from "@/lib/session";
 import { ciclosDeMes } from "@/lib/nomina/helpers";
 import { PanelNomina } from "./panel-nomina";
+import { seleccionPago, serializarPago } from "./pagos/datos-pago";
 import { fechaColombia, resumenEmpleado } from "@/lib/nomina/resumen";
 
 export const metadata = { title: "Nómina · El Buen Gusto" };
@@ -84,17 +85,7 @@ export default async function PaginaNomina({
     periodo
       ? db.liquidacionNomina.findMany({
           where: { periodoId: periodo.id },
-          select: {
-            id: true,
-            empleadoId: true,
-            estado: true,
-            estadoPago: true,
-            salarioBase: true,
-            totalDevengado: true,
-            totalDeducciones: true,
-            netoAPagar: true,
-            pagado: true,
-          },
+          select: seleccionPago,
         })
       : Promise.resolve([]),
     db.valeNomina.findMany({
@@ -152,7 +143,7 @@ export default async function PaginaNomina({
         empleados: empleados.map((e) => ({
           ...e,
           fechaIngreso: e.fechaIngreso.toISOString(),
-          liquidacion: liquidaciones.find((l) => l.empleadoId === e.id) ?? null,
+          liquidacion: (() => { const pago = liquidaciones.find((l) => l.empleadoId === e.id); return pago ? serializarPago(pago) : null; })(),
           vales: vales.filter((v) => v.empleadoId === e.id),
           ...resumenEmpleado(
             liquidaciones.find((l) => l.empleadoId === e.id) ?? null,

@@ -734,7 +734,7 @@
   padding: 0;
   box-shadow: none;
 }
-.nomina-modalShell details > summary {
+.nomina-modalShell details[open]:has(input[name="liquidacionId"]) > summary {
   display: none;
 }
 .nomina-modalShell form {

@@ -1,149 +1,42 @@
 "use client";
-
-// ═════════ Formulario de registro de VALE (client) ═════════
-// Al elegir un producto del catálogo se sugiere su precio (editable: el
-// precio del vale queda CONGELADO al entregar, no sigue al catálogo).
 import { useActionState, useState } from "react";
-import { ShoppingBasket } from "lucide-react";
+import { formatCOP } from "@/lib/format";
 import { registrarVale, type EstadoAccionVale } from "./actions";
+import "../operaciones.css";
 
 const INICIAL: EstadoAccionVale = { error: null, ok: null };
-
-const CAMPO =
-  "w-full rounded-xl border-0 bg-fondo-app px-3 py-2.5 text-sm text-texto-app ring-1 ring-borde-app focus:ring-amber-brand/60";
-const ETIQUETA = "text-xs font-bold tracking-wide text-texto-muted/60";
-
-type OpcionProducto = { id: number; nombre: string; precio: number };
-type OpcionEmpleado = { id: number; nombre: string };
-type OpcionCiclo = { id: number; etiqueta: string };
-
-export function FormularioRegistroVale({
-  empleados,
-  productos,
-  ciclos,
-  hoy,
-  empleadoInicial,
-  cicloInicial,
-  abiertoInicial = false,
-}: {
-  empleados: OpcionEmpleado[];
-  productos: OpcionProducto[];
-  ciclos: OpcionCiclo[];
+export type PropsRegistroVale = {
+  empleados: { id: number; nombre: string }[];
+  productos: { id: number; nombre: string; precio: number }[];
+  ciclos: { id: number; etiqueta: string }[];
   hoy: string;
   empleadoInicial?: number;
   cicloInicial?: number;
   abiertoInicial?: boolean;
-}) {
-  const [estado, accion, guardando] = useActionState(registrarVale, INICIAL);
-  const [productoId, setProductoId] = useState("");
+  onSuccess?: () => void;
+};
+export function FormularioRegistroVale({ empleados, productos, ciclos, hoy, empleadoInicial, onSuccess }: PropsRegistroVale) {
+  const [tipo, setTipo] = useState("DINERO");
+  const [producto, setProducto] = useState("");
   const [precio, setPrecio] = useState("");
-
-  function alElegirProducto(valor: string) {
-    setProductoId(valor);
-    const p = productos.find((x) => String(x.id) === valor);
-    setPrecio(p && p.precio > 0 ? String(p.precio) : "");
-  }
-
-  return (
-    <details open={abiertoInicial || !!empleadoInicial} className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app w-full">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95">
-        <ShoppingBasket className="h-5 w-5" /> Registrar vale
-      </summary>
-      <form action={accion} className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        {estado.error ? (
-          <p aria-live="polite" className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-bold text-danger-text ring-1 ring-danger/20 sm:col-span-2 lg:col-span-3">
-            {estado.error}
-          </p>
-        ) : null}
-        {estado.ok ? (
-          <p aria-live="polite" className="rounded-xl bg-success/10 px-3 py-2 text-xs font-bold text-success-text ring-1 ring-success/20 sm:col-span-2 lg:col-span-3">
-            {estado.ok}
-          </p>
-        ) : null}
-
-        <label className={ETIQUETA}>
-          EMPLEADO *
-          <select name="empleadoId" required className={CAMPO} defaultValue={empleadoInicial ?? ""}>
-            <option value="" disabled>
-              Elige el empleado…
-            </option>
-            {empleados.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={ETIQUETA}>
-          PRODUCTO DEL CATÁLOGO
-          <select
-            name="productoId"
-            className={CAMPO}
-            value={productoId}
-            onChange={(e) => alElegirProducto(e.target.value)}
-          >
-            <option value="">Libre (nombre a mano)…</option>
-            {productos.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={ETIQUETA}>
-          NOMBRE (si es libre)
-          <input name="productoNombre" maxLength={120} className={CAMPO} placeholder="Ej: Coca-Cola 1.5 L" />
-        </label>
-        <label className={ETIQUETA}>
-          CANTIDAD *
-          <input name="cantidad" required inputMode="numeric" defaultValue="1" className={CAMPO} />
-        </label>
-        <label className={ETIQUETA}>
-          PRECIO AL ENTREGAR (COP) *
-          <input
-            name="precioUnitario"
-            required
-            inputMode="numeric"
-            value={precio}
-            onChange={(e) => setPrecio(e.target.value.replace(/[^0-9]/g, ""))}
-            className={CAMPO}
-            placeholder="$0"
-          />
-          <span className="mt-0.5 block font-normal text-texto-muted/55">
-            Se congela en el vale (no sigue al catálogo)
-          </span>
-        </label>
-        <label className={ETIQUETA}>
-          FECHA DE ENTREGA *
-          <input type="date" name="fecha" required defaultValue={hoy} className={CAMPO} />
-        </label>
-        <label className={ETIQUETA}>
-          CICLO AL QUE SE ASIGNA
-          <select name="cicloId" className={CAMPO} defaultValue={cicloInicial ?? ""}>
-            <option value="">Sin asignar (lo liquida el ciclo de su fecha)…</option>
-            {ciclos.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.etiqueta}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={`${ETIQUETA} sm:col-span-2`}>
-          OBSERVACIONES
-          <input name="observaciones" maxLength={200} className={CAMPO} />
-        </label>
-        <p className="text-[11px] text-texto-muted/60 sm:col-span-2 lg:col-span-3">
-          El vale nace PENDIENTE. Cuando lo autorices, se descontará al liquidar
-          el ciclo (conservando producto, cantidad, precio y autorización).
-        </p>
-        <button
-          type="submit"
-          disabled={guardando}
-          className="rounded-xl bg-amber-brand px-4 py-3 font-display text-sm text-brown-950 transition hover:bg-orange-brand disabled:opacity-50"
-        >
-          {guardando ? "Guardando…" : "Registrar vale"}
-        </button>
-      </form>
-    </details>
-  );
+  const [cantidad, setCantidad] = useState("1");
+  const [estado, accion, guardando] = useActionState(async (prev: EstadoAccionVale, form: FormData) => {
+    const resultado = await registrarVale(prev, form);
+    if (resultado.ok) onSuccess?.();
+    return resultado;
+  }, INICIAL);
+  return <form action={accion} className="nomina-shortForm">
+    {estado.error && <p role="alert" className="text-sm text-danger-text">{estado.error}</p>}
+    {estado.ok && <p role="status" className="text-sm text-success-text">{estado.ok}</p>}
+    <label>Empleado<select name="empleadoId" required defaultValue={empleadoInicial ?? ""}><option value="" disabled>Elige a quién se lo entregas</option>{empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></label>
+    <div className="nomina-operationFilters" aria-label="Tipo de vale">{[["DINERO","Dinero / préstamo"],["PRODUCTO","Producto del catálogo"]].map(([v,t]) => <button type="button" key={v} aria-pressed={tipo === v} onClick={() => { setTipo(v); setPrecio(""); setProducto(""); setCantidad("1"); }}>{t}</button>)}</div>
+    {tipo === "DINERO" ? <><input type="hidden" name="productoNombre" value="Préstamo en dinero" /><input type="hidden" name="cantidad" value="1" /><label>¿Cuánto le entregas? (COP)<input name="precioUnitario" inputMode="numeric" required value={precio} onChange={e => setPrecio(e.target.value.replace(/[^0-9]/g,""))} placeholder="Ej. 20000" /></label></> : <>
+      <label>Producto<select name="productoId" required value={producto} onChange={e => { setProducto(e.target.value); const p = productos.find(p => String(p.id) === e.target.value); setPrecio(p?.precio ? String(p.precio) : ""); }}><option value="" disabled>Seleccionar producto…</option>{productos.map(p => <option value={p.id} key={p.id}>{p.nombre} · {formatCOP(p.precio)}</option>)}</select></label>
+      <div className="nomina-shortFormRow"><label>Cantidad<input name="cantidad" type="number" min="1" max="99" required value={cantidad} onChange={e => setCantidad(e.target.value)} /></label><label>Precio por unidad (COP)<input name="precioUnitario" inputMode="numeric" required value={precio} onChange={e => setPrecio(e.target.value.replace(/[^0-9]/g,""))} placeholder="Precio del producto" /></label></div>
+    </>}
+    <details><summary>Fecha, nota y ciclo (opcional)</summary><div><label>Fecha de entrega<input name="fecha" type="date" required defaultValue={hoy} /></label><label>Nota<input name="observaciones" maxLength={200} placeholder="Detalle del préstamo o consumo" /></label><label>Asignar a un ciclo<select name="cicloId" defaultValue=""><option value="">Automático según fecha de entrega</option>{ciclos.map(c => <option value={c.id} key={c.id}>{c.etiqueta}</option>)}</select></label></div></details>
+    <div className="nomina-shortFormTotal"><span>Total del vale</span><strong>{formatCOP(Number(precio || 0) * Number(cantidad || 0))}</strong></div>
+    <p className="text-xs text-texto-muted">Queda registrado a cuenta del sueldo. Al autorizar el descuento se incluirá al preparar el pago correspondiente.</p>
+    <button type="submit" className="nomina-operationPrimary" disabled={guardando || !empleados.length}>{guardando ? "Guardando…" : "Registrar vale"}</button>
+  </form>;
 }
