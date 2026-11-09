@@ -63,9 +63,11 @@ export type OpcionCliente = { id: number; etiqueta: string };
 export function FormularioNuevaCuenta({
   clientes = [],
   clienteFijo = null,
+  sinTitulo = false,
 }: {
   clientes?: OpcionCliente[];
   clienteFijo?: OpcionCliente | null;
+  sinTitulo?: boolean;
 }) {
   const [estado, accion, pendiente] = useActionState(crearCuenta, INICIAL);
 
@@ -216,9 +218,11 @@ export function FormularioNuevaCuenta({
       action={accion}
       className="grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2"
     >
-      <h3 className="flex items-center gap-2 font-display text-lg text-texto-app sm:col-span-2">
-        <CircleDollarSign className="h-5 w-5 text-danger-text" /> Registrar fiado
-      </h3>
+      {sinTitulo ? null : (
+        <h3 className="flex items-center gap-2 font-display text-lg text-texto-app sm:col-span-2">
+          <CircleDollarSign className="h-5 w-5 text-danger-text" /> Registrar fiado
+        </h3>
+      )}
 
       {clienteFijo ? (
         <div className={ETIQUETA + " sm:col-span-2"}>

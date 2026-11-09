@@ -1,4 +1,4 @@
-import { CircleDollarSign, History, Plus, Search, UserRound, X } from "lucide-react";
+import { CircleDollarSign, History, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -7,8 +7,9 @@ import { claveDia, formatCOP, formatHora } from "@/lib/format";
 import { nombreCanonico, telefonoComparacion } from "@/lib/clientes";
 import { ESTADO_CUENTA, ESTADO_CUENTA_LABEL, type EstadoCuenta } from "@/lib/roles";
 import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
-import { FormularioAbono, FormularioAnularCuenta, FormularioCondonarCuenta, FormularioNuevaCuenta } from "./formularios";
+import { FormularioAbono, FormularioAnularCuenta, FormularioCondonarCuenta } from "./formularios";
 import { TableroCuentas } from "./tablero";
+import { NuevoFiadoModal } from "./nuevo-fiado-modal";
 import "./cuentas.css";
 
 export const metadata = { title: "Cuentas por cobrar · El Buen Gusto" };
@@ -247,14 +248,6 @@ export default async function PaginaCuentas(
   if (mostrarNuevo) qs.set("nuevo", nuevo as string);
   const baseQs = qs.toString() ? `${qs.toString()}&` : "";
 
-  // «Registrar fiado»/«Cerrar registro» mantiene el contexto (ficha + filtros)
-  const enlaceNuevo = (conNuevo: boolean) => {
-    const p = new URLSearchParams(qs);
-    if (conNuevo) p.set("nuevo", "1");
-    else p.delete("nuevo");
-    return p.toString() ? `/admin/cuentas?${p.toString()}` : "/admin/cuentas";
-  };
-  const hrefToggle = enlaceNuevo(!mostrarNuevo);
   // Quitar el filtro de cliente regresa a la vista general (conserva el resto
   // de filtros y cierra el registro, que ya no tendría una ficha fija)
   const sinFicha = new URLSearchParams(qs);
@@ -272,13 +265,19 @@ export default async function PaginaCuentas(
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href={hrefToggle}
-          className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
-        >
-          <Plus className="h-5 w-5" />
-          {mostrarNuevo ? "Cerrar registro" : "Registrar fiado"}
-        </Link>
+        <NuevoFiadoModal
+          autoOpen={mostrarNuevo}
+          clienteFijo={
+            fichaFija
+              ? {
+                  id: fichaFija.id,
+                  etiqueta: fichaFija.telefono
+                    ? `${fichaFija.nombre} · ${fichaFija.telefono}`
+                    : fichaFija.nombre,
+                }
+              : null
+          }
+        />
         <span
           data-testid="resumen-total"
           className="flex items-center gap-2 rounded-2xl bg-danger/10 px-4 py-3 text-sm ring-1 ring-danger/25"
@@ -342,23 +341,6 @@ export default async function PaginaCuentas(
               Ver todas las cuentas
             </Link>
           </span>
-        </div>
-      ) : null}
-
-      {mostrarNuevo ? (
-        <div className="mb-6">
-          <FormularioNuevaCuenta
-            clienteFijo={
-              fichaFija
-                ? {
-                    id: fichaFija.id,
-                    etiqueta: fichaFija.telefono
-                      ? `${fichaFija.nombre} · ${fichaFija.telefono}`
-                      : fichaFija.nombre,
-                  }
-                : null
-            }
-          />
         </div>
       ) : null}
 

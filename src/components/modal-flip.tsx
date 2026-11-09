@@ -30,6 +30,7 @@ export function ModalFlip({
   onClose,
   ariaLabel,
   rapida = false,
+  panelClassName = "",
   children,
 }: {
   origen: OrigenModal;
@@ -37,6 +38,8 @@ export function ModalFlip({
   ariaLabel: string;
   /** Ajusta la cadencia al modal ágil del Menú del día. */
   rapida?: boolean;
+  /** Clase adicional para fichas que necesitan un ancho distinto al estándar. */
+  panelClassName?: string;
   /** Contenido del panel; recibe la función de cierre para el botón ✕ */
   children: (cerrar: () => void) => ReactNode;
 }) {
@@ -168,7 +171,7 @@ export function ModalFlip({
       <div
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-fondo-app shadow-pop ring-1 ring-borde-app"
+        className={`flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-fondo-app shadow-pop ring-1 ring-borde-app ${panelClassName}`}
       >
         {/* The render prop receives the close handler so modal controls can share the same GSAP timeline. */}
         {/* eslint-disable-next-line react-hooks/refs */}
