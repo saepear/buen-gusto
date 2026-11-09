@@ -12,6 +12,8 @@ import {
 } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { AccionAnularGasto, FormularioNuevoGasto } from "./formularios";
+import { TableroGastos } from "./tablero";
+import "./gastos.css";
 
 export const metadata = { title: "Gastos · El Buen Gusto" };
 
@@ -224,7 +226,28 @@ export default async function PaginaGastos(
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <>
+        <TableroGastos
+          gastos={gastos.map((g) => ({
+            id: g.id,
+            descripcion: g.descripcion,
+            categoria: g.categoria,
+            categoriaLabel: CATEGORIA_GASTO_LABEL[g.categoria as keyof typeof CATEGORIA_GASTO] ?? g.categoria,
+            metodo: g.metodo,
+            metodoLabel: ETIQUETA_METODO[g.metodo] ?? g.metodo,
+            origen: g.origen,
+            origenLabel: ORIGEN_GASTO_LABEL[g.origen as keyof typeof ORIGEN_GASTO] ?? g.origen,
+            valor: g.valor,
+            observaciones: g.observaciones,
+            anulado: g.anulado,
+            anuladoAt: g.anuladoAt?.toISOString() ?? null,
+            anuladoMotivo: g.anuladoMotivo,
+            anuladoPor: g.anuladoPor?.nombre ?? null,
+            createdAt: g.createdAt.toISOString(),
+            registradoPor: g.registradoPor.nombre,
+          }))}
+        />
+        <div className="hidden space-y-2" aria-hidden="true">
           {gastos.map((g) => (
             <article
               key={g.id}
@@ -280,6 +303,7 @@ export default async function PaginaGastos(
             </article>
           ))}
         </div>
+        </>
       )}
     </>
   );

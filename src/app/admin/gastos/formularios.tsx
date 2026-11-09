@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, MinusCircle, Plus } from "lucide-react";
-import { useActionState, useState } from "react";
+import { MinusCircle, Plus, ReceiptText, X } from "lucide-react";
+import { useActionState, useRef, useState } from "react";
+import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import { anularGasto, crearGasto, type EstadoAccionGasto } from "./actions";
 
 const INICIAL: EstadoAccionGasto = { error: null, ok: null };
@@ -41,35 +42,49 @@ export type OpcionesGasto = {
 /** Post para registrar un gasto (se abre con un toque) */
 export function FormularioNuevoGasto({ opciones }: { opciones: OpcionesGasto }) {
   const [estado, accion, pendiente] = useActionState(crearGasto, INICIAL);
-  const [abierto, setAbierto] = useState(false);
+  const [origenModal, setOrigenModal] = useState<OrigenModal | null>(null);
   const [origen, setOrigen] = useState("CAJA");
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  function abrir() {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (rect) setOrigenModal({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+  }
+
+  function cerrar() {
+    setOrigenModal(null);
+    trigger.current?.focus();
+  }
 
   return (
     <section aria-label="Registrar gasto">
-      {estado.ok && !abierto ? <Mensaje estado={estado} /> : null}
       <button
+        ref={trigger}
         type="button"
-        onClick={() => setAbierto(!abierto)}
-        aria-expanded={abierto}
-        className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
+        onClick={abrir}
+        className="gastos-new-trigger"
       >
         <Plus className="h-5 w-5" /> Registrar gasto
-        <ChevronDown
-          aria-hidden
-          className={
-            "h-4 w-4 transition-transform " + (abierto ? "rotate-180" : "")
-          }
-        />
       </button>
 
-      {abierto ? (
-        <form
-          action={accion}
-          className="mt-3 grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2"
-        >
-          <h3 className="font-display text-lg text-texto-app sm:col-span-2">
-            Nuevo gasto
-          </h3>
+      {origenModal ? (
+        <ModalFlip rapida origen={origenModal} onClose={cerrar} ariaLabel="Registrar nuevo gasto" panelClassName="gastos-new-panel">
+          {(cerrarModal) => (
+            <div className="gastos-new-modal">
+              <header className="gastos-new-header" data-anim>
+                <div className="gastos-new-title">
+                  <span className="gastos-new-icon"><ReceiptText size={21} /></span>
+                  <div>
+                    <span className="gastos-eyebrow">CONTROL DE CAJA</span>
+                    <h2>Registrar gasto</h2>
+                    <p>Registra la compra y define si sale de caja o de dinero externo.</p>
+                  </div>
+                </div>
+                <button type="button" onClick={cerrarModal} className="gastos-modal-close" aria-label="Cerrar registro">
+                  <X size={19} />
+                </button>
+              </header>
+              <form action={accion} className="gastos-new-form" data-anim>
           <label className={ETIQUETA}>
             QUÉ SE COMPRÓ *
             <input
@@ -166,7 +181,10 @@ export function FormularioNuevoGasto({ opciones }: { opciones: OpcionesGasto }) 
             {pendiente ? "Guardando…" : "Registrar gasto"}
           </button>
           <Mensaje estado={estado} />
-        </form>
+              </form>
+            </div>
+          )}
+        </ModalFlip>
       ) : null}
     </section>
   );
