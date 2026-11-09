@@ -13,7 +13,6 @@ export default async function PaginaPeriodos() {
 
   const periodos = await db.periodoNomina.findMany({
     orderBy: { fechaDesde: "desc" },
-    take: 40,
     include: { _count: { select: { liquidaciones: true } } },
   });
 

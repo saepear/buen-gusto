@@ -1,7 +1,7 @@
 "use client";
 
 // ═════════ Formularios de períodos (client) ═════════
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   abrirPeriodo,
   aprobarLiquidacion,
@@ -141,8 +141,9 @@ export function BotonAprobarLiquidacion({ liquidacionId, nombre }: { liquidacion
   );
 }
 
-export function BotonCerrarPeriodo({ periodoId }: { periodoId: number }) {
+export function BotonCerrarPeriodo({ periodoId, onSuccess }: { periodoId: number; onSuccess?: () => void }) {
   const [estado, accion, pendiente] = useActionState(cerrarPeriodo, INICIAL);
+  useEffect(() => { if (estado.ok) onSuccess?.(); }, [estado.ok, onSuccess]);
 
   return (
     <form action={accion} className="inline-block">
@@ -164,9 +165,10 @@ export function BotonCerrarPeriodo({ periodoId }: { periodoId: number }) {
 }
 
 /** Reabrir — exige motivo y solo si no hay pagos */
-export function BotonAbrirPeriodo({ periodoId }: { periodoId: number }) {
+export function BotonAbrirPeriodo({ periodoId, onSuccess }: { periodoId: number; onSuccess?: () => void }) {
   const [estado, accion, pendiente] = useActionState(abrirPeriodo, INICIAL);
   const [abierto, setAbierto] = useState(false);
+  useEffect(() => { if (estado.ok) onSuccess?.(); }, [estado.ok, onSuccess]);
 
   return (
     <form action={accion} className="inline-block">

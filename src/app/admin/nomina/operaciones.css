@@ -73,6 +73,10 @@
 .nomina-periodsToolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
 .nomina-periodsToolbar h2 { display:flex; align-items:center; gap:8px; font-size:21px; }
 .nomina-periodsToolbar h2 svg { color:var(--color-amber-brand); }
+.nomina-periodsFilters { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+.nomina-periodsFilters > label { display:flex; align-items:center; gap:9px; flex:1; min-width:240px; padding:11px 13px; color:var(--texto-muted); background:var(--campo-app); border:1px solid var(--borde-app); border-radius:13px; }
+.nomina-periodsFilters input { width:100%; min-width:0; outline:none; color:var(--texto-app); background:transparent; font-size:13px; }
+.nomina-periodsFilters .nomina-operationFilters { margin-left:auto; }
 .nomina-periodsGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
 .nomina-periodTile { text-align:left; min-width:0; padding:20px; border:1px solid var(--borde-app); border-radius:21px; background:var(--panel-app); cursor:pointer; transition:transform .2s,border-color .2s,box-shadow .2s; }
 .nomina-periodTile:hover { transform:translateY(-3px); border-color:var(--color-amber-brand); box-shadow:0 12px 30px rgb(0 0 0 / .12); }
@@ -94,9 +98,11 @@
 .nomina-periodDetailStats > div { padding:14px; border:1px solid var(--borde-app); border-radius:15px; background:var(--panel-app); }
 .nomina-periodDetailStats span { color:var(--texto-muted); font-size:11px; }
 .nomina-periodDetailStats strong { display:block; margin-top:6px; font-size:20px; }
+.nomina-periodDetailActions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.nomina-periodDetailActions form { display:inline-block; }
 @media(max-width:1050px) { .nomina-operationGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:750px) { .nomina-paymentLayout { grid-template-columns:minmax(0,1fr); } .nomina-operationHero { align-items:start; flex-direction:column; padding:20px; } .nomina-operationStats { gap:8px; } .nomina-operationStats article { padding:14px; gap:7px; } .nomina-operationStats strong { font-size:20px; } }
 @media(max-width:520px) { .nomina-operationGrid { grid-template-columns:1fr; } .nomina-operationStats { grid-template-columns:1fr; } .nomina-operationStats article { padding:14px 18px; } .nomina-operationStats strong { display:inline-block; margin-left:12px; } .nomina-operationHero h1 { font-size:27px; } .nomina-operationTitle { gap:12px; } .nomina-operationIcon { width:44px; height:44px; } .nomina-operationModalHeader,.nomina-operationModalBody { padding:18px; } .nomina-shortFormRow { grid-template-columns:1fr; } .nomina-operationModalHeader h2 { font-size:22px; } }
-@media(max-width:700px) { .nomina-periodsGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .nomina-periodsToolbar { align-items:flex-start; flex-direction:column; } .nomina-periodsToolbar .nomina-operationPrimary { width:100%; } }
+@media(max-width:700px) { .nomina-periodsGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .nomina-periodsToolbar { align-items:flex-start; flex-direction:column; } .nomina-periodsToolbar .nomina-operationPrimary { width:100%; } .nomina-periodsFilters > label { min-width:100%; } .nomina-periodsFilters .nomina-operationFilters { width:100%; margin-left:0; } }
 @media(max-width:480px) { .nomina-periodsGrid { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .nomina-operationTile { transition:none; } .nomina-operationTile:hover { transform:none; } }
