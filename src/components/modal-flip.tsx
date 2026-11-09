@@ -29,11 +29,14 @@ export function ModalFlip({
   origen,
   onClose,
   ariaLabel,
+  rapida = false,
   children,
 }: {
   origen: OrigenModal;
   onClose: () => void;
   ariaLabel: string;
+  /** Ajusta la cadencia al modal ágil del Menú del día. */
+  rapida?: boolean;
   /** Contenido del panel; recibe la función de cierre para el botón ✕ */
   children: (cerrar: () => void) => ReactNode;
 }) {
@@ -71,14 +74,15 @@ export function ModalFlip({
       });
       gsap.set([overlay, ...filas], { autoAlpha: 0 });
 
-      // Apertura: ficha → superficie expansión y luego el contenido en cascada
+      // Apertura: ficha → superficie expansión y luego el contenido en cascada.
+      // El perfil rápido mantiene la misma cadencia visual del Menú del día.
       gsap
         .timeline()
         .to(overlay, { autoAlpha: 1, duration: 0.3, ease: "power2.out" }, 0)
         .to(
           panel,
-          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.55, ease: "power4.inOut" },
-          0.06,
+          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: rapida ? 0.5 : 0.55, ease: "power4.inOut" },
+          rapida ? 0.04 : 0.06,
         )
         .fromTo(
           filas,
@@ -86,11 +90,11 @@ export function ModalFlip({
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.38,
+            duration: rapida ? 0.3 : 0.38,
             ease: "power3.out",
-            stagger: 0.05,
+            stagger: rapida ? 0.06 : 0.05,
           },
-          0.32,
+          rapida ? 0.18 : 0.32,
         );
     },
     { scope: panelRef },
@@ -128,15 +132,15 @@ export function ModalFlip({
             y: origen.y + origen.h / 2 - c.cy,
             scaleX: origen.w / r.width,
             scaleY: origen.h / r.height,
-            duration: 0.42,
+            duration: rapida ? 0.28 : 0.42,
             ease: "power3.inOut",
             overwrite: "auto",
           },
-          0.08,
+          rapida ? 0.04 : 0.08,
         )
-        .to(overlay, { autoAlpha: 0, duration: 0.26, ease: "power2.in" }, 0.16);
+        .to(overlay, { autoAlpha: 0, duration: rapida ? 0.22 : 0.26, ease: "power2.in" }, rapida ? 0.12 : 0.16);
     })();
-  }, [contextSafe, onClose, origen]);
+  }, [contextSafe, onClose, origen, rapida]);
 
   // Escape para cerrar y bloqueo del scroll de fondo mientras está abierto
   useEffect(() => {
@@ -166,6 +170,8 @@ export function ModalFlip({
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[2rem] bg-fondo-app shadow-pop ring-1 ring-borde-app"
       >
+        {/* The render prop receives the close handler so modal controls can share the same GSAP timeline. */}
+        {/* eslint-disable-next-line react-hooks/refs */}
         {children(cerrar)}
       </div>
     </div>
