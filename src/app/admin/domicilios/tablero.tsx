@@ -11,7 +11,6 @@ import {
   Printer,
   StickyNote,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   useRef,
@@ -69,24 +68,6 @@ export type DomicilioVista = {
   resumen: string;
   /** Líneas de la comanda, para el detalle del modal sin pedirle nada al servidor */
   items: ItemDomicilioVista[];
-};
-
-/** El estado de la comanda, con el mismo vocabulario de cocina (Órdenes) */
-const TXT_COMANDA: Record<string, string> = {
-  ENVIADO: "En cocina",
-  EN_PREPARACION: "En preparación",
-  PARCIAL_SERVIDO: "Parcial",
-  SERVIDO: "Lista para servir",
-  POR_PAGAR: "Por pagar",
-};
-
-const CHIP_COMANDA: Record<string, string> = {
-  ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
-  PARCIAL_SERVIDO:
-    "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
-  SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
 };
 
 function Aviso({ estado }: { estado: EstadoAccionDomicilio }) {
@@ -178,15 +159,6 @@ function TarjetaDomicilio({
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span
-          className={
-            "rounded-full px-2 py-0.5 text-[10px] font-bold " +
-            (CHIP_COMANDA[domicilio.pedidoEstado] ??
-              "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-          }
-        >
-          {TXT_COMANDA[domicilio.pedidoEstado] ?? domicilio.pedidoEstado}
-        </span>
         <span className="ml-auto font-display text-xl text-amber-brand">
           {formatCOP(domicilio.total)}
         </span>
@@ -233,15 +205,6 @@ function DetalleDomicilio({
                 <Clock className="h-3.5 w-3.5" /> Para las {domicilio.horaEntrega}
               </span>
             ) : null}
-            <span
-              className={
-                "rounded-full px-2.5 py-0.5 text-[11px] font-bold " +
-                (CHIP_COMANDA[domicilio.pedidoEstado] ??
-                  "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-              }
-            >
-              {TXT_COMANDA[domicilio.pedidoEstado] ?? domicilio.pedidoEstado}
-            </span>
           </div>
         </div>
         <button
