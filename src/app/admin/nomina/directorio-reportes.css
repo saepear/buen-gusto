@@ -1,0 +1,57 @@
+.nomina-directoryIntro { display:flex; flex-wrap:wrap; gap:10px 24px; margin-bottom:20px; color:var(--texto-muted); font-size:13px; }
+.nomina-directoryIntro b { color:var(--texto-app); }
+.nomina-profileTabs { display:flex; gap:7px; flex-wrap:wrap; padding-bottom:20px; }
+.nomina-profileTabs button { padding:10px 15px; border-radius:12px; border:1px solid var(--borde-app); color:var(--texto-muted); cursor:pointer; font-size:13px; font-weight:700; }
+.nomina-profileTabs button[aria-pressed=true] { background:var(--color-amber-brand); color:var(--color-brown-950); border-color:transparent; }
+.nomina-profileLayout { display:grid; grid-template-columns:1fr 1.6fr; gap:18px; }
+.nomina-profileIdentity { display:flex; align-items:center; flex-direction:column; justify-content:center; padding:28px 18px; border-radius:20px; background:radial-gradient(at top,rgb(242 166 61 / .14),transparent),var(--panel-app); border:1px solid var(--borde-app); text-align:center; }
+.nomina-profileAvatar { display:grid; place-items:center; width:80px; height:80px; border-radius:26px; background:rgb(242 166 61 / .15); color:var(--color-amber-brand); font-size:26px; font-weight:800; margin-bottom:18px; }
+.nomina-profileIdentity h3 { font-size:20px; font-weight:700; }
+.nomina-profileIdentity p { font-size:12px; color:var(--texto-muted); margin:8px 0 18px; }
+.nomina-profileIdentity .nomina-operationBadge { margin-left:0; }
+.nomina-profileFacts { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.nomina-profileFacts > div { display:flex; align-items:flex-start; gap:12px; padding:20px; border:1px solid var(--borde-app); border-radius:16px; }
+.nomina-profileFacts svg { color:var(--color-amber-brand); flex-shrink:0; }
+.nomina-profileFacts span { font-size:12px; color:var(--texto-muted); }
+.nomina-profileFacts strong { display:block; color:var(--texto-app); font-size:14px; margin-top:8px; overflow-wrap:anywhere; }
+.nomina-profileAgreement { display:grid; grid-template-columns:1fr 1fr; gap:15px; background:rgb(242 166 61 / .08); padding:22px; border-radius:18px; margin-bottom:24px; }
+.nomina-profileAgreement span { font-size:12px; color:var(--texto-muted); }
+.nomina-profileAgreement strong { display:block; color:var(--texto-app); font-size:22px; margin-top:6px; }
+.nomina-profileVersion { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:17px 0; border-bottom:1px solid var(--borde-app); font-size:13px; }
+.nomina-profileVersion p { color:var(--texto-muted); font-size:12px; margin-top:5px; }
+.nomina-profileManagement { display:grid; gap:18px; }
+.nomina-sectionTitle { font-size:17px; font-weight:700; }
+.nomina-reportFilters { display:flex; align-items:end; flex-wrap:wrap; gap:12px; padding:20px; background:var(--panel-app); border:1px solid var(--borde-app); border-radius:20px; margin-bottom:22px; }
+.nomina-reportFilters label { display:grid; gap:8px; flex:1; min-width:150px; font-size:12px; color:var(--texto-muted); font-weight:700; }
+.nomina-reportFilters input,.nomina-reportFilters select { width:100%; min-width:0; border-radius:12px; padding:12px; background:var(--campo-app); border:1px solid var(--borde-app); color:var(--texto-app); font-size:13px; color-scheme:normal; }
+.nomina-reportFilters button:disabled { opacity:.6; }
+.nomina-reportResults { transition:opacity .15s; }
+.nomina-reportResults.is-loading { opacity:.5; pointer-events:none; }
+.nomina-reportStats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.nomina-reportStats article { display:grid; gap:10px; padding:24px; border-radius:21px; background:var(--panel-app); border:1px solid var(--borde-app); }
+.nomina-reportStats svg { color:var(--color-amber-brand); }
+.nomina-reportStats span { font-size:13px; color:var(--texto-muted); }
+.nomina-reportStats strong { font-size:29px; font-weight:800; }
+.nomina-reportStats p { font-size:11px; color:var(--texto-muted); }
+.nomina-reportProgress { padding:22px; margin:18px 0 28px; border:1px solid var(--borde-app); border-radius:18px; background:var(--panel-app); }
+.nomina-reportProgress > div { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; font-size:13px; margin-bottom:14px; }
+.nomina-reportProgress span,.nomina-reportProgress p { color:var(--texto-muted); font-size:11px; }
+.nomina-reportProgress progress { appearance:none; width:100%; height:7px; border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.nomina-reportProgress progress::-webkit-progress-bar { background:var(--borde-app); }
+.nomina-reportProgress progress::-webkit-progress-value { background:var(--color-amber-brand); }
+.nomina-reportProgress progress::-moz-progress-bar { background:var(--color-amber-brand); }
+.nomina-reportSectionHeader { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:18px; }
+.nomina-reportSectionHeader h2 { font-size:19px; font-weight:700; }
+.nomina-reportCardAmounts { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px; }
+.nomina-reportCardAmounts span { font-size:11px; color:var(--texto-muted); }
+.nomina-reportCardAmounts strong { display:block; font-size:17px; color:var(--texto-app); margin-top:5px; }
+.nomina-reportDeliveries { display:grid; gap:9px; }
+.nomina-reportDeliveries article { display:flex; gap:15px; align-items:center; flex-wrap:wrap; padding:18px; border:1px solid var(--borde-app); border-radius:17px; background:var(--panel-app); font-size:14px; }
+.nomina-reportDeliveries article > div { flex:1; min-width:180px; }
+.nomina-reportDeliveries article p { color:var(--texto-muted); font-size:12px; margin-top:6px; }
+.nomina-reportDeliveries .nomina-operationLink { margin:0; }
+.nomina-reportFootnote { font-size:12px; line-height:1.7; color:var(--texto-muted); margin:10px 0; }
+.nomina-reportLegacy { padding:18px 0; font-size:12px; color:var(--texto-muted); }
+.nomina-reportLegacy summary { cursor:pointer; }
+@media(max-width:750px) { .nomina-profileLayout { grid-template-columns:1fr; } .nomina-reportStats { grid-template-columns:1fr; } .nomina-reportStats strong { font-size:25px; } .nomina-reportSectionHeader { align-items:start; flex-direction:column; } }
+@media(max-width:480px) { .nomina-profileFacts,.nomina-profileAgreement { grid-template-columns:1fr; } .nomina-reportFilters label { min-width:100%; } .nomina-reportFilters button { width:100%; } }

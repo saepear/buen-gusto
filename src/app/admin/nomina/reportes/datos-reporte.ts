@@ -101,14 +101,17 @@ export async function datosReporteNomina(
   };
 
   const pagos = await db.pagoNomina.findMany({
-    where: { fecha: { gte: new Date(`${desde}T00:00:00.000Z`), lte: new Date(`${hasta}T23:59:59.999Z`) }, ...dondeEmpleado },
+    where: {
+      fecha: { gte: new Date(`${desde}T00:00:00.000-05:00`), lte: new Date(`${hasta}T23:59:59.999-05:00`) },
+      ...(empleadoId ? { liquidacion: { empleadoId } } : {}),
+    },
     include: { liquidacion: { include: { empleado: true } } },
     orderBy: { fecha: "desc" },
     take: 100,
   });
   const pagosFila: FilaPago[] = pagos.map((p) => ({
     id: p.id,
-    fecha: new Date(p.fecha).toLocaleDateString("es-CO"),
+    fecha: new Date(p.fecha).toLocaleDateString("es-CO", { timeZone: "America/Bogota" }),
     empleado: `${p.liquidacion.empleado.nombre} ${p.liquidacion.empleado.apellidos}`,
     metodo: p.metodo,
     referencia: p.referencia,
