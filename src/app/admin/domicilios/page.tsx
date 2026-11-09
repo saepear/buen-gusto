@@ -17,8 +17,8 @@ export const metadata = { title: "Domicilios · El Buen Gusto" };
 /**
  * El panel de domicilios ACTIVOS: son exactamente los domicilios a los que
  * les falta su cobro (de hoy y de días anteriores: la plata no se olvida por
- * haber pasado la noche). Al registrar el pago desaparecen del tablero y
- * quedan en la caja (recibos), el historial del cliente y los reportes.
+ * haber pasado la noche). El botón de cobro lleva a Caja, que es el único
+ * lugar donde se registra el pago, recibo y movimiento financiero.
  */
 export default async function PaginaDomicilios() {
   const [pendientes, cobrosDeHoy] = await Promise.all([
@@ -119,7 +119,7 @@ export default async function PaginaDomicilios() {
       <header className="domicilios-hero">
         <div className="domicilios-nuevo-title"><span className="domicilios-title-icon"><Bike aria-hidden /></span><div>
           <p className="domicilios-eyebrow">GESTIÓN DE ENTREGAS</p><h1>Domicilios</h1>
-          <p>Revisa los pedidos pendientes, abre el detalle y registra el cobro.</p>
+          <p>Revisa los pedidos pendientes y envía cada cobro al módulo de Caja.</p>
         </div></div>
         <Link href="/admin/domicilios/nuevo" className="domicilios-primary"><Plus aria-hidden /> Nuevo domicilio <ArrowUpRight aria-hidden /></Link>
       </header>

@@ -3,6 +3,7 @@
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import {
+  ArrowRight,
   Bike,
   Clock,
   MapPin,
@@ -144,7 +145,7 @@ function TarjetaDomicilio({
       type="button"
       data-origen-ficha
       onClick={(e) => onAbrir(e.currentTarget.getBoundingClientRect())}
-      aria-label={`Abrir el domicilio de ${domicilio.cliente}: detalle, cobro y factura`}
+      aria-label={`Abrir el domicilio de ${domicilio.cliente}: detalle y enviar a caja`}
       className="tarjeta-domicilio w-full rounded-[1.65rem] bg-panel-app p-4 text-left ring-1 ring-borde-app transition hover:ring-amber-brand/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand/70"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -194,9 +195,9 @@ function TarjetaDomicilio({
   );
 }
 
-/* ══════════════════════ Modal de detalle y cobro ══════════════════════ */
+/* ══════════════════════ Modal de detalle y ruta de cobro ══════════════════════ */
 
-function DetalleYcobro({
+function DetalleDomicilio({
   domicilio,
   cerrar,
 }: {
@@ -351,8 +352,22 @@ function DetalleYcobro({
           </p>
         </div>
 
-        {/* Cobro: método, propina, billete con el que paga y vueltas. Al
-            confirmar, la acción manda directo a la factura imprimible. */}
+        {/* El efectivo se registra exclusivamente desde Caja. El fiado sigue
+            disponible aquí porque no es ingreso hasta que llegue el abono. */}
+        <div data-anim className="domicilios-caja-route">
+          <div className="domicilios-caja-route-copy">
+            <span className="domicilios-eyebrow">COBRO CENTRALIZADO</span>
+            <h3>Este domicilio se cobra en Caja</h3>
+            <p>Allí eliges método, propina, billete y recibes la factura imprimible.</p>
+          </div>
+          <Link
+            href={`/admin/caja?domicilio=${domicilio.id}`}
+            onClick={cerrar}
+            className="domicilios-caja-route-button"
+          >
+            Ir a Caja <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
         <div data-anim className="rounded-2xl">
           <PanelCobroDomicilio
             domicilioId={domicilio.id}
@@ -362,6 +377,7 @@ function DetalleYcobro({
                 ? { id: domicilio.clienteId, nombre: domicilio.cliente }
                 : null
             }
+            soloFiado
           />
         </div>
       </div>
@@ -396,8 +412,8 @@ function DetalleYcobro({
         <Aviso estado={canEstado} />
         <p className="mt-2 flex items-center gap-1.5 text-[11px] text-texto-muted/45">
           <Bike className="h-3.5 w-3.5" />
-          La comanda de cocina sale a imprimir apenas se crea el domicilio; esta
-          factura es la del dinero (sale al confirmar el cobro).
+          La comanda de cocina sale a imprimir apenas se crea el domicilio. El
+          cobro en efectivo y su factura se gestionan desde Caja.
         </p>
       </div>
     </>
@@ -419,7 +435,7 @@ function ModalDomicilio({
       onClose={onClose}
       ariaLabel={`Detalle del domicilio de ${domicilio.cliente}`}
     >
-      {(cerrar) => <DetalleYcobro domicilio={domicilio} cerrar={cerrar} />}
+      {(cerrar) => <DetalleDomicilio domicilio={domicilio} cerrar={cerrar} />}
     </ModalFlip>
   );
 }

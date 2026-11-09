@@ -45,17 +45,21 @@ const BILLETES = [
  * confirmar, la acción del servidor manda directo a la factura imprimible.
  * También puede qedar FIADO: nace la deuda (no entra a caja) o — si el
  * cliente deja dinero ahora — entra ese abono y la deuda queda por el resto.
- * Vive a nivel del módulo de domicilios para que también la use la caja.
+ * Vive a nivel del módulo de domicilios para que Caja pueda reutilizarlo al
+ * recibir un domicilio desde su cola de cobro.
  */
 export function PanelCobroDomicilio({
   domicilioId,
   total,
   fichaCliente = null,
+  soloFiado = false,
 }: {
   domicilioId: number;
   total: number;
   /** Ficha del cliente del domicilio: la deuda se va a su historial */
   fichaCliente?: { id: number; nombre: string } | null;
+  /** En el tablero de domicilios el efectivo se cobra exclusivamente en Caja. */
+  soloFiado?: boolean;
 }) {
   const [estado, accion, pendiente] = useActionState<
     EstadoAccionDomicilio,
@@ -65,7 +69,7 @@ export function PanelCobroDomicilio({
     EstadoAccionDomicilio,
     FormData
   >(fiarDomicilio, INICIAL);
-  const [modo, setModo] = useState<"cobrar" | "fiado">("cobrar");
+  const [modo, setModo] = useState<"cobrar" | "fiado">(soloFiado ? "fiado" : "cobrar");
   const [metodo, setMetodo] = useState<string>("EFECTIVO");
   const [propinaTxt, setPropinaTxt] = useState("");
   const [montoTxt, setMontoTxt] = useState("");
@@ -87,10 +91,10 @@ export function PanelCobroDomicilio({
   return (
     <section className="rounded-[2rem] bg-panel-app p-5 ring-1 ring-borde-app">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="font-display text-2xl text-texto-app">Cobro</p>
+        <p className="font-display text-2xl text-texto-app">{soloFiado ? "Enviar a fiados" : "Cobro"}</p>
         <div className="text-right">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
-            A cobrar
+            {soloFiado ? "Deuda" : "A cobrar"}
           </p>
           <p aria-live="polite" className="font-display text-3xl text-texto-app">
             {formatCOP(aCobrar)}
@@ -106,7 +110,7 @@ export function PanelCobroDomicilio({
         <input type="hidden" name="metodo" value={metodo} />
         <input type="hidden" name="metodoAbono" value={metodo} />
 
-        <div className="grid grid-cols-2 gap-2">
+        {!soloFiado ? <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             aria-pressed={modo === "cobrar"}
@@ -133,7 +137,7 @@ export function PanelCobroDomicilio({
           >
             <NotebookPen className="h-4 w-4" /> Fiado (deuda)
           </button>
-        </div>
+        </div> : null}
 
         {estado.error ? (
           <p

@@ -238,7 +238,7 @@ export async function cancelarDomicilio(
 class ErrorDeCobroDomicilio extends Error {}
 
 /**
- * Cobro del domicilio desde el panel de activos (el botón del modal): registra
+ * Cobro del domicilio desde el módulo central de Caja: registra
  * el pago con el dinero que entregó el cliente y sus vueltas (solo efectivo),
  * la comanda pasa a COBRADO y el sistema manda a la factura imprimible del
  * domicilio. La comanda de cocina NO vuelve a imprimirse: esa salió al crear
