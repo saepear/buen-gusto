@@ -1,4 +1,4 @@
-import { MapPin, Phone, Search, UsersRound } from "lucide-react";
+import { Search, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
@@ -9,6 +9,8 @@ import {
   FormularioNuevoCliente,
   FormularioVincular,
 } from "./formularios";
+import { TableroClientes } from "./tablero";
+import "./clientes.css";
 
 export const metadata = { title: "Clientes · El Buen Gusto" };
 
@@ -138,95 +140,19 @@ export default async function PaginaClientes(
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {visibles.map((c, indice) => {
-            const deuda = deudaDe.get(c.id);
-            // Lo que ve el administrador: consecutivo visual de la página,
-            // no el id interno de la base. Con una búsqueda «#12» se muestra
-            // además el id de ficha para poder ubicarla.
-            const ordinal = (nPagina - 1) * POR_PAGINA + indice + 1;
-            return (
-              <Link
-                key={c.id}
-                href={`/admin/clientes/${c.id}`}
-                className="group flex flex-col rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app transition hover:ring-amber-brand/50"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    aria-hidden
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-brand/15 font-display text-lg text-amber-brand ring-1 ring-amber-brand/30"
-                  >
-                    {c.nombre.trim().charAt(0).toUpperCase() || "·"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold leading-tight text-texto-app">
-                      {c.nombre}
-                      <span
-                        className="ml-1.5 rounded-md bg-amber-brand/12 px-1.5 py-0.5 text-[10px] font-bold text-amber-brand ring-1 ring-amber-brand/30"
-                        title={`Cliente n.º ${ordinal}`}
-                      >
-                        N.º {ordinal}
-                      </span>
-                      {/^#?\s*\d{1,7}$/.test(filtro) ? (
-                        <span className="ml-1 rounded-md bg-fondo-app px-1.5 py-0.5 text-[10px] font-bold text-texto-muted/60 ring-1 ring-borde-app">
-                          Ficha #{c.id}
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="text-[11px] text-texto-muted/50">
-                      Cliente desde{" "}
-                      {new Date(c.createdAt).toLocaleDateString("es-CO", {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-3 space-y-1 text-xs text-texto-muted/70">
-                  {c.telefono ? (
-                    <p className="flex items-center gap-1.5 truncate">
-                      <Phone aria-hidden className="h-3.5 w-3.5 shrink-0 text-texto-muted/40" />
-                      {c.telefono}
-                    </p>
-                  ) : null}
-                  {c.direccion ? (
-                    <p className="flex items-center gap-1.5 truncate">
-                      <MapPin aria-hidden className="h-3.5 w-3.5 shrink-0 text-texto-muted/40" />
-                      {c.direccion}
-                      {c.barrio ? ` · ${c.barrio}` : ""}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-bold">
-                  <span className="rounded-full bg-fondo-app px-2 py-0.5 text-success-text ring-1 ring-borde-app">
-                    {domiciliosDe.get(c.id) ?? 0}{" "}
-                    {(domiciliosDe.get(c.id) ?? 0) === 1 ? "domicilio" : "domicilios"}
-                  </span>
-                  {(apartadosDe.get(c.id) ?? 0) > 0 ? (
-                    <span className="rounded-full bg-fondo-app px-2 py-0.5 text-info-text ring-1 ring-borde-app">
-                      {(apartadosDe.get(c.id) ?? 0)}{" "}
-                      apartados
-                    </span>
-                  ) : null}
-                  {deuda && deuda.cuentas > 0 ? (
-                    <span
-                      className={
-                        "rounded-full px-2 py-0.5 ring-1 " +
-                        (deuda.saldo > 0
-                          ? "bg-danger/10 text-danger-text ring-danger/25"
-                          : "bg-fondo-app text-texto-muted/50 ring-borde-app")
-                      }
-                    >
-                      Fiados: {formatCOP(Math.max(0, deuda.saldo))}
-                    </span>
-                  ) : null}
-                </div>
-              </Link>
-             );
-           })}
-         </div>
+        <TableroClientes clientes={visibles.map((c, indice) => ({
+          id: c.id,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          direccion: c.direccion,
+          barrio: c.barrio,
+          createdAt: c.createdAt.toISOString(),
+          domicilios: domiciliosDe.get(c.id) ?? 0,
+          apartados: apartadosDe.get(c.id) ?? 0,
+          deuda: deudaDe.get(c.id) ?? null,
+          ordinal: (nPagina - 1) * POR_PAGINA + indice + 1,
+          fichaBuscada: /^#?\s*\d{1,7}$/.test(filtro),
+        }))} />
        )}
 
        {total > POR_PAGINA ? (

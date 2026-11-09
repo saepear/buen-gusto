@@ -18,6 +18,7 @@ import {
 } from "@/lib/clientes";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { ESTADO_CUENTA } from "@/lib/roles";
 
 export type EstadoAccionCliente = {
   error: string | null;
@@ -188,6 +189,8 @@ export async function vincularHistorial(
   _previa: EstadoAccionCliente,
   _datos: FormData,
 ): Promise<EstadoAccionCliente> {
+  void _previa;
+  void _datos;
   try {
     await exigirAdmin();
   } catch {
@@ -219,6 +222,124 @@ export async function buscarClientes(term: string) {
     telefono: f.telefono,
     direccion: f.direccion,
   }));
+}
+
+export type DetalleClienteModal = {
+  cliente: {
+    id: number;
+    nombre: string;
+    telefono: string;
+    direccion: string;
+    barrio: string | null;
+    observaciones: string | null;
+    createdAt: string;
+  };
+  saldoFiado: number;
+  domicilios: Array<{
+    id: number;
+    createdAt: string;
+    direccion: string;
+    barrio: string | null;
+    estado: string;
+    cobradoMonto: number | null;
+    cobradoMetodo: string | null;
+    notaEntrega: string | null;
+  }>;
+  apartados: Array<{
+    id: number;
+    estado: string;
+    total: number;
+    fechaEntrega: string | null;
+    horaEntrega: string | null;
+    observaciones: string | null;
+    pedidoId: number | null;
+    items: Array<{ id: number; nombre: string; cantidad: number; precio: number; conSopa: boolean | null }>;
+  }>;
+  cuentas: Array<{
+    id: number;
+    concepto: string;
+    valorOriginal: number;
+    pagado: number;
+    saldoCondonado: number;
+    estado: string;
+    createdAt: string;
+    creadoPor: string;
+    abonos: Array<{ id: number; monto: number; metodo: string; nota: string | null; createdAt: string }>;
+  }>;
+  fusiones: Array<{ id: number; origenId: number; origenNombre: string; origenTelefono: string; domicilios: number; apartados: number; cuentas: number; createdAt: string; hechoPor: string }>;
+};
+
+/** Carga la ficha completa para el modal del tablero de clientes. */
+export async function obtenerDetalleCliente(id: number): Promise<DetalleClienteModal | null> {
+  try {
+    await exigirAdmin();
+  } catch {
+    return null;
+  }
+  if (!Number.isInteger(id)) return null;
+
+  const [cliente, fusiones, pendientes] = await Promise.all([
+    db.cliente.findUnique({
+      where: { id },
+      include: {
+        domicilios: { orderBy: { createdAt: "desc" }, take: 20 },
+        apartados: {
+          orderBy: { createdAt: "desc" }, take: 20,
+          include: { items: true },
+        },
+        cuentas: {
+          orderBy: { createdAt: "desc" }, take: 20,
+          include: {
+            abonos: { orderBy: { createdAt: "asc" } },
+            creadoPor: true,
+          },
+        },
+      },
+    }),
+    db.fusionCliente.findMany({
+      where: { destinoId: id },
+      orderBy: { createdAt: "desc" }, take: 10,
+      include: { hechoPor: { select: { nombre: true } } },
+    }),
+    db.cuentaPorCobrar.findMany({
+      where: { clienteId: id, estado: ESTADO_CUENTA.PENDIENTE },
+      select: { valorOriginal: true, pagado: true, saldoCondonado: true },
+    }),
+  ]);
+  if (!cliente) return null;
+
+  return {
+    cliente: {
+      id: cliente.id, nombre: cliente.nombre, telefono: cliente.telefono,
+      direccion: cliente.direccion, barrio: cliente.barrio,
+      observaciones: cliente.observaciones, createdAt: cliente.createdAt.toISOString(),
+    },
+    saldoFiado: pendientes.reduce((total, cuenta) => total + Math.max(0, cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado), 0),
+    domicilios: cliente.domicilios.map((dom) => ({
+      id: dom.id, createdAt: dom.createdAt.toISOString(), direccion: dom.direccion,
+      barrio: dom.barrio, estado: dom.estado, cobradoMonto: dom.cobradoMonto,
+      cobradoMetodo: dom.cobradoMetodo, notaEntrega: dom.notaEntrega,
+    })),
+    apartados: cliente.apartados.map((apartado) => ({
+      id: apartado.id, estado: apartado.estado, total: apartado.total,
+      fechaEntrega: apartado.fechaEntrega, horaEntrega: apartado.horaEntrega,
+      observaciones: apartado.observaciones, pedidoId: apartado.pedidoId,
+      items: apartado.items.map((item) => ({ id: item.id, nombre: item.nombre, cantidad: item.cantidad, precio: item.precio, conSopa: item.conSopa })),
+    })),
+    cuentas: cliente.cuentas.map((cuenta) => ({
+      id: cuenta.id, concepto: cuenta.concepto, valorOriginal: cuenta.valorOriginal,
+      pagado: cuenta.pagado, saldoCondonado: cuenta.saldoCondonado,
+      estado: cuenta.estado, createdAt: cuenta.createdAt.toISOString(),
+      creadoPor: cuenta.creadoPor.nombre,
+      abonos: cuenta.abonos.map((abono) => ({ id: abono.id, monto: abono.monto, metodo: abono.metodo, nota: abono.nota, createdAt: abono.createdAt.toISOString() })),
+    })),
+    fusiones: fusiones.map((fusion) => ({
+      id: fusion.id, origenId: fusion.origenId, origenNombre: fusion.origenNombre,
+      origenTelefono: fusion.origenTelefono, domicilios: fusion.domicilios,
+      apartados: fusion.apartados, cuentas: fusion.cuentas,
+      createdAt: fusion.createdAt.toISOString(), hechoPor: fusion.hechoPor.nombre,
+    })),
+  };
 }
 
 /** ── Eliminar una ficha SIN historial ──────────────────────────────────

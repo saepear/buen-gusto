@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronDown, Link2, UserPlus } from "lucide-react";
-import { useActionState, useState } from "react";
+import { ChevronDown, Link2, UserPlus, X, Check } from "lucide-react";
+import { useActionState, useRef, useState } from "react";
+import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import {
   crearCliente,
   vincularHistorial,
@@ -93,33 +94,27 @@ function Coincidencias({
 /** Post para registrar un cliente (se abre con un toque) */
 export function FormularioNuevoCliente() {
   const [estado, accion, pendiente] = useActionState(crearCliente, INICIAL);
-  const [abierto, setAbierto] = useState(false);
+  const [origen, setOrigen] = useState<OrigenModal | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const mensaje =
     estado.ok && !estado.coincidencias ? estado.ok : null;
 
+  function abrir() {
+    const rect = trigger.current?.getBoundingClientRect();
+    if (rect) setOrigen({ x: rect.left, y: rect.top, w: rect.width, h: rect.height });
+  }
+
   return (
     <section aria-label="Registrar cliente">
-      <button
-        type="button"
-        onClick={() => setAbierto(!abierto)}
-        aria-expanded={abierto}
-        className="flex items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95"
-      >
+      <button ref={trigger} type="button" onClick={abrir} className="clientes-new-button">
         <UserPlus className="h-5 w-5" />
         Nuevo cliente
-        <ChevronDown
-          aria-hidden
-          className={
-            "h-4 w-4 transition-transform " + (abierto ? "rotate-180" : "")
-          }
-        />
+        <ChevronDown aria-hidden className="h-4 w-4" />
       </button>
-
-      {abierto ? (
-        <form
-          action={accion}
-          className="mt-3 grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2"
-        >
+      {origen ? <ModalFlip rapida origen={origen} ariaLabel="Registrar nuevo cliente" onClose={() => { setOrigen(null); trigger.current?.focus(); }}>
+        {cerrar => <>
+          <header className="clientes-form-modal-header" data-anim><span className="clientes-form-modal-icon"><UserPlus aria-hidden size={22} /></span><div><p className="clientes-eyebrow">CLIENTES</p><h2>Nuevo cliente</h2><p>Registra una ficha para autocompletar domicilios y apartados.</p></div><button type="button" className="clientes-modal-close" aria-label="Cerrar nuevo cliente" onClick={cerrar}><X aria-hidden size={19} /></button></header>
+          <form action={accion} className="clientes-new-form" data-anim>
           <label className={ETIQUETA}>
             NOMBRE *
             <input
@@ -185,8 +180,10 @@ export function FormularioNuevoCliente() {
           ) : (
             <Aviso estado={{ error: estado.error, ok: null }} />
           )}
-        </form>
-      ) : null}
+          </form>
+          <footer className="clientes-modal-footer" data-anim><span>Los datos se podrán editar desde la ficha.</span><button type="button" onClick={cerrar}>Listo <Check aria-hidden size={16} /></button></footer>
+        </>}
+      </ModalFlip> : null}
     </section>
   );
 }
