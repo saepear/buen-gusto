@@ -69,7 +69,34 @@
 .nomina-shortForm details { font-size:12px; color:var(--texto-muted); }
 .nomina-shortForm details summary { cursor:pointer; padding:5px 0; }
 .nomina-shortForm details > div { display:grid; gap:12px; margin-top:12px; }
+.nomina-periodsBoard { margin-top: 8px; }
+.nomina-periodsToolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.nomina-periodsToolbar h2 { display:flex; align-items:center; gap:8px; font-size:21px; }
+.nomina-periodsToolbar h2 svg { color:var(--color-amber-brand); }
+.nomina-periodsGrid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.nomina-periodTile { text-align:left; min-width:0; padding:20px; border:1px solid var(--borde-app); border-radius:21px; background:var(--panel-app); cursor:pointer; transition:transform .2s,border-color .2s,box-shadow .2s; }
+.nomina-periodTile:hover { transform:translateY(-3px); border-color:var(--color-amber-brand); box-shadow:0 12px 30px rgb(0 0 0 / .12); }
+.nomina-periodTile:focus-visible { outline:2px solid var(--color-amber-brand); outline-offset:4px; }
+.nomina-periodTileTop { display:flex; align-items:center; justify-content:space-between; color:var(--color-amber-brand); }
+.nomina-operationBadge.is-open { color:var(--warning-text); background:rgb(242 166 61 / .12); }
+.nomina-operationBadge.is-closed { color:var(--success-text); background:rgb(90 190 105 / .12); }
+.nomina-periodTile h3 { margin-top:18px; font-size:18px; font-weight:800; }
+.nomina-periodTile > p { margin-top:5px; color:var(--texto-muted); font-size:11px; }
+.nomina-periodNumbers { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px; padding-top:15px; border-top:1px solid var(--borde-app); }
+.nomina-periodNumbers span { color:var(--texto-muted); font-size:11px; }
+.nomina-periodNumbers strong { display:block; margin-top:4px; color:var(--texto-app); font-size:16px; }
+.nomina-periodTile footer { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:15px; font-size:11px; color:var(--texto-muted); }
+.nomina-periodTile footer strong { color:var(--color-amber-brand); }
+.nomina-periodModal { max-width:680px; }
+.nomina-periodDetailStatus { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 15px; border-radius:15px; background:rgb(242 166 61 / .1); color:var(--texto-muted); font-size:12px; }
+.nomina-periodDetailStatus span { display:flex; align-items:center; gap:7px; color:var(--color-amber-brand); font-weight:800; }
+.nomina-periodDetailStats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:15px 0; }
+.nomina-periodDetailStats > div { padding:14px; border:1px solid var(--borde-app); border-radius:15px; background:var(--panel-app); }
+.nomina-periodDetailStats span { color:var(--texto-muted); font-size:11px; }
+.nomina-periodDetailStats strong { display:block; margin-top:6px; font-size:20px; }
 @media(max-width:1050px) { .nomina-operationGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:750px) { .nomina-paymentLayout { grid-template-columns:minmax(0,1fr); } .nomina-operationHero { align-items:start; flex-direction:column; padding:20px; } .nomina-operationStats { gap:8px; } .nomina-operationStats article { padding:14px; gap:7px; } .nomina-operationStats strong { font-size:20px; } }
 @media(max-width:520px) { .nomina-operationGrid { grid-template-columns:1fr; } .nomina-operationStats { grid-template-columns:1fr; } .nomina-operationStats article { padding:14px 18px; } .nomina-operationStats strong { display:inline-block; margin-left:12px; } .nomina-operationHero h1 { font-size:27px; } .nomina-operationTitle { gap:12px; } .nomina-operationIcon { width:44px; height:44px; } .nomina-operationModalHeader,.nomina-operationModalBody { padding:18px; } .nomina-shortFormRow { grid-template-columns:1fr; } .nomina-operationModalHeader h2 { font-size:22px; } }
+@media(max-width:700px) { .nomina-periodsGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .nomina-periodsToolbar { align-items:flex-start; flex-direction:column; } .nomina-periodsToolbar .nomina-operationPrimary { width:100%; } }
+@media(max-width:480px) { .nomina-periodsGrid { grid-template-columns:1fr; } }
 @media(prefers-reduced-motion:reduce) { .nomina-operationTile { transition:none; } .nomina-operationTile:hover { transform:none; } }
