@@ -24,6 +24,7 @@ export function FormularioRegistroVale({
   hoy,
   empleadoInicial,
   cicloInicial,
+  abiertoInicial = false,
 }: {
   empleados: OpcionEmpleado[];
   productos: OpcionProducto[];
@@ -31,6 +32,7 @@ export function FormularioRegistroVale({
   hoy: string;
   empleadoInicial?: number;
   cicloInicial?: number;
+  abiertoInicial?: boolean;
 }) {
   const [estado, accion, guardando] = useActionState(registrarVale, INICIAL);
   const [productoId, setProductoId] = useState("");
@@ -43,7 +45,7 @@ export function FormularioRegistroVale({
   }
 
   return (
-    <details open={!!empleadoInicial} className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app w-full">
+    <details open={abiertoInicial || !!empleadoInicial} className="group rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app w-full">
       <summary className="flex w-fit cursor-pointer list-none items-center gap-2 rounded-2xl bg-amber-brand px-5 py-3 font-display text-md text-brown-950 transition hover:bg-orange-brand hover:text-texto-app active:scale-95">
         <ShoppingBasket className="h-5 w-5" /> Registrar vale
       </summary>

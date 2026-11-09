@@ -70,7 +70,7 @@ function SeccionPlegable({
   );
 }
 
-function CamposContrato({ inicial }: { inicial?:
+function CamposContrato({ inicial, mostrarRiesgo = true }: { inicial?:
   Partial<{
     modalidad: string;
     remuneracion: string;
@@ -82,7 +82,7 @@ function CamposContrato({ inicial }: { inicial?:
     diaDescanso: number;
     metodoPago: string;
     arpClase: number;
-  }> }) {
+  }>; mostrarRiesgo?: boolean }) {
   const [salario, setSalario] = useState(String(inicial?.salarioMensual ?? ""));
   const [periodicidad, setPeriodicidad] = useState(inicial?.periodicidadPago ?? "CICLOS");
   const [remuneracion, setRemuneracion] = useState(inicial?.remuneracion ?? "MENSUAL");
@@ -107,7 +107,7 @@ function CamposContrato({ inicial }: { inicial?:
         SALARIO MENSUAL (COP)
         <input name="salarioMensual" inputMode="numeric" className={CAMPO} placeholder="$0" value={salario} onChange={e => setSalario(e.target.value)} />
         {periodicidad === "CICLOS" && remuneracion === "MENSUAL" && <span className="mt-2 block font-normal text-texto-muted" aria-live="polite">
-          {formatCOP(Number(salario.replace(/[^0-9]/g, "")))} ÷ 4 = {formatCOP(Math.round(Number(salario.replace(/[^0-9]/g, "")) / 4))} de base por corte, antes de novedades y descuentos. Pagos: 7, 14, 21 y fin de mes. El último corte ajusta el redondeo.
+          {formatCOP(Number(salario.replace(/[^0-9]/g, "")))} ÷ 4 = {formatCOP(Math.round(Number(salario.replace(/[^0-9]/g, "")) / 4))} de base por corte, antes de vales y descuentos. Pagos: 7, 14, 21 y fin de mes. El último corte ajusta el redondeo.
         </span>}
       </label>
       <label className={ETIQUETA}>
@@ -158,25 +158,21 @@ function CamposContrato({ inicial }: { inicial?:
           <option value="OTRO">Otro</option>
         </select>
       </label>
-      <label className={ETIQUETA}>
+      {mostrarRiesgo ? <label className={ETIQUETA}>
         CLASE DE RIESGO ARP *
         <select name="arpClase" defaultValue={String(inicial?.arpClase ?? 2)} className={CAMPO}>
-          {[1, 2, 3, 4, 5, 6].map((c) => (
-            <option key={c} value={c}>
-              Clase {c}
-            </option>
-          ))}
+          {[1, 2, 3, 4, 5, 6].map((c) => <option key={c} value={c}>Clase {c}</option>)}
         </select>
-      </label>
+      </label> : <input type="hidden" name="arpClase" value="2" />}
     </>
   );
 }
 
-export function FormularioNuevoEmpleado() {
+export function FormularioNuevoEmpleado({ dentroModal = false }: { dentroModal?: boolean } = {}) {
   const [estadoForm, accion, pendiente] = useActionState(crearEmpleado, INICIAL);
 
   return (
-    <SeccionPlegable titulo="+ Registrar empleado">
+    <SeccionPlegable titulo="+ Registrar empleado" abiertaInicial={dentroModal}>
       {() => (
         <form action={accion} className="mt-3 grid gap-2.5 rounded-2xl bg-glass-app p-4 ring-1 ring-borde-app sm:grid-cols-2">
           <h3 className="font-display text-lg text-texto-app sm:col-span-2">
@@ -222,21 +218,12 @@ export function FormularioNuevoEmpleado() {
             FECHA DE INGRESO *
             <input type="date" name="fechaIngreso" required className={CAMPO} />
           </label>
-          <label className={ETIQUETA}>
-            EPS (informativo)
-            <input name="epsNombre" maxLength={80} placeholder="Nueva EPS, Sura…" className={CAMPO} />
-          </label>
-          <label className={ETIQUETA}>
-            FONDO DE PENSIÓN (informativo)
-            <input name="fondoPensionName" maxLength={80} placeholder="Colfondos, Protección…" className={CAMPO} />
-          </label>
-
           <div className="sm:col-span-2">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-texto-muted/60">
-              Contrato inicial (nace la primera versión con historial)
+              Acuerdo de pago (se conserva el historial de cada corte)
             </p>
             <div className="grid gap-2.5 sm:grid-cols-2">
-              <CamposContrato />
+              <CamposContrato mostrarRiesgo={false} />
             </div>
           </div>
 

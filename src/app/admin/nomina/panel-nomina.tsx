@@ -18,12 +18,18 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   FileText,
+  X,
+  Clock3,
 } from "lucide-react";
+import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import { formatCOP } from "@/lib/format";
 import { salarioDelCiclo } from "@/lib/nomina/salario-ciclo";
 import { NavegacionNomina } from "./navegacion";
 import { crearPeriodo } from "./periodos/actions";
 import { BotonLiquidarEmpleado } from "./periodos/formularios";
+import { FormularioNuevoEmpleado } from "./empleados/formularios";
+import { FormularioRegistroVale } from "./vales/formularios";
+import { FormularioPagoNomina } from "./liquidaciones/formularios-pago";
 import "./panel-nomina.css";
 const s = {
   createCycle: "nomina-createCycle",
@@ -78,6 +84,11 @@ const s = {
   paymentDate: "nomina-paymentDate",
   quickActions: "nomina-quickActions",
   legal: "nomina-legal",
+  reminder: "nomina-reminder",
+  modalShell: "nomina-modalShell",
+  modalHeader: "nomina-modalHeader",
+  modalClose: "nomina-modalClose",
+  modalEyebrow: "nomina-modalEyebrow",
 };
 
 type Vale = {
@@ -122,6 +133,7 @@ type Empleado = {
     pagado: number;
   };
 };
+type Producto = { id: number; nombre: string; precio: number };
 type Datos = {
   hoy: string;
   mes: string;
@@ -130,6 +142,7 @@ type Datos = {
   cortes: { desde: string; hasta: string; periodoId: number | null }[];
   periodo: { id: number; estado: string; fechaPago: string; tipo: string } | null;
   periodos: { id: number; desde: string; hasta: string }[];
+  productos: Producto[];
   empleados: Empleado[];
   parametrosPendientes: number;
   parametrosTotal: number;
@@ -196,6 +209,8 @@ export function PanelNomina({ datos }: { datos: Datos }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("TODOS");
   const [pestana, setPestana] = useState("Resumen");
+  const [modal, setModal] = useState<"empleado" | "vale" | "pago" | "ficha" | null>(null);
+  const [modalOrigen, setModalOrigen] = useState<OrigenModal | null>(null);
   const empleado = datos.empleados.find((e) => e.id === seleccion);
   const participantes = datos.empleados.filter(
     (e) => e.estado === "ACTIVO" || e.liquidacion,
@@ -221,6 +236,19 @@ export function PanelNomina({ datos }: { datos: Datos }) {
   );
   const fechaPago = datos.periodo?.fechaPago ?? datos.rango.hasta;
   const enlaceVales = `/admin/nomina/vales?desde=${datos.rango.desde}&hasta=${datos.rango.hasta}${datos.periodo ? `&cicloId=${datos.periodo.id}` : ""}${empleado ? `&empleadoId=${empleado.id}` : ""}`;
+  const ciclosVale = datos.periodos.map((p) => ({
+    id: p.id,
+    etiqueta: `${p.desde} → ${p.hasta}`,
+  }));
+  function abrirModal(tipo: NonNullable<typeof modal>, event: React.MouseEvent<HTMLElement>) {
+    const r = event.currentTarget.getBoundingClientRect();
+    setModalOrigen({ x: r.left, y: r.top, w: r.width, h: r.height });
+    setModal(tipo);
+  }
+  function cerrarModal() {
+    setModal(null);
+    setModalOrigen(null);
+  }
   function navegar(url: string) {
     iniciarNavegacion(() => router.push(url));
   }
@@ -245,10 +273,10 @@ export function PanelNomina({ datos }: { datos: Datos }) {
             <FileText size={16} />
             Reportes
           </Link>
-          <Link className={s.primary} href="/admin/nomina/empleados">
+          <button className={s.primary} type="button" onClick={(e) => abrirModal("empleado", e)}>
             <Plus size={17} />
             Empleado
-          </Link>
+          </button>
         </div>
       </header>
       <NavegacionNomina actual="/admin/nomina" />
@@ -486,13 +514,14 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                     {empleado.cargo}
                   </p>
                 </div>
-                <Link
+                <button
+                  type="button"
                   className={s.secondary}
-                  href={`/admin/nomina/empleados/${empleado.id}`}
+                  onClick={(e) => abrirModal("ficha", e)}
                 >
                   Ver ficha
                   <ArrowUpRight size={14} />
-                </Link>
+                </button>
               </div>
               <div className={s.detailTabs} aria-label="Detalle del empleado">
                 {["Resumen", "Vales y consumos", "Desglose"].map((t) => (
@@ -690,12 +719,10 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                   </p>
                 )}
               <div className={s.actions}>
-                <Link className={s.primary} href={enlaceVales}>
+                {empleado.estado === "ACTIVO" ? <button className={s.primary} type="button" onClick={(e) => abrirModal("vale", e)}>
                   <Plus size={17} />
-                  {empleado.estado === "ACTIVO"
-                    ? "Registrar vale"
-                    : "Consultar vales"}
-                </Link>
+                  Registrar vale
+                </button> : <Link className={s.primary} href={enlaceVales}>Consultar vales</Link>}
                 {datos.periodo?.estado === "ABIERTO" &&
                   empleado.estado === "ACTIVO" &&
                   empleado.liquidacion?.estado !== "APROBADA" && (
@@ -706,15 +733,16 @@ export function PanelNomina({ datos }: { datos: Datos }) {
                     />
                   )}
                 {empleado.liquidacion && (
-                  <Link
+                  <button
+                    type="button"
                     className={s.secondary}
-                    href={`/admin/nomina/pagos/${empleado.liquidacion.id}`}
+                    onClick={(e) => abrirModal("pago", e)}
                   >
                     <Banknote size={17} />
                     {empleado.liquidacion.estado === "APROBADA"
                       ? "Registrar pago"
                       : "Ver pago"}
-                  </Link>
+                  </button>
                 )}
               </div>
             </section>
@@ -755,10 +783,6 @@ export function PanelNomina({ datos }: { datos: Datos }) {
             <section className={s.panel}>
               <h3>Acciones rápidas</h3>
               <div className={s.quickActions}>
-                <Link href="/admin/nomina/novedades">
-                  <Plus size={17} />
-                  Novedad
-                </Link>
                 <Link href="/admin/nomina/pagos">
                   <Banknote size={17} />
                   Pagos
@@ -778,11 +802,47 @@ export function PanelNomina({ datos }: { datos: Datos }) {
           <strong>Pago base + extras − deducciones</strong>
           <span>Prepara el pago del corte, agrega incentivos o descuentos y confirma el total antes de registrar la entrega. Solo el dinero entregado se registra como pago.</span>
         </p>
-        <Link href="/admin/nomina/configuracion">
-          Revisar
-          <ArrowUpRight size={16} />
-        </Link>
       </aside>
+      <section className={s.reminder} aria-label="Recordatorio de pago">
+        <div>
+          <Clock3 size={20} />
+          <div>
+            <strong>{fechaPago === datos.hoy ? "Hoy toca pagar al equipo" : `Próximo pago · ${fecha(fechaPago)}`}</strong>
+            <span>{calculados.filter((e) => e.liquidacion!.estadoPago === "PAGADO").length} de {participantes.length} pagos registrados · {formatCOP(Math.max(neto - pagado, 0))} pendientes</span>
+          </div>
+        </div>
+        <Link href="/admin/nomina/pagos" className={s.secondary}>Ver pagos <ArrowUpRight size={14} /></Link>
+      </section>
+      {modal && modalOrigen && (
+        <ModalFlip origen={modalOrigen} onClose={cerrarModal} ariaLabel="Acción de nómina" animacion="suave" panelClassName={s.modalShell}>
+          {(cerrar) => (
+            <div className={s.modalShell}>
+              <div className={s.modalHeader} data-anim>
+                <div>
+                  <p className={s.modalEyebrow}>NÓMINA · {modal === "empleado" ? "NUEVO EMPLEADO" : modal === "vale" ? "VALE Y CONSUMO" : modal === "pago" ? "REGISTRAR PAGO" : "FICHA DEL EMPLEADO"}</p>
+                  <h2>{modal === "empleado" ? "Agregar al equipo" : modal === "vale" ? `Consumo de ${empleado?.nombre ?? "empleado"}` : modal === "pago" ? `Pago de ${empleado?.nombre ?? "empleado"}` : `${empleado?.nombre ?? "Empleado"} ${empleado?.apellidos ?? ""}`}</h2>
+                </div>
+                <button type="button" className={s.modalClose} onClick={cerrar} aria-label="Cerrar"><X size={18} /></button>
+              </div>
+              <div data-anim>
+                {modal === "empleado" && <FormularioNuevoEmpleado dentroModal />}
+                {modal === "vale" && empleado && <FormularioRegistroVale empleados={datos.empleados.filter((e) => e.estado === "ACTIVO").map((e) => ({ id: e.id, nombre: `${e.nombre} ${e.apellidos}` }))} productos={datos.productos} ciclos={ciclosVale} hoy={datos.hoy} empleadoInicial={empleado.id} cicloInicial={datos.periodo?.id} abiertoInicial />}
+                {modal === "pago" && empleado?.liquidacion && <>
+                  <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-3 text-sm ring-1 ring-borde-app">
+                    <span>Pago preparado<strong className="mt-1 block text-lg">{formatCOP(empleado.liquidacion.netoAPagar)}</strong></span>
+                    <span>Saldo pendiente<strong className="mt-1 block text-lg text-amber-brand">{formatCOP(Math.max(empleado.liquidacion.netoAPagar - empleado.liquidacion.pagado, 0))}</strong></span>
+                  </div>
+                  <FormularioPagoNomina liquidacionId={empleado.liquidacion.id} netoAPagar={empleado.liquidacion.netoAPagar} pagado={empleado.liquidacion.pagado} metodoHabitual={empleado.metodoPago} abiertoInicial />
+                </>}
+                {modal === "ficha" && empleado && <div className="grid gap-2 text-sm">
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app"><span>Documento<strong className="mt-1 block">{empleado.documentoTipo} {empleado.documentoNumero}</strong></span><span>Cargo<strong className="mt-1 block">{empleado.cargo}</strong></span><span>Salario mensual<strong className="mt-1 block">{formatCOP(empleado.salarioMensual)}</strong></span><span>Pago por corte<strong className="mt-1 block text-amber-brand">{formatCOP(salarioDelCiclo(empleado.salarioMensual, datos.rango.desde))}</strong></span></div>
+                  <p className={s.footnote}>Los vales, consumos y pagos se gestionan directamente desde la ficha seleccionada.</p>
+                </div>}
+              </div>
+            </div>
+          )}
+        </ModalFlip>
+      )}
     </div>
   );
 }

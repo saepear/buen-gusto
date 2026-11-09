@@ -51,6 +51,7 @@ export default async function PaginaNomina({
     : cortes[corte];
   const [
     empleados,
+    productos,
     liquidaciones,
     vales,
     parametrosPendientes,
@@ -74,6 +75,11 @@ export default async function PaginaNomina({
         diaDescanso: true,
         metodoPago: true,
       },
+    }),
+    db.producto.findMany({
+      where: { activo: true },
+      orderBy: { nombre: "asc" },
+      select: { id: true, nombre: true, precio: true },
     }),
     periodo
       ? db.liquidacionNomina.findMany({
@@ -142,6 +148,7 @@ export default async function PaginaNomina({
           desde: p.fechaDesde,
           hasta: p.fechaHasta,
         })),
+        productos,
         empleados: empleados.map((e) => ({
           ...e,
           fechaIngreso: e.fechaIngreso.toISOString(),
