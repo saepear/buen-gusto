@@ -851,6 +851,7 @@ export function FormularioPedido({
       <input type="hidden" name="datos" value={datos} />
 
       {esDomicilio ? <SelectorClientesDomicilio clientes={clientesDomicilio}
+        nombreElegido={datosCliente.cliente}
         elegido={eleccion?.tipo === "ficha" ? eleccion.id : null}
         onElegir={cliente => {
           setEleccion({ tipo: "ficha", id: cliente.id });
