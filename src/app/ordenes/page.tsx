@@ -35,17 +35,45 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
 
   if (busqueda) {
     const query = String(busqueda).trim();
-    where.OR = [{ mesa: { nombre: { contains: query } } }];
+    where.OR = [
+      { mesa: { nombre: { contains: query } } },
+      { domicilio: { is: { cliente: { contains: query } } } },
+    ];
     if (/^\d+$/.test(query)) {
-      where.OR.unshift({ id: Number.parseInt(query, 10) });
+      const id = Number.parseInt(query, 10);
+      where.OR.unshift({ id }, { domicilio: { is: { id } } });
     }
   }
 
   const pedidos = await db.pedido.findMany({
     where,
-    include: { items: { include: { producto: true } }, mesa: true, mesero: true },
+    include: {
+      items: { include: { producto: true } },
+      mesa: true,
+      mesero: true,
+      domicilio: { include: { clienteRegistrado: true } },
+      apartado: { include: { cliente: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
+
+  // Una comanda no tiene relación inversa a la deuda porque puede llevar más
+  // de un fiado parcial. Se arma aquí su lectura financiera para que Órdenes
+  // diga si esa deuda ya se pagó y conserve el cliente y el origen exacto.
+  const cuentas = pedidos.length
+    ? await db.cuentaPorCobrar.findMany({
+        where: { pedidoId: { in: pedidos.map((pedido) => pedido.id) } },
+        include: { cliente: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const cuentasPorPedido = new Map<number, typeof cuentas>();
+  for (const cuenta of cuentas) {
+    if (cuenta.pedidoId === null) continue;
+    const lista = cuentasPorPedido.get(cuenta.pedidoId) ?? [];
+    lista.push(cuenta);
+    cuentasPorPedido.set(cuenta.pedidoId, lista);
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-fondo-app text-texto-app font-sans selection:bg-amber-brand/30">
@@ -96,7 +124,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
               <input
                 name="busqueda"
                 defaultValue={busqueda}
-                placeholder="Comanda o mesa..."
+                placeholder="Comanda, domicilio, cliente o mesa..."
                 className="h-12 w-64 rounded-2xl bg-panel-app pl-11 pr-4 text-sm text-texto-app outline-none ring-1 ring-borde-app transition focus:ring-amber-brand/50 placeholder:text-texto-muted/25"
               />
             </div>
@@ -126,6 +154,41 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
           <>
           <TableroOrdenes
             pedidos={pedidos.map((pedido) => ({
+              ...(() => {
+                const cuentasDelPedido = cuentasPorPedido.get(pedido.id) ?? [];
+                const saldo = cuentasDelPedido.reduce(
+                  (total, cuenta) => total + Math.max(0, cuenta.valorOriginal - cuenta.pagado - cuenta.saldoCondonado),
+                  0,
+                );
+                const estadoCuenta: "PENDIENTE" | "PAGADA" | "CONDONADA" | "ANULADA" =
+                  saldo > 0
+                    ? "PENDIENTE"
+                    : cuentasDelPedido.every((item) => item.estado === "PAGADA")
+                      ? "PAGADA"
+                      : cuentasDelPedido.some((item) => item.estado === "CONDONADA")
+                        ? "CONDONADA"
+                        : "ANULADA";
+                const cuenta = cuentasDelPedido.length
+                  ? {
+                      estado: estadoCuenta,
+                      saldo,
+                      total: cuentasDelPedido.reduce((total, item) => total + item.valorOriginal, 0),
+                    }
+                  : null;
+                const cliente = pedido.domicilio?.clienteRegistrado?.nombre
+                  ?? cuentasDelPedido[0]?.cliente.nombre
+                  ?? pedido.domicilio?.cliente
+                  ?? pedido.apartado?.cliente.nombre
+                  ?? null;
+                const origen = pedido.domicilio
+                  ? `Domicilio #${pedido.domicilio.id}`
+                  : pedido.apartado
+                    ? `Apartado #${pedido.apartado.id}`
+                    : pedido.paraLlevar
+                      ? "Para llevar"
+                      : `Mesa ${pedido.mesa.nombre}`;
+                return { cliente, origen, cuenta };
+              })(),
               id: pedido.id,
               mesa: pedido.mesa.nombre,
               mesero: pedido.mesero?.nombre ?? "Sistema",

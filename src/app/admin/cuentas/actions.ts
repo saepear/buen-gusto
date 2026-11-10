@@ -940,7 +940,13 @@ export async function registrarAbono(
       if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeCuenta("La caja de hoy ya está cerrada: no se pueden registrar abonos posteriores.");
       const cuenta = await tx.cuentaPorCobrar.findUnique({
         where: { id: cuentaId },
-        select: { estado: true, valorOriginal: true, pagado: true, saldoCondonado: true },
+        select: {
+          estado: true,
+          valorOriginal: true,
+          pagado: true,
+          saldoCondonado: true,
+          pedidoId: true,
+        },
       });
       if (!cuenta) throw new ErrorDeCuenta("Esa deuda ya no existe.");
       if (cuenta.estado !== ESTADO_CUENTA.PENDIENTE) {
@@ -1013,6 +1019,18 @@ export async function registrarAbono(
         throw new ErrorDeCuenta(
           "Otro abono de la misma deuda entró a la vez: se canceló para cobrar solo una vez. Revisa el saldo y repite si falta.",
         );
+      }
+
+      // La comanda salió FIADA cuando nació esta cuenta. Al cubrir el último
+      // peso no sigue debiendo aparecer como tal: el fiado queda como parte
+      // del historial de la cuenta, pero la orden vuelve a leerse como
+      // pagada. Se condiciona al estado FIADO para no pisar una comanda que
+      // haya cambiado de flujo por otra operación legítima.
+      if (nuevoSaldo === 0 && cuenta.pedidoId !== null) {
+        await tx.pedido.updateMany({
+          where: { id: cuenta.pedidoId, estado: ESTADO_PEDIDO.FIADO },
+          data: { estado: ESTADO_PEDIDO.COBRADO },
+        });
       }
       return nuevoSaldo;
     });
