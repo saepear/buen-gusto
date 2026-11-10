@@ -850,6 +850,32 @@ export function FormularioPedido({
       <input type="hidden" name="mesaId" value={mesa.id} />
       <input type="hidden" name="datos" value={datos} />
 
+      {!esDomicilio ? (
+        <nav
+          aria-label="Progreso para tomar el pedido"
+          className="sticky top-[4.75rem] z-20 -mx-1 mb-3 flex gap-2 overflow-x-auto rounded-2xl bg-fondo-app/95 px-1 py-2 backdrop-blur lg:hidden"
+        >
+          {[
+            { paso: "1", texto: "Modo", listo: true },
+            { paso: "2", texto: nombreProteina ? nombreProteina : "Plato", listo: proteina !== null },
+            { paso: "3", texto: totalPlatos ? `${totalPlatos} en comanda` : "Comanda", listo: totalPlatos > 0 },
+          ].map((item) => (
+            <span
+              key={item.paso}
+              className={
+                "flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ring-1 " +
+                (item.listo
+                  ? "bg-amber-brand/15 text-amber-brand ring-amber-brand/30"
+                  : "bg-panel-app text-texto-muted/60 ring-borde-app")
+              }
+            >
+              <b className="grid h-5 w-5 place-items-center rounded-full bg-current/15 text-[10px]">{item.paso}</b>
+              {item.texto}
+            </span>
+          ))}
+        </nav>
+      ) : null}
+
       {esDomicilio ? <SelectorClientesDomicilio clientes={clientesDomicilio}
         nombreElegido={datosCliente.cliente}
         elegido={eleccion?.tipo === "ficha" ? eleccion.id : null}

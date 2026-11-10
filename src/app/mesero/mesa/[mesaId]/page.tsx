@@ -109,7 +109,7 @@ export default async function PaginaMesa(
         volver={{ href: "/mesero", texto: "Mesas" }}
       />
 
-      <main className="mx-auto max-w-lg sm:max-w-2xl space-y-3.5 p-4 sm:p-6 pb-24">
+      <main className="mx-auto max-w-lg sm:max-w-2xl space-y-3.5 p-4 pb-32 sm:p-6 sm:pb-24">
         {nuevo ? (
           <div className="flex items-center gap-2.5 rounded-2xl bg-success/10 px-4 py-3 text-sm font-bold text-success-text ring-1 ring-success/40">
             <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
@@ -160,7 +160,7 @@ export default async function PaginaMesa(
             <Link
               href={`/mesero/mesa/${mesa.id}/nuevo`}
               className={
-                "flex items-center gap-1.5 rounded-2xl bg-amber-brand px-4 py-2.5 font-display font-bold text-brown-950 shadow-lg shadow-amber-brand/20 transition hover:bg-orange-brand hover:text-texto-app active:scale-95 " +
+                "hidden items-center gap-1.5 rounded-2xl bg-amber-brand px-4 py-2.5 font-display font-bold text-brown-950 shadow-lg shadow-amber-brand/20 transition hover:bg-orange-brand hover:text-texto-app active:scale-95 sm:flex " +
                 (granTotal > 0 ? "order-first text-md" : "")
               }
             >
@@ -188,7 +188,7 @@ export default async function PaginaMesa(
             <p className="text-sm font-bold text-texto-muted/70">
               Aún no hay comandas en esta mesa hoy.
             </p>
-            <p className="text-xs">Toca «Nuevo» para tomar el primer almuerzo.</p>
+            <p className="text-xs">Usa el botón inferior para tomar el primer almuerzo.</p>
           </div>
         ) : (
           comandas.map((pedido) => {
@@ -277,6 +277,14 @@ export default async function PaginaMesa(
           })
         )}
       </main>
+
+      <Link
+        href={`/mesero/mesa/${mesa.id}/nuevo`}
+        className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 flex items-center justify-center gap-2 rounded-2xl bg-amber-brand px-5 py-4 font-display text-lg text-brown-950 shadow-pop transition active:scale-[.98] sm:hidden"
+      >
+        <Plus aria-hidden className="h-5 w-5" />
+        Tomar nuevo pedido
+      </Link>
     </div>
   );
 }
