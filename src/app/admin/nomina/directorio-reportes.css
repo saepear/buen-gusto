@@ -40,6 +40,23 @@
 .nomina-reportProgress progress::-webkit-progress-bar { background:var(--borde-app); }
 .nomina-reportProgress progress::-webkit-progress-value { background:var(--color-amber-brand); }
 .nomina-reportProgress progress::-moz-progress-bar { background:var(--color-amber-brand); }
+.nomina-pendingPayroll { margin:0 0 28px; padding:21px; border:1px solid rgb(245 158 11 / .42); border-radius:20px; background:linear-gradient(115deg,rgb(245 158 11 / .12),var(--panel-app) 46%); }
+.nomina-pendingPayroll.is-clear { border-color:rgb(34 197 94 / .35); background:linear-gradient(115deg,rgb(34 197 94 / .1),var(--panel-app) 46%); }
+.nomina-pendingPayroll-head { display:flex; align-items:center; justify-content:space-between; gap:18px; }
+.nomina-pendingPayroll-head h2 { margin-top:5px; color:var(--texto-app); font-family:var(--font-display); font-size:23px; }
+.nomina-pendingPayroll-head p { margin-top:5px; color:var(--texto-muted); font-size:12px; }
+.nomina-pendingPayroll-head > strong { flex:0 0 auto; color:var(--color-amber-brand); font-family:var(--font-display); font-size:26px; }
+.is-clear .nomina-pendingPayroll-head > strong { color:var(--success-text); }
+.nomina-pendingPayroll-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:17px; }
+.nomina-pendingPayroll-list button { display:flex; min-width:0; align-items:center; gap:10px; padding:12px; border:1px solid var(--borde-app); border-radius:15px; background:var(--fondo-app); text-align:left; transition:transform .16s,border-color .16s,background .16s; }
+.nomina-pendingPayroll-list button:hover,.nomina-pendingPayroll-list button:focus-visible { transform:translateY(-2px); border-color:var(--color-amber-brand); background:var(--panel-hover); outline:none; }
+.nomina-pendingPayroll-list .nomina-operationAvatar { width:37px; height:37px; border-radius:12px; font-size:12px; }
+.nomina-pendingPayroll-copy { display:grid; min-width:0; flex:1; gap:3px; }
+.nomina-pendingPayroll-copy b { overflow:hidden; color:var(--texto-app); font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.nomina-pendingPayroll-copy small,.nomina-pendingPayroll-money small { color:var(--texto-muted); font-size:10px; }
+.nomina-pendingPayroll-money { display:grid; flex:0 0 auto; gap:2px; text-align:right; }
+.nomina-pendingPayroll-money b { color:var(--color-amber-brand); font-size:13px; }
+.nomina-pendingPayroll-list svg { flex:0 0 auto; color:var(--color-amber-brand); }
 .nomina-reportSectionHeader { display:flex; justify-content:space-between; align-items:center; gap:14px; margin-bottom:18px; }
 .nomina-reportSectionHeader h2 { font-size:19px; font-weight:700; }
 .nomina-reportCardAmounts { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:22px; }
@@ -53,5 +70,6 @@
 .nomina-reportFootnote { font-size:12px; line-height:1.7; color:var(--texto-muted); margin:10px 0; }
 .nomina-reportLegacy { padding:18px 0; font-size:12px; color:var(--texto-muted); }
 .nomina-reportLegacy summary { cursor:pointer; }
-@media(max-width:750px) { .nomina-profileLayout { grid-template-columns:1fr; } .nomina-reportStats { grid-template-columns:1fr; } .nomina-reportStats strong { font-size:25px; } .nomina-reportSectionHeader { align-items:start; flex-direction:column; } }
+@media(max-width:750px) { .nomina-profileLayout { grid-template-columns:1fr; } .nomina-reportStats { grid-template-columns:1fr; } .nomina-reportStats strong { font-size:25px; } .nomina-reportSectionHeader { align-items:start; flex-direction:column; } .nomina-pendingPayroll-list { grid-template-columns:1fr; } }
+@media(max-width:480px) { .nomina-pendingPayroll { padding:16px; } .nomina-pendingPayroll-head { align-items:flex-start; flex-direction:column; gap:8px; } .nomina-pendingPayroll-head > strong { font-size:23px; } }
 @media(max-width:480px) { .nomina-profileFacts,.nomina-profileAgreement { grid-template-columns:1fr; } .nomina-reportFilters label { min-width:100%; } .nomina-reportFilters button { width:100%; } }
