@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, CheckCircle2, Coffee, HandCoins, NotebookPen, Receipt, WalletCards } from "lucide-react";
+import { ArrowLeft, Banknote, CheckCircle2, Coffee, Gift, HandCoins, NotebookPen, Receipt, WalletCards } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EncabezadoPagina } from "@/components/encabezado";
@@ -40,7 +40,7 @@ export default async function PaginaCaja(
 
   const fecha = inicioDeHoy();
 
-  const [mesasBrutas, pagosHoy, resumenHoy, domicilioCobro] = await Promise.all([
+  const [mesasBrutas, pagosHoy, resumenHoy, domicilioCobro, resumenAnticipos] = await Promise.all([
     db.mesa.findMany({
       where: {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
@@ -70,6 +70,11 @@ export default async function PaginaCaja(
           },
         })
       : Promise.resolve(null),
+    db.anticipoCliente.aggregate({
+      where: { createdAt: { gte: fecha }, estado: { not: "ANULADO" } },
+      _sum: { valorOriginal: true },
+      _count: true,
+    }),
   ]);
 
   // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
@@ -123,6 +128,8 @@ export default async function PaginaCaja(
 
   const totalHoy = (resumenHoy._sum.total ?? 0) + (resumenHoy._sum.propina ?? 0);
   const cantidadPagos = resumenHoy._count;
+  const anticiposHoyTotal = resumenAnticipos._sum.valorOriginal ?? 0;
+  const cantidadAnticipos = resumenAnticipos._count;
 
   // ── Fiados: deudas del día (no son dinero) + abonos recibidos hoy (sí son
   // dinero de caja, el día en que se reciben; igual que en Reportes) ──
@@ -163,7 +170,7 @@ export default async function PaginaCaja(
   );
   // Dinero real de la caja de hoy: pagos (recibos) + abonos de deudas.
   // Las deudas NO suman: son promesa, no efectivo.
-  const totalCajaHoy = totalHoy + abonosHoyTotal;
+  const totalCajaHoy = totalHoy + abonosHoyTotal + anticiposHoyTotal;
   const pendienteMesas = paraCobrar.reduce((suma, mesa) => suma + mesa.total, 0);
 
   // ============ La comanda del domicilio, lista para cobrar en la caja ============
@@ -319,7 +326,7 @@ export default async function PaginaCaja(
 
       {/* Resumen del día */}
       <section className="caja-overview">
-        <div className="caja-overview-main"><span className="caja-eyebrow">DINERO RECIBIDO HOY</span><strong>{formatCOP(totalCajaHoy)}</strong><p>{cantidadPagos + cantidadAbonos === 0 ? "Aún no hay movimientos en caja" : `${cantidadPagos + cantidadAbonos} movimientos registrados`}</p><div className="caja-overview-breakdown"><span><Banknote size={15} /> {formatCOP(totalHoy)} en ventas</span><span><HandCoins size={15} /> {formatCOP(abonosHoyTotal)} en abonos</span></div></div>
+        <div className="caja-overview-main"><span className="caja-eyebrow">DINERO RECIBIDO HOY</span><strong>{formatCOP(totalCajaHoy)}</strong><p>{cantidadPagos + cantidadAbonos + cantidadAnticipos === 0 ? "Aún no hay movimientos en caja" : `${cantidadPagos + cantidadAbonos + cantidadAnticipos} movimientos registrados`}</p><div className="caja-overview-breakdown"><span><Banknote size={15} /> {formatCOP(totalHoy)} en ventas</span><span><HandCoins size={15} /> {formatCOP(abonosHoyTotal)} en abonos</span><span><Gift size={15} /> {formatCOP(anticiposHoyTotal)} en anticipos</span></div></div>
         <div className="caja-kpis"><div><WalletCards size={18} /><span><small>Por cobrar</small><b>{formatCOP(pendienteMesas)}</b></span></div><div><Receipt size={18} /><span><small>Pagos emitidos</small><b>{cantidadPagos}</b></span></div><div><HandCoins size={18} /><span><small>Abonos de fiados</small><b>{formatCOP(abonosHoyTotal)}</b></span></div></div>
       </section>
 

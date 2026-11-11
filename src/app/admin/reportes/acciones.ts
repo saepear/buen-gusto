@@ -61,6 +61,12 @@ export async function registrarCierre(
         where: { createdAt: { gte: hoy } },
         select: { monto: true, metodo: true },
       });
+      // El anticipo ya es dinero recibido hoy, aunque el consumo se haga en
+      // otra fecha. Debe cuadrar la caja igual que una venta o un abono.
+      const anticipos = await tx.anticipoCliente.findMany({
+        where: { createdAt: { gte: hoy }, estado: { not: "ANULADO" } },
+        select: { valorOriginal: true, metodo: true },
+      });
       const cxcCreadas = await tx.cuentaPorCobrar.findMany({
         where: { createdAt: { gte: hoy }, estado: { not: "ANULADA" } },
         select: { clienteId: true, concepto: true, valorOriginal: true, pagado: true },
@@ -96,6 +102,7 @@ export async function registrarCierre(
       if (
         pagos.length === 0 &&
         abonos.length === 0 &&
+        anticipos.length === 0 &&
         gastos.length === 0 &&
         cxcCreadas.length === 0 &&
         cxcCondonadasHoy.length === 0
@@ -105,13 +112,13 @@ export async function registrarCierre(
 
       const totalEfectivo = pagos
         .filter((p) => p.metodo === "EFECTIVO")
-        .reduce((s, p) => s + p.total, 0);
+        .reduce((s, p) => s + p.total, 0) + anticipos.filter((a) => a.metodo === "EFECTIVO").reduce((s, a) => s + a.valorOriginal, 0);
       const totalTarjeta = pagos
         .filter((p) => p.metodo === "TARJETA")
-        .reduce((s, p) => s + p.total, 0);
+        .reduce((s, p) => s + p.total, 0) + anticipos.filter((a) => a.metodo === "TARJETA").reduce((s, a) => s + a.valorOriginal, 0);
       const totalTransfer = pagos
         .filter((p) => p.metodo === "TRANSFERENCIA")
-        .reduce((s, p) => s + p.total, 0);
+        .reduce((s, p) => s + p.total, 0) + anticipos.filter((a) => a.metodo === "TRANSFERENCIA").reduce((s, a) => s + a.valorOriginal, 0);
       const totalPropinas = pagos.reduce((s, p) => s + p.propina, 0);
       const propinasEfectivo = pagos.filter((p) => p.metodo === "EFECTIVO").reduce((s, p) => s + p.propina, 0);
 
@@ -187,7 +194,7 @@ export async function registrarCierre(
           totalPropinas,
           propinasEfectivo,
           efectivoEsperado,
-          numeroPagos: pagos.length,
+          numeroPagos: pagos.length + anticipos.length,
           numeroComandas,
           totalDomicilios,
           efectivoContado,

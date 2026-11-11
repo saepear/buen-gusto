@@ -10,9 +10,10 @@ import { ETIQUETA_METODO } from "@/app/admin/reportes/datos-reporte";
 import { FormularioAbono, FormularioAnularCuenta, FormularioCondonarCuenta } from "./formularios";
 import { TableroCuentas } from "./tablero";
 import { NuevoFiadoModal } from "./nuevo-fiado-modal";
+import { AnticiposPanel } from "./anticipos-panel";
 import "./cuentas.css";
 
-export const metadata = { title: "Cuentas por cobrar · El Buen Gusto" };
+export const metadata = { title: "Fiados y anticipos · El Buen Gusto" };
 
 const CHIP_ESTADO: Record<EstadoCuenta, string> = {
   PENDIENTE: "bg-danger/10 text-danger-text ring-1 ring-danger/25",
@@ -267,11 +268,24 @@ export default async function PaginaCuentas(
     ? `/admin/cuentas?${sinFicha.toString()}`
     : "/admin/cuentas";
 
+  const anticipos = await db.anticipoCliente.findMany({
+    where: fichaFija ? { clienteId: fichaFija.id } : undefined,
+    orderBy: [{ estado: "asc" }, { createdAt: "desc" }],
+    take: 30,
+    include: {
+      cliente: { select: { id: true, nombre: true, telefono: true } },
+      usos: {
+        orderBy: { createdAt: "desc" },
+        include: { registradoPor: { select: { nombre: true } } },
+      },
+    },
+  });
+
   return (
     <>
       <EncabezadoPagina
-        titulo="Cuentas por cobrar"
-        subtitulo="Los fiados: quién debe, cuánto, y cada abono que entra"
+        titulo="Fiados y anticipos"
+        subtitulo="Deudas por cobrar y saldos a favor para próximos consumos"
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
@@ -776,6 +790,28 @@ export default async function PaginaCuentas(
           ) : null}
         </nav>
       ) : null}
+
+      <AnticiposPanel
+        anticipos={anticipos.map((anticipo) => ({
+          id: anticipo.id,
+          clienteId: anticipo.clienteId,
+          nombre: anticipo.cliente.nombre,
+          telefono: anticipo.cliente.telefono,
+          concepto: anticipo.concepto,
+          valorOriginal: anticipo.valorOriginal,
+          usado: anticipo.usado,
+          estado: anticipo.estado,
+          metodo: anticipo.metodo,
+          createdAt: anticipo.createdAt.toISOString(),
+          usos: anticipo.usos.map((uso) => ({
+            id: uso.id,
+            monto: uso.monto,
+            concepto: uso.concepto,
+            createdAt: uso.createdAt.toISOString(),
+            registradoPor: uso.registradoPor.nombre,
+          })),
+        }))}
+      />
     </>
   );
 }

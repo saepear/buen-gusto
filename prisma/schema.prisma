@@ -32,6 +32,8 @@ model Usuario {
   gastosAnulados      Gasto[]           @relation("GastoAnuladoPor")
   cuentasAnuladas     CuentaPorCobrar[] @relation("CuentaAnuladaPor")
   cuentasCondonadas   CuentaPorCobrar[] @relation("CuentaCondonadaPor")
+  anticiposRegistrados AnticipoCliente[] @relation("AnticipoRegistradoPor")
+  anticiposUsados      UsoAnticipo[]     @relation("AnticipoUsadoPor")
   fusionesHechas      FusionCliente[]   @relation("FusionesHechas")
 
   // Nómina (quién registró qué)
@@ -282,6 +284,7 @@ model Cliente {
   domicilios          Domicilio[]
   apartados           Apartado[]
   cuentas             CuentaPorCobrar[]
+  anticipos           AnticipoCliente[]
   fusionesComoDestino FusionCliente[]   @relation("FusionesComoDestino")
 }
 
@@ -428,6 +431,43 @@ model AbonoCuenta {
   usuarioId     Int
   registradoPor Usuario         @relation("AbonoRegistradoPor", fields: [usuarioId], references: [id])
   createdAt     DateTime        @default(now())
+}
+
+// Saldo a favor que un cliente deja para consumos futuros. A diferencia de
+// un fiado, aquí el dinero ya fue recibido: cada uso descuenta el saldo, pero
+// el registro original y sus movimientos nunca se borran.
+model AnticipoCliente {
+  id            Int      @id @default(autoincrement())
+  clienteId     Int
+  cliente       Cliente  @relation(fields: [clienteId], references: [id])
+  concepto      String
+  valorOriginal Int
+  usado         Int      @default(0)
+  estado        String   @default("VIGENTE") // VIGENTE | AGOTADO | ANULADO
+  metodo        String   // EFECTIVO | TARJETA | TRANSFERENCIA
+  createdById   Int
+  creadoPor     Usuario  @relation("AnticipoRegistradoPor", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  usos UsoAnticipo[]
+
+  @@index([clienteId, estado])
+}
+
+// Cada descuento conserva qué se entregó o consumió el cliente. Es un
+// movimiento auditable del saldo a favor; no se elimina al agotarse.
+model UsoAnticipo {
+  id          Int              @id @default(autoincrement())
+  anticipoId  Int
+  anticipo    AnticipoCliente  @relation(fields: [anticipoId], references: [id], onDelete: Cascade)
+  monto       Int
+  concepto    String
+  usuarioId   Int
+  registradoPor Usuario         @relation("AnticipoUsadoPor", fields: [usuarioId], references: [id])
+  createdAt   DateTime         @default(now())
+
+  @@index([anticipoId])
 }
 
 // Desglose de artículos de una deuda: la FOTO de cada línea del pedido que se
