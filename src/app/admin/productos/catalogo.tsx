@@ -119,7 +119,7 @@ export function ExploradorProductos({
         <PanelCategorias categorias={categorias} />
       </section>
 
-      {nuevoOrigen ? <ModalFlip rapida origen={nuevoOrigen} ariaLabel="Crear nuevo producto" onClose={() => { setNuevoOrigen(null); nuevoRef.current?.focus(); }}>
+      {nuevoOrigen ? <ModalFlip rapida origen={nuevoOrigen} ariaLabel="Crear nuevo producto" panelClassName="productos-modal-panel" onClose={() => { setNuevoOrigen(null); nuevoRef.current?.focus(); }}>
         {cerrar => <>
           <header className="productos-modal-header" data-anim>
             <span className="productos-modal-icon"><PackagePlus aria-hidden size={24} /></span>
@@ -157,7 +157,7 @@ function CategoriaProducto({ seccion, productos }: { seccion: SeccionCatalogo; p
       <span className="productos-category-preview">{nombres || "Aún no hay productos en este grupo"}{productos.length > 3 ? "…" : ""}</span>
       <span className="productos-category-footer"><span><Check aria-hidden size={14} /> {activos} activos <em>·</em> {productos.length} total</span><span>{precioMedio}</span></span>
     </button>
-    {origen ? <ModalFlip rapida origen={origen} ariaLabel={`Administrar ${seccion.titulo}`} onClose={() => { setOrigen(null); trigger.current?.focus(); }}>
+    {origen ? <ModalFlip rapida origen={origen} ariaLabel={`Administrar ${seccion.titulo}`} panelClassName="productos-modal-panel" onClose={() => { setOrigen(null); trigger.current?.focus(); }}>
       {cerrar => <>
         <header className="productos-modal-header" data-anim>
           <span className="productos-modal-icon"><Icono aria-hidden size={24} /></span>

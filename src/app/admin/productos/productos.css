@@ -68,6 +68,21 @@
 .productos-modal-products { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .productos-modal-products .productos-card { min-width:0; padding:15px; border:1px solid var(--borde-app); border-radius:18px; background:var(--panel-app); box-shadow:none; }
 .productos-modal-products .productos-card-actions { margin-top:12px; }
+.productos-modal-panel { max-width:min(92vw,82rem) !important; }
+/* En el modal se edita, no se navega: dar aire al nombre evita que “Hígado”
+   y otros productos queden recortados. La grilla baja de columnas por sí
+   sola cuando no cabe, sin un control manual de zoom. */
+.productos-modal-panel .productos-modal-products { grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:16px; }
+.productos-modal-panel .productos-modal-products .productos-card { min-height:208px; padding:19px; border-radius:20px; }
+.productos-modal-panel .productos-modal-products .productos-card > form { grid-template-columns:minmax(0,1fr) 150px; gap:14px; }
+.productos-modal-panel .productos-modal-products .productos-card input { min-height:48px; padding:0 13px; font-size:16px; }
+.productos-modal-panel .productos-modal-products .productos-card input[name="nombre"] { font-family:var(--font-display); font-size:18px; }
+.productos-modal-panel .productos-modal-products .productos-card label:last-of-type input { font-size:16px; }
+.productos-modal-panel .productos-card .productos-field-label { margin-bottom:8px; font-size:11px; letter-spacing:.03em; }
+.productos-modal-panel .productos-modal-products .productos-card-actions { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:15px; padding-top:14px; border-top:1px solid var(--borde-app); }
+.productos-modal-panel .productos-modal-products .productos-card-actions > * { min-width:0; }
+.productos-modal-panel .productos-modal-products .productos-card-actions button { min-height:42px; font-size:12px; }
+.productos-modal-panel .productos-modal-products .productos-card > form > div { min-height:43px; padding-top:4px; }
 .productos-empty-state { display:flex; min-height:220px; flex-direction:column; align-items:center; justify-content:center; padding:28px; text-align:center; border:1px dashed rgb(242 166 61 / .28); border-radius:18px; color:var(--color-amber-brand); background:rgb(242 166 61 / .05); }
 .productos-empty-state h3 { margin-top:12px; color:var(--texto-app); font-family:var(--font-display); font-size:21px; }
 .productos-empty-state p { max-width:350px; margin-top:6px; color:var(--texto-muted); font-size:12px; opacity:.65; }
@@ -107,5 +122,5 @@
   .productos-dialog button { min-height:44px; }
 }
 @media(max-width:1000px) { .productos-category-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .productos-catalog-hero { align-items:flex-start; flex-direction:column; } .productos-catalog-stats { width:100%; } .productos-catalog-stats > div { min-width:0; } }
-@media(max-width:700px) { .productos-catalog { gap:18px; } .productos-catalog-hero { padding:19px; border-radius:21px; } .productos-catalog-toolbar { align-items:stretch; flex-direction:column; } .productos-new-button { width:100%; } .productos-category-grid { grid-template-columns:1fr; } .productos-category-tile { min-height:215px; } .productos-management-row { align-items:stretch; flex-direction:column; padding:17px; } .productos-management-copy { min-width:0; } .productos-management-row > .productos-custom > summary { justify-content:space-between; } .productos-modal-header { padding:17px; } .productos-modal-header h2 { font-size:24px; } .productos-modal-body { padding:17px; } .productos-modal-products { grid-template-columns:1fr; } .productos-modal-footer { align-items:stretch; flex-direction:column; padding:12px 17px; } .productos-modal-footer > button { justify-content:center; } }
+@media(max-width:700px) { .productos-catalog { gap:18px; } .productos-catalog-hero { padding:19px; border-radius:21px; } .productos-catalog-toolbar { align-items:stretch; flex-direction:column; } .productos-new-button { width:100%; } .productos-category-grid { grid-template-columns:1fr; } .productos-category-tile { min-height:215px; } .productos-management-row { align-items:stretch; flex-direction:column; padding:17px; } .productos-management-copy { min-width:0; } .productos-management-row > .productos-custom > summary { justify-content:space-between; } .productos-modal-header { padding:17px; } .productos-modal-header h2 { font-size:24px; } .productos-modal-body { padding:17px; } .productos-modal-products,.productos-modal-panel .productos-modal-products { grid-template-columns:1fr; } .productos-modal-panel .productos-modal-products .productos-card { min-height:0; padding:16px; } .productos-modal-panel .productos-modal-products .productos-card > form { grid-template-columns:minmax(0,1fr) 110px; gap:10px; } .productos-modal-panel .productos-modal-products .productos-card input { min-height:46px; padding-inline:10px; } .productos-modal-panel .productos-modal-products .productos-card input[name="nombre"] { font-size:16px; } .productos-modal-footer { align-items:stretch; flex-direction:column; padding:12px 17px; } .productos-modal-footer > button { justify-content:center; } }
 @media(prefers-reduced-motion:reduce) { .productos-category-tile,.productos-new-button,.productos-modal-close { transition:none; } .productos-category-tile:hover,.productos-new-button:hover,.productos-modal-close:hover { transform:none; } }
