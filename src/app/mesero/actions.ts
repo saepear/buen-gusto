@@ -8,7 +8,7 @@ import { realtime } from "@/lib/realtime";
 
 export type EstadoAccionPedido = { error: string | null; ok: string | null };
 
-/** Toma el pedido de una mesa: descuenta porciones en vivo y envía la comanda */
+/** Registra el pedido de una mesa y descuenta porciones en vivo. */
 export async function tomarPedido(
   _previa: EstadoAccionPedido,
   datos: FormData,
@@ -61,8 +61,7 @@ export async function tomarPedido(
   revalidatePath("/");
   realtime.broadcast("update");
 
-  // La comanda sale directa a imprimir para la cocina (una sola vez, el
-  // componente la limpia de la URL) y el «Volver» regresa a la ficha de la
-  // MISMA mesa: el mesero sigue en su flujo sin recorrer el listado.
-  redirect(`/ordenes/comanda/${nuevoId}?autoPrint=1&volver=/mesero/mesa/${mesaId}`);
+  // La preparación ocurre fuera del sistema. El mesero continúa en la misma
+  // mesa y Caja podrá cobrar el consumo cuando corresponda.
+  redirect(`/mesero/mesa/${mesaId}?nuevo=${nuevoId}`);
 }

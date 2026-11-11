@@ -1,4 +1,4 @@
-import { ArrowUpRight, Banknote, Bike, CalendarDays, CheckCircle2, ChefHat, CircleDollarSign, Clock3, LayoutDashboard, ReceiptText, ShoppingBag, Soup, UtensilsCrossed, WalletCards } from "lucide-react";
+import { ArrowUpRight, Banknote, Bike, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, LayoutDashboard, ReceiptText, ShoppingBag, Soup, UtensilsCrossed, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatFecha } from "@/lib/format";
@@ -13,11 +13,11 @@ export default async function AdminInicio() {
   const ahora = new Date();
   const hoy = inicioDeHoy();
   const fecha = claveDia(ahora);
-  const [pagos, anticipos, mesasPorCobrar, pedidosActivos, domicilios, deudas, gastos, menu, cierre] = await Promise.all([
+  const [pagos, anticipos, mesasPorCobrar, pedidosDelDia, domicilios, deudas, gastos, menu, cierre] = await Promise.all([
     db.pago.aggregate({ where: { createdAt: { gte: hoy } }, _sum: { total: true, propina: true }, _count: true }),
     db.anticipoCliente.aggregate({ where: { createdAt: { gte: hoy }, estado: { not: "ANULADO" } }, _sum: { valorOriginal: true } }),
     db.mesa.count({ where: { activa: true, esDomicilio: false, esApartado: false, estado: "POR_PAGAR" } }),
-    db.pedido.count({ where: { createdAt: { gte: hoy }, estado: { in: ["ENVIADO", "EN_PREPARACION"] } } }),
+    db.pedido.count({ where: { createdAt: { gte: hoy }, estado: { not: "CANCELADO" } } }),
     db.domicilio.findMany({ where: { createdAt: { gte: hoy } }, select: { id: true, cliente: true, estado: true, cobradoMonto: true, horaEntrega: true, consecutivoDia: true }, orderBy: { createdAt: "asc" }, take: 5 }),
     db.cuentaPorCobrar.aggregate({ where: { estado: "PENDIENTE" }, _sum: { valorOriginal: true, pagado: true, saldoCondonado: true }, _count: true }),
     db.gasto.aggregate({ where: { createdAt: { gte: hoy }, anulado: false }, _sum: { valor: true } }),
@@ -39,7 +39,7 @@ export default async function AdminInicio() {
 
     <section className="admin-home-metrics" aria-label="Resumen del turno">
       <Metric icon={WalletCards} label="Dinero recibido hoy" value={formatCOP(ventas + anticiposHoy)} note={`${pagos._count} pagos · ${formatCOP(anticiposHoy)} en anticipos`} tone="amber" href="/admin/caja" />
-      <Metric icon={ChefHat} label="En cocina" value={String(pedidosActivos)} note={pedidosActivos === 1 ? "comanda esperando preparación" : "comandas esperando preparación"} tone="orange" href="/ordenes" />
+      <Metric icon={ShoppingBag} label="Comandas de hoy" value={String(pedidosDelDia)} note={pedidosDelDia === 1 ? "pedido registrado en el turno" : "pedidos registrados en el turno"} tone="orange" href="/ordenes" />
       <Metric icon={Bike} label="Domicilios activos" value={String(domPendientes.length)} note={domPendientes.length ? "requieren seguimiento" : "sin entregas pendientes"} tone="blue" href="/admin/domicilios" />
       <Metric icon={CircleDollarSign} label="Por cobrar" value={formatCOP(saldoFiados)} note={`${deudas._count} ${deudas._count === 1 ? "fiado abierto" : "fiados abiertos"}`} tone="violet" href="/admin/cuentas" />
     </section>

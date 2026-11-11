@@ -35,7 +35,7 @@ export default async function PaginaReportes(props: PageProps<"/admin/reportes">
       gastosTotal: datos.gastosTotal, efectivo: datos.efectivoDisponible, propinas: datos.propinasHoy,
       ticket: datos.ticketPromedio, pagos: datos.numeroPagos, fiadoPendiente: datos.cxcPendienteTotal,
       fiadoNuevo: datos.cxcCreadasValor, cuentasNuevas: datos.cxcCreadasCantidad,
-      servidas: datos.servidas.length, cocina: datos.enCocina.length, canceladas: datos.canceladas.length,
+      servidas: datos.servidas.length, pendientesCobro: datos.pendientesCobro.length, canceladas: datos.canceladas.length,
       domicilios: datos.domiciliosHoy.length, domCobrados: datos.domCobrados.length,
       domPendientes: datos.domEnCurso.length, domCancelados: datos.domFallidos.length,
       recaudoDomicilios: datos.recaudoDomicilios, apartados: datos.apartadosCreados,

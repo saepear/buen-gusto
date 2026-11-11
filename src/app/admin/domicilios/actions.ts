@@ -178,9 +178,8 @@ export async function crearDomicilio(
   });
 
   revalidarDomicilios();
-  // La comanda sale directa a imprimir para la cocina; el «volver» regresa
-  // al tablero de domicilios (el BotonImprimir admite el parámetro volver).
-  redirect(`/ordenes/comanda/${pedidoId}?autoPrint=1&volver=/admin/domicilios`);
+  // El domicilio queda listo para cobro; el sistema no controla preparación.
+  redirect("/admin/domicilios");
 }
 
 /** Cancela un domicilio que aún no salió: devuelve las porciones al menú */

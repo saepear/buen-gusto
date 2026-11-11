@@ -278,20 +278,12 @@ export async function datosReporte(fechaFila: Date) {
     pagosHoy.length > 0 ? Math.round(pagadoHoy / pagosHoy.length) : 0;
 
   // ---- Comandas del día ----
-  // Una mesa/domicilio/apartado FIADO es comida que SALIÓ (cuenta como
-  // servida y entra en el conteo de platos), pero su dinero NO es ingreso:
-  // la cobranza llega el día de los abonos y por eso no suma recaudo aquí.
-  const servidas = pedidosHoy.filter(
-    (p) =>
-      p.estado === "SERVIDO" ||
-      p.estado === "COBRADO" ||
-      p.estado === ESTADO_PEDIDO.FIADO,
-  );
+  // La preparación ocurre fuera del sistema: cada registro no anulado entra
+  // al resumen de productos. Un fiado sigue sin ser ingreso hasta el abono.
+  const servidas = pedidosHoy.filter((p) => p.estado !== ESTADO_PEDIDO.CANCELADO);
   const esSinIngreso = (estado: string) => estado === ESTADO_PEDIDO.FIADO;
-  const enCocina = pedidosHoy.filter((p) =>
-    ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "POR_PAGAR"].includes(
-      p.estado,
-    ),
+  const pendientesCobro = pedidosHoy.filter((p) =>
+    ![ESTADO_PEDIDO.COBRADO, ESTADO_PEDIDO.FIADO, ESTADO_PEDIDO.CANCELADO].includes(p.estado as never),
   );
   const canceladas = pedidosHoy.filter((p) => p.estado === "CANCELADO");
 
@@ -663,7 +655,7 @@ export async function datosReporte(fechaFila: Date) {
     numeroPagos: pagosHoy.length,
     numeroComandas: servidas.length,
     servidas,
-    enCocina,
+    pendientesCobro,
     canceladas,
     proteinasLista,
     extrasLista,

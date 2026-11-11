@@ -39,7 +39,7 @@ function revalidar() {
   realtime.broadcast("update");
 }
 
-/** Estados en los que un pedido todavía puede terminar fiado */
+/** Estados de registros que todavía pueden convertirse en fiado. */
 const ESTADOS_FIABLES = [
   ESTADO_PEDIDO.PARCIAL_SERVIDO,
   ESTADO_PEDIDO.SERVIDO,
@@ -278,11 +278,6 @@ export async function listarPedidosFiables(
   const donde: Prisma.PedidoWhereInput = {
     OR: [
       { estado: { in: ESTADOS_FIABLES } },
-      {
-        // Domicilio en camino: ya salió, falta solo el dinero
-        estado: ESTADO_PEDIDO.ENVIADO,
-        mesa: { esDomicilio: true },
-      },
     ],
   };
   if (Number.isInteger(idCliente)) {
@@ -688,11 +683,7 @@ export async function crearCuenta(
         const estado = pedido.estado;
         // Un domicilio se puede fiar apenas sale (comanda ENVIADO): la comida
         // ya está en camino, lo único pendiente es el dinero
-        const esDeDomicilio =
-          Boolean(pedido.domicilio?.id) || pedido.mesa.esDomicilio;
-        const fiable =
-          ESTADOS_FIABLES.includes(estado as never) ||
-          (estado === ESTADO_PEDIDO.ENVIADO && esDeDomicilio);
+        const fiable = ESTADOS_FIABLES.includes(estado as never);
         if (estado === ESTADO_PEDIDO.CANCELADO) {
           throw new ErrorDeCuenta(`El pedido #${pedidoId} está CANCELADO: no se fía.`);
         }
@@ -708,7 +699,7 @@ export async function crearCuenta(
         }
         if (!fiable) {
           throw new ErrorDeCuenta(
-            `El pedido #${pedidoId} sigue ${estado} (no servido): espera a que esté listo para fiar.`,
+            `El pedido #${pedidoId} no está disponible para fiar.`,
           );
         }
 

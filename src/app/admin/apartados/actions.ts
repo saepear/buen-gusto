@@ -1099,7 +1099,8 @@ export async function entregarApartado(
           fechaConsecutivo,
           consecutivoDia,
           meseroId: adminId,
-          estado: "SERVIDO",
+          // El apartado entregado queda listo para cobro sin pasos de cocina.
+          estado: "POR_PAGAR",
           // La modalidad congelada al apartar: recoger sale con empaque,
           // «en mesa» sale a los platos del salón
           paraLlevar: apartado.paraLlevar,

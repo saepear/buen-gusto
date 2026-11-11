@@ -234,8 +234,8 @@ export async function construirLibroExcel(
   filaResumen(resumen, 7, "Pagos del día (sin propinas)", datos.totalPagos, { dinero: true });
   filaResumen(resumen, 8, "Propinas recibidas", datos.propinasHoy, { dinero: true });
   filaResumen(resumen, 9, "Cantidad de pagos", datos.numeroPagos);
-  filaResumen(resumen, 10, "Comandas servidas (SERVIDO/COBRADO)", datos.numeroComandas);
-  filaResumen(resumen, 11, "Comandas en cocina", datos.enCocina.length);
+  filaResumen(resumen, 10, "Comandas registradas", datos.numeroComandas);
+  filaResumen(resumen, 11, "Comandas pendientes de cobro", datos.pendientesCobro.length);
   filaResumen(resumen, 12, "Comandas canceladas", datos.canceladas.length);
   filaResumen(resumen, 13, "Ticket promedio", datos.ticketPromedio, { dinero: true });
   filaResumen(
@@ -461,7 +461,7 @@ export async function construirLibroExcel(
   notaHoja(
     productosHoja,
     fina + 2,
-    "Solo cuenta lo que llegó a servirse (SERVIDO/COBRADO). Sopas, principios y ensaladas del almuerzo van incluidos en el precio del plato y no generan cobro aparte; los valores salen del precio fijado al ordenar.",
+    "Cuenta las comandas registradas que no fueron anuladas. Sopas, principios y ensaladas del almuerzo van incluidos en el precio del plato y no generan cobro aparte; los valores salen del precio fijado al ordenar.",
     5,
   );
 

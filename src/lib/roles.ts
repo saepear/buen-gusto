@@ -66,6 +66,8 @@ export const ESTADO_MESA = {
 export type EstadoMesa = keyof typeof ESTADO_MESA;
 
 export const ESTADO_PEDIDO = {
+  // Estados heredados de la antigua vista de cocina. Se conservan para que
+  // el historial no se rompa, pero ningún flujo nuevo los crea ni los expone.
   ENVIADO: "ENVIADO",
   EN_PREPARACION: "EN_PREPARACION",
   PARCIAL_SERVIDO: "PARCIAL_SERVIDO",
@@ -83,10 +85,10 @@ export type EstadoPedido = keyof typeof ESTADO_PEDIDO;
 
 /** Etiquetas legibles de los estados de la comanda */
 export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
-  ENVIADO: "Enviada a cocina",
-  EN_PREPARACION: "En preparación",
-  PARCIAL_SERVIDO: "Parcialmente servida",
-  SERVIDO: "Lista para servir",
+  ENVIADO: "Registrada",
+  EN_PREPARACION: "Registrada",
+  PARCIAL_SERVIDO: "Registrada",
+  SERVIDO: "Registrada",
   POR_PAGAR: "Por pagar",
   COBRADO: "Pagada",
   FIADO: "Fiada (deuda por cobrar)",

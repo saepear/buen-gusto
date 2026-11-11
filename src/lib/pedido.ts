@@ -6,7 +6,9 @@ import { siguienteConsecutivo } from "@/lib/consecutivos";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ESTADO_APARTADO, ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
 
-/** Pedidos que dejan la mesa ocupada (los demás son históricos) */
+/** Pedidos que dejan la mesa ocupada (los demás son históricos).
+ * Los cuatro primeros valores solo cubren comandas antiguas del flujo de
+ * cocina que ya no se muestra ni se vuelve a crear. */
 export const ESTADOS_ACTIVOS_PEDIDO: EstadoPedido[] = [
   ESTADO_PEDIDO.ENVIADO,
   ESTADO_PEDIDO.EN_PREPARACION,
@@ -548,7 +550,9 @@ export async function crearPedido(opciones: {
         fechaConsecutivo,
         consecutivoDia,
         meseroId,
-        estado: "ENVIADO",
+        // El pedido nace disponible para caja: el restaurante prepara fuera
+        // del sistema y no necesita marcar pasos de cocina.
+        estado: "POR_PAGAR",
         paraLlevar: llevar,
         observaciones,
       },
@@ -595,7 +599,7 @@ export function inicioDeHoy(): Date {
   return d;
 }
 
-/** Colores de los chips de estado de comanda (zonas oscuras: cocina) */
+/** Colores para los pocos estados financieros que siguen siendo visibles. */
 export const CHIP_ESTADO_PEDIDO: Record<string, string> = {
   ENVIADO:
     "bg-amber-brand/15 text-amber-brand border border-amber-brand/40",

@@ -1,4 +1,4 @@
-import { CheckCircle2, ChefHat, Clock, Printer, Search, ShoppingBag, Timer } from "lucide-react";
+import { CheckCircle2, Clock, Printer, Search, ShoppingBag } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
@@ -116,7 +116,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
         <div className="mb-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="font-display text-4xl text-texto-app">Órdenes</h2>
-            <p className="mt-2 text-texto-muted/50">Control de flujo y despacho del restaurante</p>
+            <p className="mt-2 text-texto-muted/50">Registro de comandas, consumos y cobros del restaurante</p>
           </div>
 
           <form method="GET" className="flex flex-wrap items-center gap-3">
@@ -141,13 +141,13 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
         {pedidos.length === 0 ? (
           <div className="ordenes-empty-layout">
             <div className="ordenes-empty-hero">
-              <div className="ordenes-empty-icon"><ChefHat size={28} /></div>
-              <div><span className="orden-eyebrow">TABLERO EN VIVO</span><h3>Todo despejado por ahora</h3><p>Las comandas aparecerán aquí en cuanto el equipo envíe un pedido desde una mesa o domicilio.</p></div>
+              <div className="ordenes-empty-icon"><ShoppingBag size={28} /></div>
+              <div><span className="orden-eyebrow">REGISTRO DEL TURNO</span><h3>Todo despejado por ahora</h3><p>Las comandas aparecerán aquí en cuanto el equipo registre un pedido desde una mesa o domicilio.</p></div>
             </div>
             <div className="ordenes-empty-stats">
-              <div><Timer size={18} /><span><small>En preparación</small><b>0 comandas</b></span></div>
-              <div><Clock size={18} /><span><small>Por atender</small><b>0 comandas</b></span></div>
-              <div><CheckCircle2 size={18} /><span><small>Listas hoy</small><b>0 comandas</b></span></div>
+              <div><ShoppingBag size={18} /><span><small>Comandas del día</small><b>0 registros</b></span></div>
+              <div><Clock size={18} /><span><small>Por cobrar</small><b>0 registros</b></span></div>
+              <div><CheckCircle2 size={18} /><span><small>Finalizadas</small><b>0 registros</b></span></div>
             </div>
             <div className="ordenes-empty-tip"><ShoppingBag size={17} /><span><b>Tip rápido:</b> usa el buscador para encontrar una comanda por número o mesa.</span></div>
           </div>

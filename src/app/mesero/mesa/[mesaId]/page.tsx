@@ -30,22 +30,6 @@ import { EncabezadoMesero } from "../../encabezado";
 
 export const metadata = { title: "Mesa · El Buen Gusto" };
 
-const CHIP_ESTADO: Record<string, string> = {
-  ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
-  PARCIAL_SERVIDO: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
-  SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
-};
-
-const TXT_ESTADO: Record<string, string> = {
-  ENVIADO: "En cocina",
-  EN_PREPARACION: "En preparación",
-  PARCIAL_SERVIDO: "Parcial",
-  SERVIDO: "Lista para servir",
-  POR_PAGAR: "Por pagar",
-};
-
 const ICONO_TIPO: Record<string, LucideIcon> = {
   PROTEINA: Drumstick,
   PRINCIPIO: Wheat,
@@ -114,7 +98,7 @@ export default async function PaginaMesa(
         {nuevo ? (
           <div className="flex items-center gap-2.5 rounded-2xl bg-success/10 px-4 py-3 text-sm font-bold text-success-text ring-1 ring-success/40">
             <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
-            Comanda #{comandas.find((pedido) => String(pedido.id) === nuevo)?.consecutivoDia ?? nuevo} enviada a la cocina. Mira su avance aquí mismo.
+            Comanda #{comandas.find((pedido) => String(pedido.id) === nuevo)?.consecutivoDia ?? nuevo} registrada correctamente.
           </div>
         ) : null}
 
@@ -207,14 +191,6 @@ export default async function PaginaMesa(
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span className="font-display text-lg text-texto-app">
                       Comanda #{numeroVisible(pedido)}
-                    </span>
-                    <span
-                      className={
-                        "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-                        (CHIP_ESTADO[pedido.estado] ?? "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-                      }
-                    >
-                      {TXT_ESTADO[pedido.estado] ?? pedido.estado}
                     </span>
                     {pedido.paraLlevar ? (
                       <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2.5 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">

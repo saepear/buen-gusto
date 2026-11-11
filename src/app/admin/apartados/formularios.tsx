@@ -949,7 +949,7 @@ export function FormularioApartado({
                   Icono={Soup}
                   clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
                   titulo="Sopa del día"
-                  sub="Opcional · si no eliges, la cocina pone la del día"
+                  sub="Opcional · si no eliges, se usa la opción del día"
                 />
                 {sopasMenu.length === 0 ? (
                   <NotaVacia texto="El menú de esa fecha no trae sopa: se llevará la sopa del día de la entrega." />
@@ -1097,7 +1097,7 @@ export function FormularioApartado({
                           )
                         }
                         maxLength={60}
-                        placeholder="Nota para cocina (ej: sin cebolla)…"
+                        placeholder="Nota del pedido (ej: sin cebolla)…"
                         className={CAMPO + " mt-2 text-xs"}
                       />
                     </li>

@@ -21,41 +21,7 @@ const VIVOS: EstadoPedido[] = [
   ESTADO_PEDIDO.PARCIAL_SERVIDO,
 ];
 
-/** El administrador empieza a preparar la comanda */
-export async function empezarComanda(datos: FormData): Promise<void> {
-  await exigirActor(["ADMIN"]);
-  const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
-  if (!Number.isInteger(id)) return;
-  const pedido = await db.pedido.findUnique({
-    where: { id },
-    select: { estado: true },
-  });
-  if (pedido?.estado !== ESTADO_PEDIDO.ENVIADO) return;
-  await db.pedido.update({
-    where: { id },
-    data: { estado: ESTADO_PEDIDO.EN_PREPARACION },
-  });
-  revalidarComandas();
-}
-
-/** Comanda lista: los platos están servidos en la bandeja */
-export async function terminarComanda(datos: FormData): Promise<void> {
-  await exigirActor(["ADMIN"]);
-  const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);
-  if (!Number.isInteger(id)) return;
-  const pedido = await db.pedido.findUnique({
-    where: { id },
-    select: { estado: true },
-  });
-  if (pedido?.estado !== ESTADO_PEDIDO.EN_PREPARACION) return;
-  await db.pedido.update({
-    where: { id },
-    data: { estado: ESTADO_PEDIDO.SERVIDO },
-  });
-  revalidarComandas();
-}
-
-/** Cancelar una comanda viva: devuelve las porciones al menú del día */
+/** Anular una comanda sin cobrar: devuelve las porciones al menú del día. */
 export async function cancelarComanda(datos: FormData): Promise<void> {
   await exigirActor(["ADMIN"]);
   const id = Number.parseInt(String(datos.get("pedidoId") ?? ""), 10);

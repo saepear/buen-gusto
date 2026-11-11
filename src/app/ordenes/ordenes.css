@@ -29,6 +29,7 @@
 .orden-card-footer { margin-top: auto; color: color-mix(in srgb, var(--color-texto-muted) 70%, transparent); font-size: .7rem; }
 .orden-card-footer span:last-child { display: inline-flex; align-items: center; gap: .25rem; color: var(--color-amber-brand); font-weight: 800; }
 .orden-status { display: inline-flex; align-items: center; border-radius: 999px; padding: .35rem .58rem; font-size: .63rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.orden-card-registered { display: inline-flex; align-items: center; border-radius: 999px; padding: .35rem .58rem; background: rgb(148 163 184 / 12%); color: #a8b5c7; font-size: .63rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .orden-status-enviado { background: rgb(245 158 11 / 13%); color: #fbbf24; }
 .orden-status-preparacion { background: rgb(249 115 22 / 13%); color: #fdba74; }
 .orden-status-servido { background: rgb(34 197 94 / 13%); color: #86efac; }

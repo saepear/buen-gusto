@@ -811,7 +811,7 @@ export function FormularioPedido({
           value={nota}
           onChange={(e) => setNota(e.target.value)}
           maxLength={140}
-          aria-label="Nota para la cocina"
+          aria-label="Nota del pedido"
           autoComplete="off"
           placeholder="Sin arroz, sin cebolla…"
           className="w-full bg-transparent text-base text-texto-app outline-none placeholder:text-texto-muted/25"
@@ -836,7 +836,7 @@ export function FormularioPedido({
         }
       >
         <Send aria-hidden className="h-4.5 w-4.5" />
-        {pendiente ? "Enviando…" : esDomicilio ? "Crear domicilio" : "Enviar a cocina"}
+        {pendiente ? "Guardando…" : esDomicilio ? "Crear domicilio" : "Registrar pedido"}
       </button>
     </div>
   );
@@ -1127,7 +1127,7 @@ export function FormularioPedido({
                 Icono={Soup}
                 clase="bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20"
                 titulo="Sopa del día"
-                sub="Opcional · si no eliges, la cocina pone la del día"
+                sub="Opcional · si no eliges, se usa la opción del día"
               />
               {sopasMenu.length === 0 ? (
                 <NotaVacia texto="Hoy no hay sopa del día…" />

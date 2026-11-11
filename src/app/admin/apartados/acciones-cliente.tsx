@@ -274,7 +274,7 @@ export function AccionesEntregaApartado({
 
           {entrega.error || entrega.ok ? null : (
             <p className="w-full pl-0.5 pt-1 text-[11px] text-texto-muted/45">
-              La entrega genera la comanda (cocina la ve en Órdenes) y consume
+              La entrega genera la comanda y consume
               las porciones que el apartado tenía reservadas.
             </p>
           )}

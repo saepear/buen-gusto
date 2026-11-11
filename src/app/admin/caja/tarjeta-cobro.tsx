@@ -43,22 +43,6 @@ const BILLETES = [
   { valor: 100000, txt: "$100.000" },
 ];
 
-const CHIP_COMANDA: Record<string, string> = {
-  ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
-  PARCIAL_SERVIDO: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
-  SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
-};
-
-const CHIP_COMANDA_TXT: Record<string, string> = {
-  ENVIADO: "En cocina",
-  EN_PREPARACION: "En preparación",
-  PARCIAL_SERVIDO: "Parcial",
-  SERVIDO: "Servida",
-  POR_PAGAR: "Por pagar",
-};
-
 const ESTILO_MESA: Record<string, string> = {
   OCUPADA: "bg-orange-brand/10 text-orange-brand ring-1 ring-orange-brand/20",
   POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
@@ -153,10 +137,6 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   const vueltas = enEfectivo && montoNum !== null ? montoNum - total : null;
   const noAlcanza = vueltas !== null && vueltas < 0;
 
-  const enCocina = mesa.pedidos.filter(
-    (p) => p.estado === "ENVIADO" || p.estado === "EN_PREPARACION" || p.estado === "PARCIAL_SERVIDO",
-  ).length;
-
   const resumenItems = mesa.pedidos
     .flatMap((pedido) => pedido.items.map((item) => `${item.cantidad > 1 ? `${item.cantidad}× ` : ""}${item.nombre}`))
     .slice(0, 3);
@@ -203,7 +183,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
           <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-brand" />
         </span>
         <span className="mt-3 flex items-center justify-between text-xs font-bold">
-          <span className="text-texto-muted/55">{mesa.pedidos.length} {mesa.pedidos.length === 1 ? "comanda" : "comandas"}{enCocina > 0 ? " · En cocina" : ""}</span>
+          <span className="text-texto-muted/55">{mesa.pedidos.length} {mesa.pedidos.length === 1 ? "comanda" : "comandas"}</span>
           <span className="text-amber-brand">Abrir cobro</span>
         </span>
       </button>
@@ -263,15 +243,6 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                   <p className="text-sm font-bold text-texto-app">
                     Comanda #{pedido.numero} · {pedido.hora}
                   </p>
-                  <span
-                    className={
-                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide " +
-                      (CHIP_COMANDA[pedido.estado] ??
-                        "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-                    }
-                  >
-                    {CHIP_COMANDA_TXT[pedido.estado] ?? pedido.estado}
-                  </span>
                   {pedido.paraLlevar ? (
                     <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
                       <ShoppingBag className="h-3 w-3" /> Para llevar
@@ -315,14 +286,6 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
               </div>
             ))}
           </div>
-
-          {enCocina > 0 ? (
-            <p className="mt-3 rounded-xl bg-warning/10 px-3 py-2 text-xs font-bold text-warning-text ring-1 ring-warning/20">
-              ⏳ {enCocina}{" "}
-              {enCocina === 1 ? "comanda sigue" : "comandas siguen"} en
-              cocina: al cobrar se marcan como pagadas y salen de la lista.
-            </p>
-          ) : null}
 
           {estado.error ? (
             <p className="mt-3 rounded-xl border-2 border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger-text">

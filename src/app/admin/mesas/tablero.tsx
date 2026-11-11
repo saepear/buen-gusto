@@ -74,22 +74,6 @@ const TEXTO_ESTADO: Record<EstadoMesa, string> = {
   POR_PAGAR: "Por pagar",
 };
 
-const CHIP_COMANDA: Record<string, string> = {
-  ENVIADO: "bg-amber-brand/10 text-amber-brand ring-1 ring-amber-brand/20",
-  EN_PREPARACION: "bg-info-text/10 text-info-text ring-1 ring-info-text/20",
-  PARCIAL_SERVIDO: "bg-violeta-text/10 text-violeta-text ring-1 ring-violeta-text/20",
-  SERVIDO: "bg-success/10 text-success-text ring-1 ring-success/20",
-  POR_PAGAR: "bg-warning/10 text-warning-text ring-1 ring-warning/20",
-};
-
-const TXT_COMANDA: Record<string, string> = {
-  ENVIADO: "En cocina",
-  EN_PREPARACION: "En preparación",
-  PARCIAL_SERVIDO: "Parcial",
-  SERVIDO: "Lista para servir",
-  POR_PAGAR: "Por pagar",
-};
-
 const ICONO_TIPO: Record<string, LucideIcon> = {
   PROTEINA: Drumstick,
   PRINCIPIO: Wheat,
@@ -286,15 +270,6 @@ function ModalMesa({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-texto-app">
                           Comanda #{comanda.numero}
-                        </span>
-                        <span
-                          className={
-                            "rounded-full px-2 py-0.5 text-[10px] font-bold " +
-                            (CHIP_COMANDA[comanda.estado] ??
-                              "bg-panel-app text-texto-muted/60 ring-1 ring-borde-app")
-                          }
-                        >
-                          {TXT_COMANDA[comanda.estado] ?? comanda.estado}
                         </span>
                         {comanda.paraLlevar ? (
                           <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
