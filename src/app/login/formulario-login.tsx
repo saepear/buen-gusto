@@ -98,7 +98,7 @@ export function FormularioLogin() {
   }, [rol, estado, pendiente]);
 
   return (
-    <div className="w-full rounded-[2rem] bg-glass-app p-6 shadow-2xl ring-1 ring-borde-app backdrop-blur-2xl sm:p-8">
+    <div className="login-access-card w-full rounded-[2rem] bg-glass-app p-6 shadow-2xl ring-1 ring-borde-app backdrop-blur-2xl sm:p-8">
       {rol === null ? (
         <>
           <header>
@@ -119,7 +119,7 @@ export function FormularioLogin() {
                 key={r}
                 type="button"
                 onClick={() => elegirRol(OPCIONES.find((o) => o.rol === r)!)}
-                className="group flex items-center gap-4 rounded-2xl bg-panel-app p-4 text-left ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
+                className="login-role-option group flex items-center gap-4 rounded-2xl bg-panel-app p-4 text-left ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-brand"
               >
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-brand/15 text-amber-brand ring-1 ring-amber-brand/20 transition group-hover:bg-amber-brand group-hover:text-brown-950">
                   <Icono className="h-6 w-6" />
@@ -190,7 +190,7 @@ export function FormularioLogin() {
             ) : null}
           </div>
 
-          <div className="mt-3 grid select-none grid-cols-3 gap-2.5">
+          <div className="login-pin-grid mt-3 grid select-none grid-cols-3 gap-2.5">
             {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
               <TeclaPin key={d} d={d} onClick={marcar} />
             ))}
@@ -224,7 +224,7 @@ function TeclaPin({
     <button
       type="button"
       onClick={() => onClick(d)}
-      className="flex h-16 items-center justify-center rounded-2xl bg-panel-app text-2xl font-display text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 active:scale-[0.96]"
+      className="login-pin-key flex h-16 items-center justify-center rounded-2xl bg-panel-app text-2xl font-display text-texto-app ring-1 ring-borde-app transition hover:bg-panel-hover hover:ring-amber-brand/40 active:scale-[0.96]"
     >
       {icono ?? (
         borrar ? (

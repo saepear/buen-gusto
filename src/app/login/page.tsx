@@ -5,6 +5,7 @@ import { destinoRol } from "@/lib/roles";
 import { getSesion } from "@/lib/session";
 import Image from "next/image";
 import { FormularioLogin } from "./formulario-login";
+import "./login.css";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 
@@ -19,7 +20,7 @@ export default async function LoginPage() {
 
   return (
     <div className="tema-oscuro min-h-screen">
-      <main className="relative flex min-h-[100svh] flex-col overflow-hidden bg-fondo-app">
+      <main className="login-page relative flex min-h-[100svh] flex-col overflow-hidden bg-fondo-app">
         {/* Ancla visual: fotografía a sangre completa con velo oscuro */}
         <div className="pointer-events-none absolute inset-0" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -30,12 +31,14 @@ export default async function LoginPage() {
           />
           <div className="absolute inset-0 bg-gradient-to-b from-fondo-app/80 via-fondo-app/90 to-fondo-app" />
           <div className="absolute inset-0 bg-gradient-to-tr from-fondo-app via-fondo-app/60 to-transparent" />
+          <span className="login-orb login-orb-one" />
+          <span className="login-orb login-orb-two" />
         </div>
 
         {/* Escenario: marca a la izquierda, acceso a la derecha */}
-        <div className="cabeza-seguro pie-seguro relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-10 px-6 py-12 lg:flex-row lg:items-center lg:justify-between lg:gap-16 lg:py-16">
-          <section className="animar-entrar max-w-xl">
-            <div className="flex items-center gap-4">
+        <div className="cabeza-seguro pie-seguro login-layout relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center gap-10 px-6 py-10 lg:flex-row lg:items-center lg:justify-between lg:gap-20 lg:py-16">
+          <section className="login-brand animar-entrar max-w-xl">
+            <div className="login-brand-top flex items-center gap-4">
               <Image
                 src={logo.src}
                 alt="El Buen Gusto"
@@ -43,30 +46,33 @@ export default async function LoginPage() {
                 height={96}
                 unoptimized
                 priority
-                className="h-20 w-20 rounded-2xl object-contain lg:h-24 lg:w-24"
+                className="login-logo h-20 w-20 rounded-2xl object-contain lg:h-24 lg:w-24"
               />
-              <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-amber-brand/70">
-                Restaurante
-              </span>
+              <div><span className="login-brand-kicker">El Buen Gusto</span><span className="login-brand-system">Sistema POS</span></div>
             </div>
-            <h1 className="mt-6 font-display text-5xl leading-[0.95] text-texto-app lg:text-6xl">
-              El Buen Gusto
+            <span className="login-live-pill"><i /> Restaurante conectado</span>
+            <h1 className="mt-5 font-display text-5xl leading-[0.96] text-texto-app lg:text-7xl">
+              El ritmo del restaurante,<br /><em>en un solo lugar.</em>
             </h1>
-            <p className="mt-5 max-w-sm text-lg text-texto-muted/60">
-              Comandas del salón y para llevar, en tiempo real.
+            <p className="mt-5 max-w-md text-lg text-texto-muted/70">
+              Cocina, mesas, domicilios y caja listos para empezar el turno sin perder un detalle.
             </p>
+            <div className="login-brand-features">
+              <span>Comandas en tiempo real</span><span>Caja centralizada</span><span>Equipo sincronizado</span>
+            </div>
           </section>
 
           <section
-            className="animar-entrar w-full lg:w-[26rem] lg:shrink-0"
+            className="login-access animar-entrar w-full lg:w-[28rem] lg:shrink-0"
             style={{ animationDelay: "120ms" }}
           >
+            <div className="login-access-label"><span /> ACCESO DEL EQUIPO</div>
             <FormularioLogin />
           </section>
         </div>
 
-        <p className="relative z-10 hidden pb-6 text-center text-[10px] font-bold uppercase tracking-[0.3em] text-texto-muted/20 lg:block">
-          El Buen Gusto · Sistema de comandas
+        <p className="login-footer relative z-10 hidden pb-6 text-center text-[10px] font-bold uppercase tracking-[0.3em] text-texto-muted/35 lg:block">
+          El Buen Gusto · Sistema POS · Acceso protegido por PIN
         </p>
       </main>
     </div>

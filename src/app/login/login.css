@@ -1,0 +1,30 @@
+.login-page { isolation:isolate; }
+.login-page::after { content:""; position:absolute; inset:0; z-index:0; background:linear-gradient(90deg,rgb(10 6 3 / .3),transparent 58%); pointer-events:none; }
+.login-orb { position:absolute; display:block; border-radius:999px; filter:blur(2px); opacity:.52; animation:login-flotar 8s ease-in-out infinite alternate; }
+.login-orb-one { width:28rem; height:28rem; top:-13rem; right:20%; background:radial-gradient(circle,rgb(242 166 61 / .23),transparent 67%); }
+.login-orb-two { width:20rem; height:20rem; bottom:-11rem; left:16%; background:radial-gradient(circle,rgb(237 125 31 / .18),transparent 67%); animation-delay:-3s; }
+.login-brand { position:relative; }
+.login-brand-top { width:max-content; padding:8px 14px 8px 9px; border:1px solid rgb(255 255 255 / .1); border-radius:20px; background:rgb(13 8 4 / .42); box-shadow:0 16px 35px rgb(0 0 0 / .16); backdrop-filter:blur(12px); }
+.login-logo { box-shadow:0 0 0 1px rgb(242 166 61 / .3),0 11px 32px rgb(242 166 61 / .17); }
+.login-brand-kicker,.login-brand-system { display:block; }
+.login-brand-kicker { color:var(--texto-app); font-family:var(--font-display); font-size:19px; line-height:1; }
+.login-brand-system { margin-top:5px; color:var(--color-amber-brand); font-size:9px; font-weight:900; letter-spacing:.23em; text-transform:uppercase; }
+.login-live-pill { display:inline-flex; align-items:center; gap:8px; margin-top:42px; color:#e8decf; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.login-live-pill i { width:8px; height:8px; border-radius:50%; background:#83ed9a; box-shadow:0 0 0 5px rgb(131 237 154 / .12); }
+.login-brand h1 em { color:var(--color-amber-brand); font-style:normal; }
+.login-brand-features { display:flex; flex-wrap:wrap; gap:8px; margin-top:26px; }
+.login-brand-features span { padding:8px 10px; border:1px solid rgb(255 255 255 / .1); border-radius:999px; background:rgb(12 7 3 / .33); color:rgb(255 247 235 / .68); font-size:11px; font-weight:700; backdrop-filter:blur(8px); }
+.login-access { position:relative; }
+.login-access-label { display:flex; align-items:center; gap:8px; margin:0 0 10px 12px; color:rgb(255 244 229 / .56); font-size:10px; font-weight:900; letter-spacing:.2em; }
+.login-access-label span { width:20px; height:1px; background:var(--color-amber-brand); }
+.login-access-card { border-color:rgb(255 255 255 / .14); background:linear-gradient(145deg,rgb(55 35 19 / .77),rgb(19 11 5 / .83)); box-shadow:0 30px 75px rgb(0 0 0 / .42),inset 0 1px rgb(255 255 255 / .05); }
+.login-role-option { min-height:86px; border-color:rgb(255 255 255 / .09); background:rgb(255 255 255 / .045); }
+.login-role-option:hover { transform:translateX(4px); box-shadow:0 12px 26px rgb(0 0 0 / .16); }
+.login-pin-grid { padding:10px; border:1px solid rgb(255 255 255 / .08); border-radius:22px; background:rgb(0 0 0 / .13); }
+.login-pin-key { background:rgb(255 255 255 / .06); }
+.login-pin-key:hover { transform:translateY(-2px); box-shadow:0 9px 16px rgb(0 0 0 / .18); }
+.login-footer { text-shadow:0 1px 10px rgb(0 0 0 / .4); }
+@keyframes login-flotar { from { transform:translate3d(0,0,0) scale(.95); } to { transform:translate3d(25px,18px,0) scale(1.06); } }
+@media (max-width:1023px) { .login-layout { max-width:38rem; } .login-brand { text-align:center; } .login-brand-top { margin-inline:auto; } .login-live-pill { margin-top:28px; } .login-brand-features { justify-content:center; } .login-access-label { justify-content:center; margin-left:0; } }
+@media (max-width:640px) { .login-layout { padding-inline:20px; } .login-brand h1 { font-size:clamp(38px,11vw,52px); } .login-brand > p { margin-inline:auto; font-size:15px; } .login-brand-features span { font-size:10px; } .login-access-card { padding:22px; border-radius:25px; } .login-role-option { min-height:78px; } .login-pin-grid { gap:8px; padding:8px; } .login-pin-key { height:58px; border-radius:15px; } }
+@media (prefers-reduced-motion:reduce) { .login-orb,.login-role-option,.login-pin-key { animation:none; transition:none; } .login-role-option:hover,.login-pin-key:hover { transform:none; } }
