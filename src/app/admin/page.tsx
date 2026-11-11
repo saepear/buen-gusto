@@ -1,74 +1,76 @@
-import { CalendarDays, ChefHat, UtensilsCrossed } from "lucide-react";
-import { EncabezadoPagina } from "@/components/encabezado";
+import { ArrowUpRight, Banknote, Bike, CalendarDays, CheckCircle2, ChefHat, CircleDollarSign, Clock3, LayoutDashboard, ReceiptText, ShoppingBag, Soup, UtensilsCrossed, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { db } from "@/lib/db";
+import { claveDia, formatCOP, formatFecha } from "@/lib/format";
+import { inicioDeHoy } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
-import { formatFecha } from "@/lib/format";
+import "./inicio.css";
+
+export const metadata = { title: "Panel de control · El Buen Gusto" };
 
 export default async function AdminInicio() {
   const sesion = await requerirRol("ADMIN");
   const ahora = new Date();
+  const hoy = inicioDeHoy();
+  const fecha = claveDia(ahora);
+  const [pagos, anticipos, mesasPorCobrar, pedidosActivos, domicilios, deudas, gastos, menu, cierre] = await Promise.all([
+    db.pago.aggregate({ where: { createdAt: { gte: hoy } }, _sum: { total: true, propina: true }, _count: true }),
+    db.anticipoCliente.aggregate({ where: { createdAt: { gte: hoy }, estado: { not: "ANULADO" } }, _sum: { valorOriginal: true } }),
+    db.mesa.count({ where: { activa: true, esDomicilio: false, esApartado: false, estado: "POR_PAGAR" } }),
+    db.pedido.count({ where: { createdAt: { gte: hoy }, estado: { in: ["ENVIADO", "EN_PREPARACION"] } } }),
+    db.domicilio.findMany({ where: { createdAt: { gte: hoy } }, select: { id: true, cliente: true, estado: true, cobradoMonto: true, horaEntrega: true, consecutivoDia: true }, orderBy: { createdAt: "asc" }, take: 5 }),
+    db.cuentaPorCobrar.aggregate({ where: { estado: "PENDIENTE" }, _sum: { valorOriginal: true, pagado: true, saldoCondonado: true }, _count: true }),
+    db.gasto.aggregate({ where: { createdAt: { gte: hoy }, anulado: false }, _sum: { valor: true } }),
+    db.menuDia.findUnique({ where: { fecha }, include: { items: { include: { producto: true }, orderBy: { id: "asc" } } } }),
+    db.cierreCaja.findUnique({ where: { fecha }, select: { id: true } }),
+  ]);
 
-  return (
-    <>
-      <EncabezadoPagina
-        titulo={`¡Hola, ${sesion.nombre}!`}
-        subtitulo={formatFecha(ahora)}
-      />
+  const ventas = (pagos._sum.total ?? 0) + (pagos._sum.propina ?? 0);
+  const anticiposHoy = anticipos._sum.valorOriginal ?? 0;
+  const saldoFiados = Math.max(0, (deudas._sum.valorOriginal ?? 0) - (deudas._sum.pagado ?? 0) - (deudas._sum.saldoCondonado ?? 0));
+  const domPendientes = domicilios.filter((d) => d.cobradoMonto === null && d.estado !== "CANCELADO" && d.estado !== "FIADO");
+  const menuVisible = (menu?.items ?? []).filter((item) => item.visible && item.producto.activo);
 
-      <div className="rounded-[2rem] bg-glass-app p-8 text-texto-app ring-1 ring-borde-app">
-        <h2 className="font-display text-2xl text-amber-brand">
-          Bienvenido al sistema de El Buen Gusto
-        </h2>
-        <p className="mt-2 max-w-2xl text-texto-muted/85">
-          El circuito ya está completo: login por roles, catálogo real, menú del
-          día con porciones en vivo y comandas que viajan del mesero al tablero
-          de órdenes. Así trabaja cada integrante:
-        </p>
-        <ul className="mt-6 grid gap-4 sm:grid-cols-3">
-          <li className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app">
-            <UtensilsCrossed className="h-6 w-6 text-amber-brand" />
-            <p className="mt-2 font-bold">Mesero</p>
-            <p className="mt-1 text-sm text-texto-muted/80">
-              Toma el pedido desde su teléfono y lo envía al instante.
-            </p>
-          </li>
-          <li className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app">
-            <ChefHat className="h-6 w-6 text-amber-brand" />
-            <p className="mt-2 font-bold">Órdenes</p>
-            <p className="mt-1 text-sm text-texto-muted/80">
-              El administrador ve cada comanda en su tablero en vivo y la
-              imprime en el ticket.
-            </p>
-          </li>
-          <li className="rounded-2xl bg-panel-app p-4 ring-1 ring-borde-app">
-            <CalendarDays className="h-6 w-6 text-amber-brand" />
-            <p className="mt-2 font-bold">Tú (admin)</p>
-            <p className="mt-1 text-sm text-texto-muted/80">
-              Armas el menú del día, controlas el stock y cobras las mesas.
-            </p>
-          </li>
-        </ul>
-      </div>
+  return <main className="admin-home">
+    <header className="admin-home-hero">
+      <div className="admin-home-title"><span className="admin-home-icon"><LayoutDashboard size={24} /></span><div><p>CONTROL DEL TURNO · {formatFecha(ahora)}</p><h1>Hola, {sesion.nombre}</h1><small>Todo lo importante del restaurante, sin pantallas de introducción.</small></div></div>
+      <div className={cierre ? "admin-home-shift is-closed" : "admin-home-shift"}>{cierre ? <CheckCircle2 size={16} /> : <span className="admin-home-live" />}<span><b>{cierre ? "Caja cerrada" : "Caja abierta"}</b><small>{cierre ? "La jornada quedó guardada" : "Actualizado en tiempo real"}</small></span></div>
+    </header>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        {[
-          {
-            t: "Prueba el circuito completo",
-            d: "Entra como mesero con el PIN 1111, toma un pedido en una mesa y mira cómo la comanda aparece al instante en el tablero de órdenes.",
-          },
-          {
-            t: "PINs del equipo",
-            d: "Admin 1234 · Meseros 1111/2222 · Domiciliario 4444. Los stock del menú del día se descuentan al enviar la comanda.",
-          },
-        ].map((tip) => (
-          <a key={tip.t} href="/admin/mesas" className="block">
-            <div className="h-full rounded-2xl bg-panel-app p-5 ring-1 ring-borde-app transition hover:ring-amber-brand/50">
-              <p className="font-bold text-texto-app">{tip.t}</p>
-              <p className="mt-1 text-sm text-texto-muted/70">{tip.d}</p>
-            </div>
-          </a>
-        ))}
-      </div>
-    </>
-  );
+    <section className="admin-home-metrics" aria-label="Resumen del turno">
+      <Metric icon={WalletCards} label="Dinero recibido hoy" value={formatCOP(ventas + anticiposHoy)} note={`${pagos._count} pagos · ${formatCOP(anticiposHoy)} en anticipos`} tone="amber" href="/admin/caja" />
+      <Metric icon={ChefHat} label="En cocina" value={String(pedidosActivos)} note={pedidosActivos === 1 ? "comanda esperando preparación" : "comandas esperando preparación"} tone="orange" href="/ordenes" />
+      <Metric icon={Bike} label="Domicilios activos" value={String(domPendientes.length)} note={domPendientes.length ? "requieren seguimiento" : "sin entregas pendientes"} tone="blue" href="/admin/domicilios" />
+      <Metric icon={CircleDollarSign} label="Por cobrar" value={formatCOP(saldoFiados)} note={`${deudas._count} ${deudas._count === 1 ? "fiado abierto" : "fiados abiertos"}`} tone="violet" href="/admin/cuentas" />
+    </section>
+
+    <section className="admin-home-grid">
+      <article className="admin-home-command">
+        <div className="admin-home-sectionHead"><div><span>PRIORIDADES DEL TURNO</span><h2>¿Qué necesita atención?</h2></div><Clock3 size={21} /></div>
+        <div className="admin-home-priorityList">
+          <Priority icon={ShoppingBag} title="Mesas por cobrar" value={mesasPorCobrar} description={mesasPorCobrar ? "Hay mesas listas para pasar por caja." : "No hay mesas esperando cobro."} href="/admin/caja" accent="amber" />
+          <Priority icon={Bike} title="Domicilios pendientes" value={domPendientes.length} description={domPendientes.length ? "Revisa el pedido o llévalo directo a caja." : "Todos los domicilios del día están resueltos."} href="/admin/domicilios" accent="blue" />
+          <Priority icon={ReceiptText} title="Gastos registrados" value={formatCOP(gastos._sum.valor ?? 0)} description="Movimientos anotados durante esta jornada." href="/admin/gastos" accent="muted" />
+        </div>
+      </article>
+
+      <article className="admin-home-menu">
+        <div className="admin-home-sectionHead"><div><span>COCINA · DISPONIBILIDAD</span><h2>Menú de hoy</h2></div><Link href="/admin/menu-dia">Gestionar <ArrowUpRight size={15} /></Link></div>
+        {menuVisible.length ? <div className="admin-home-menuList">{menuVisible.slice(0, 5).map((item) => { const total = item.stockPorciones; const usados = item.vendidos; const porcentaje = total === null ? 0 : Math.min(100, Math.round(usados / total * 100)); return <div key={item.id} className="admin-home-menuItem"><div><b>{item.producto.nombre}</b><small>{total === null ? "Porciones ilimitadas" : `${Math.max(0, total - usados)} de ${total} disponibles`}</small></div>{total === null ? <span className="admin-home-unlimited">∞</span> : <span className="admin-home-stock"><i><em style={{ width: `${porcentaje}%` }} /></i>{Math.max(0, total - usados)}</span>}</div>; })}</div> : <div className="admin-home-empty"><Soup size={25} /><div><b>No hay menú configurado para hoy</b><span>Activa los productos que se van a servir antes de abrir comandas.</span></div><Link href="/admin/menu-dia">Configurar</Link></div>}
+      </article>
+    </section>
+
+    <section className="admin-home-bottom">
+      <article className="admin-home-deliveries"><div className="admin-home-sectionHead"><div><span>DOMICILIOS DE HOY</span><h2>Seguimiento rápido</h2></div><Link href="/admin/domicilios">Ver todos <ArrowUpRight size={15} /></Link></div>{domicilios.length ? <div className="admin-home-deliveryList">{domicilios.map((domicilio) => <Link href="/admin/domicilios" key={domicilio.id}><span className="admin-home-deliveryNumber">#{domicilio.consecutivoDia ?? domicilio.id}</span><span><b>{domicilio.cliente}</b><small>{domicilio.horaEntrega || "Hora por confirmar"}</small></span><em className={domicilio.cobradoMonto !== null ? "is-paid" : ""}>{domicilio.cobradoMonto !== null ? "Cobrado" : domicilio.estado === "FIADO" ? "Fiado" : "Pendiente"}</em></Link>)}</div> : <div className="admin-home-empty compact"><Bike size={23} /><div><b>Aún no hay domicilios</b><span>Los nuevos pedidos de entrega aparecerán aquí.</span></div></div>}</article>
+      <article className="admin-home-actions"><span>ACCESOS RÁPIDOS</span><h2>Empieza con una acción</h2><div><Link href="/admin/mesas"><UtensilsCrossed size={18} /> Mesas <ArrowUpRight size={14} /></Link><Link href="/admin/domicilios/nuevo"><Bike size={18} /> Nuevo domicilio <ArrowUpRight size={14} /></Link><Link href="/admin/caja"><Banknote size={18} /> Abrir caja <ArrowUpRight size={14} /></Link><Link href="/admin/reportes"><CalendarDays size={18} /> Ver reportes <ArrowUpRight size={14} /></Link></div></article>
+    </section>
+  </main>;
 }
 
+function Metric({ icon: Icon, label, value, note, href, tone }: { icon: typeof WalletCards; label: string; value: string; note: string; href: string; tone: string }) {
+  return <Link href={href} className={`admin-home-metric is-${tone}`}><span className="admin-home-metricIcon"><Icon size={20} /></span><span><small>{label}</small><strong>{value}</strong><em>{note}</em></span><ArrowUpRight size={17} /></Link>;
+}
+
+function Priority({ icon: Icon, title, value, description, href, accent }: { icon: typeof WalletCards; title: string; value: string | number; description: string; href: string; accent: string }) {
+  return <Link href={href} className={`admin-home-priority is-${accent}`}><span className="admin-home-priorityIcon"><Icon size={18} /></span><span><b>{title}</b><small>{description}</small></span><strong>{value}</strong><ArrowUpRight size={16} /></Link>;
+}
