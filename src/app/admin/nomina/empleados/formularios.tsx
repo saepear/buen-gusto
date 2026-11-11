@@ -134,7 +134,7 @@ function CamposContrato({ inicial, mostrarRiesgo = true }: { inicial?:
       <label className={ETIQUETA}>
         PERIODICIDAD DE PAGO *
         <select name="periodicidadPago" value={periodicidad} onChange={e => setPeriodicidad(e.target.value)} className={CAMPO}>
-          <option value="CICLOS">Cortes 7 / 14 / 21 / fin de mes</option>
+          <option value="CICLOS">Semanal · 7 / 14 / 21 / fin de mes</option>
           <option value="QUINCENAL">Quincenal</option>
           <option value="MENSUAL">Mensual</option>
         </select>

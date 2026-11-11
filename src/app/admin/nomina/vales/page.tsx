@@ -81,6 +81,6 @@ export default async function PaginaVales({
     productoNombre:v.productoNombre, cantidad:v.cantidad, precioUnitario:v.precioUnitario, total:v.total,
     fecha:v.fecha, estado:v.estado, observaciones:v.observaciones, anuladoMotivo:v.anuladoMotivo,
     autorizadoPor:v.autorizadoPor?.nombre ?? null,
-    ciclo:v.ciclo ? `${v.ciclo.fechaDesde} → ${v.ciclo.fechaHasta}` : "Según fecha de entrega",
+    ciclo:v.ciclo ? `${v.ciclo.fechaDesde} → ${v.ciclo.fechaHasta}` : "En el próximo pago disponible",
   }))} />;
 }

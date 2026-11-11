@@ -14,6 +14,7 @@ import { db } from "@/lib/db";
 import { formatCOP, claveDia } from "@/lib/format";
 import { exigirAdmin } from "@/lib/session";
 import { realtime } from "@/lib/realtime";
+import { prepararLiquidacion } from "@/lib/nomina/preparar-liquidacion";
 
 export type EstadoAccionPago = { error: string | null; ok: string | null };
 
@@ -43,8 +44,8 @@ export async function registrarPagoNomina(
   const liquidacionId = Number.parseInt(String(form.get("liquidacionId") ?? ""), 10);
   if (!Number.isInteger(liquidacionId)) return { error: "Falta la liquidación.", ok: null };
 
-  const monto = parseMonto(form.get("monto"));
-  if (!monto) return { error: "El monto debe ser mayor a $0.", ok: null };
+  const monto = String(form.get("monto")) === "0" ? 0 : parseMonto(form.get("monto"));
+  if (monto === null) return { error: "El monto no es válido.", ok: null };
 
   const metodo = ["EFECTIVO", "TRANSFERENCIA", "OTRO"].includes(
     String(form.get("metodo") ?? ""),
@@ -55,8 +56,15 @@ export async function registrarPagoNomina(
   const referencia = String(form.get("referencia") ?? "").trim().slice(0, 120) || null;
   const observaciones = String(form.get("observaciones") ?? "").trim().slice(0, 200) || null;
 
+  try {
+  const anterior = await db.liquidacionNomina.findUnique({ where: { id: liquidacionId } });
+  if (anterior && anterior.estadoPago !== "PAGADO" && anterior.pagado === 0) {
+    const actualizado = await prepararLiquidacion({ periodoId: anterior.periodoId, empleadoId: anterior.empleadoId, usuarioId: sesion.id, soloSiFalta: true });
+    if (actualizado.error) return actualizado;
+  }
+
   const resultado = await db.$transaction(async (tx) => {
-    if (metodo === "EFECTIVO" && await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+    if (monto > 0 && metodo === "EFECTIVO" && await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
       return { error: "La caja de hoy ya está cerrada: no se pueden registrar pagos de nómina en efectivo posteriores.", ok: null };
     }
     const liquidacion = await tx.liquidacionNomina.findUnique({
@@ -64,12 +72,26 @@ export async function registrarPagoNomina(
       include: { empleado: true, periodo: true },
     });
     if (!liquidacion) throw new Error("La liquidación no existe.");
+    if (form.has("netoRevisado") && Number(form.get("netoRevisado")) !== liquidacion.netoAPagar) {
+      revalidar();
+      return { error: "Se actualizaron los descuentos. Vuelve a abrir el pago y revisa el nuevo total.", ok: null };
+    }
     if (liquidacion.periodo.estado === "CERRADO") {
       return { error: "El período ya está cerrado: abre un corte nuevo para registrar pagos.", ok: null };
     }
 
     const pendiente = liquidacion.netoAPagar - liquidacion.pagado;
-    if (pendiente <= 0) {
+    if (liquidacion.pagado === 0 && liquidacion.estadoPago !== "PAGADO") {
+      const nuevosVales = await tx.valeNomina.count({ where: { empleadoId: liquidacion.empleadoId, liquidacionId: null, estado: { in: ["PENDIENTE", "AUTORIZADO"] }, fecha: { lte: liquidacion.periodo.fechaHasta } } });
+      const nuevasCuotas = await tx.novedadNomina.count({ where: { empleadoId: liquidacion.empleadoId, liquidacionId: null, estado: "APROBADA", tipo: { in: ["BONIFICACION", "COMISION", "DESCUENTO"] }, fecha: { lte: liquidacion.periodo.fechaHasta } } });
+      if (nuevosVales || nuevasCuotas) return { error: "Hay movimientos nuevos. Vuelve a abrir el pago para incluirlos.", ok: null };
+    }
+    if (monto === 0 && liquidacion.netoAPagar === 0 && liquidacion.estadoPago !== "PAGADO") {
+      await tx.liquidacionNomina.update({ where: { id: liquidacionId }, data: { estadoPago: "PAGADO", estado: "APROBADA" } });
+      await tx.valeNomina.updateMany({ where: { liquidacionId, estado: "AUTORIZADO" }, data: { estado: "DESCONTADO" } });
+      return { error: null, ok: "Pago saldado con descuentos. No se registró salida de dinero." };
+    }
+    if (pendiente <= 0 || monto === 0) {
       return { error: "Esta liquidación ya está pagada completa: no se puede pagar dos veces.", ok: null };
     }
     if (monto > pendiente) {
@@ -114,6 +136,7 @@ export async function registrarPagoNomina(
       where: { id: liquidacionId },
       data: { pagado: totalPagado, estadoPago },
     });
+    if (estadoPago === "PAGADO") await tx.valeNomina.updateMany({ where: { liquidacionId, estado: "AUTORIZADO" }, data: { estado: "DESCONTADO" } });
 
     return {
       ok: `Pago de ${formatCOP(monto)} registrado (${estadoPago === "PAGADO" ? "liquidación completa" : "queda saldo pendiente"}).`,
@@ -124,4 +147,7 @@ export async function registrarPagoNomina(
 
   revalidar();
   return { error: resultado.error, ok: resultado.ok };
+  } catch (e) {
+    return { error: e instanceof Error && !("code" in e) ? e.message : "El pago cambió o no pudo guardarse. Vuelve a abrirlo antes de intentarlo otra vez.", ok: null };
+  }
 }

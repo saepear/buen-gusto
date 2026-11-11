@@ -16,6 +16,8 @@ test("el último corte conserva el total mensual con redondeos",()=>{
 });
 test("otros períodos y remuneraciones conservan su cálculo",()=>{
  assert.equal(calcular('2026-01-01','2026-01-31',{},'MENSUAL').salarioBase,1485000);
+ assert.equal(calcular('2026-01-01','2026-01-15',{},'QUINCENAL').salarioBase,742500);
+ assert.equal(calcular('2026-01-16','2026-01-31',{},'QUINCENAL').salarioBase,742500);
  assert.equal(calcular('2026-01-01','2026-01-07',{remuneracion:'DIARIO'}).salarioBase,490000);
  assert.equal(calcular('2026-01-01','2026-01-07',{remuneracion:'HORARIO'}).salarioBase,420000);
  assert.equal(calcular('2026-01-01','2026-01-07',{modalidad:'INDEPENDIENTE'}).salarioBase,371250);

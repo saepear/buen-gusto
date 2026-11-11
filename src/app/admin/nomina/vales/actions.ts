@@ -88,7 +88,9 @@ export async function registrarVale(
       fecha,
       observaciones: texto(form.get("observaciones"), 200) || null,
       cicloId: ciclo?.id ?? null,
-      estado: "PENDIENTE",
+      estado: "AUTORIZADO",
+      autorizadoById: sesion.id,
+      autorizadoAt: new Date(),
       creadoById: sesion.id,
     },
   });

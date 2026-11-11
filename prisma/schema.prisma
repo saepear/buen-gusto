@@ -540,6 +540,7 @@ model Empleado {
   liquidaciones     LiquidacionNomina[]
   pagosPrestaciones PagoPrestacion[]
   vales             ValeNomina[]
+  creditos          CreditoNomina[]
 
   @@index([estado])
 }
@@ -593,8 +594,24 @@ model NovedadNomina {
   creadoById    Int
   creadoPor     Usuario  @relation("NovedadCreadoPor", fields: [creadoById], references: [id])
   createdAt     DateTime @default(now())
+  creditoId    Int?
+  credito      CreditoNomina? @relation(fields: [creditoId], references: [id])
 
   @@index([empleadoId, estado])
+}
+
+// Préstamo pactado: cada cuota es una deducción con fecha elegida.
+model CreditoNomina {
+  id         Int @id @default(autoincrement())
+  empleadoId Int
+  empleado   Empleado @relation(fields: [empleadoId], references: [id])
+  monto      Int
+  motivo     String
+  metodo     String @default("TRANSFERENCIA")
+  gastoId    Int?
+  creadoById Int
+  createdAt  DateTime @default(now())
+  cuotas     NovedadNomina[]
 }
 
 // Período de nómina: QUINCENAL (1–15 / 16–fin) o MENSUAL (calendario).

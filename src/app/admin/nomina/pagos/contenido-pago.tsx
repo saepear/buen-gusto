@@ -22,7 +22,7 @@ export function ContenidoPago({ pago }: { pago: DatosPago }) {
           {pago.interno ? <AjustePago pagoId={pago.id} /> : <p className="nomina-operationBox">Este borrador usa el cálculo anterior. Actualízalo para preparar base, extras y descuentos.</p>}
         </>}
         <section className="nomina-operationBox"><h3>Dinero entregado</h3><div className="nomina-moneyPair"><strong>{formatCOP(pago.pagado)}</strong><span>Pendiente <b>{formatCOP(saldo)}</b></span></div>
-          {saldo > 0 && pago.periodo.estado !== "CERRADO" && <FormularioPagoNomina key={`${pago.id}-${pago.pagado}`} liquidacionId={pago.id} netoAPagar={pago.netoAPagar} pagado={pago.pagado} metodoHabitual={pago.empleado.metodoPago} abiertoInicial />}
+          {(saldo > 0 || pago.netoAPagar === 0 && pago.estadoPago !== "PAGADO") && pago.periodo.estado !== "CERRADO" && <FormularioPagoNomina key={`${pago.id}-${pago.pagado}`} liquidacionId={pago.id} netoAPagar={pago.netoAPagar} pagado={pago.pagado} metodoHabitual={pago.empleado.metodoPago} abiertoInicial />}
           {pago.estadoPago === "PAGADO" && <p className="text-success-text">Pago completo. La entrega quedó registrada.</p>}
           <Link className="nomina-operationLink" href={`/admin/nomina/pagos/${pago.id}/comprobante`} target="_blank" rel="noopener noreferrer"><Receipt size={16} />Ver / imprimir comprobante</Link>
         </section>

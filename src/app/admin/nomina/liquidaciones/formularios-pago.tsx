@@ -36,6 +36,7 @@ export function FormularioPagoNomina({
       </summary>
       <form action={accion} className="mt-3 grid gap-2.5">
         <input type="hidden" name="liquidacionId" value={liquidacionId} />
+        <input type="hidden" name="netoRevisado" value={netoAPagar} />
         {estado.error ? (
           <p aria-live="polite" className="rounded-xl bg-danger/10 px-3 py-2 text-xs font-bold text-danger-text ring-1 ring-danger/20">
             {estado.error}
@@ -49,7 +50,7 @@ export function FormularioPagoNomina({
 
         <label className={ETIQUETA}>
           VALOR DEL PAGO *
-          <input key={saldoPendiente} name="monto" defaultValue={saldoPendiente || ""} required inputMode="numeric" className={CAMPO} placeholder="$0" />
+          <input key={saldoPendiente} name="monto" defaultValue={saldoPendiente} required inputMode="numeric" className={CAMPO} placeholder="$0" />
           <span className="mt-0.5 block font-normal text-texto-muted/55">
             Pendiente hasta ahora: ${saldoPendiente.toLocaleString("es-CO")}
           </span>
@@ -77,10 +78,10 @@ export function FormularioPagoNomina({
         </p>
         <button
           type="submit"
-          disabled={guardando || saldoPendiente <= 0}
+          disabled={guardando || (saldoPendiente <= 0 && netoAPagar !== 0)}
           className="rounded-xl bg-amber-brand px-4 py-3 font-display text-sm text-brown-950 transition hover:bg-orange-brand disabled:opacity-50"
         >
-          {guardando ? "Guardando…" : saldoPendiente <= 0 ? "Ya está pagado" : "Registrar pago"}
+          {guardando ? "Guardando…" : netoAPagar === 0 ? "Confirmar pago saldado con descuentos" : "Registrar pago"}
         </button>
       </form>
     </details>

@@ -34,9 +34,9 @@ export async function prepararLiquidacion({
 
   const anterior = await db.liquidacionNomina.findUnique({ where: { periodoId_empleadoId: { periodoId, empleadoId } } });
   if (soloSiFalta && anterior) {
-    if (anterior.pagado > 0 || anterior.estado !== "BORRADOR") return { error: null, ok: null };
+    if (anterior.pagado > 0 || anterior.estadoPago === "PAGADO") return { error: null, ok: null };
   }
-  if (anterior && anterior.estado !== "BORRADOR") return { error: "La liquidación ya está aprobada y no se recalcula.", ok: null };
+  if (anterior?.estadoPago === "PAGADO") return { error: "Este pago ya está saldado y no se recalcula.", ok: null };
   if (anterior && anterior.pagado > 0) return { error: "La liquidación ya tiene pagos y no se recalcula.", ok: null };
 
   const contrato = await contratoVigente(empleadoId, periodo.fechaHasta);
@@ -48,7 +48,7 @@ export async function prepararLiquidacion({
       estado: "APROBADA",
       tipo: { in: ["COMISION", "BONIFICACION", "DESCUENTO"] },
       OR: [{ liquidacionId: null }, ...(anterior ? [{ liquidacionId: anterior.id }] : [])],
-      fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta },
+      fecha: { lte: periodo.fechaHasta },
     },
     orderBy: { fecha: "asc" },
   });
@@ -56,14 +56,14 @@ export async function prepararLiquidacion({
     where: {
       empleadoId,
       OR: [
-        { estado: "AUTORIZADO", liquidacionId: null, OR: [{ cicloId: periodoId }, { cicloId: null, fecha: { gte: periodo.fechaDesde, lte: periodo.fechaHasta } }] },
-        ...(anterior ? [{ estado: "DESCONTADO", liquidacionId: anterior.id }] : []),
+        { estado: { in: ["PENDIENTE", "AUTORIZADO"] }, liquidacionId: null, fecha: { lte: periodo.fechaHasta } },
+        ...(anterior ? [{ estado: { in: ["AUTORIZADO", "DESCONTADO"] }, liquidacionId: anterior.id }] : []),
       ],
     },
     orderBy: { fecha: "asc" },
   });
 
-  if (soloSiFalta && anterior && !novedades.some((n) => n.liquidacionId === null) && !vales.some((v) => v.estado === "AUTORIZADO" && v.liquidacionId === null)) return { error: null, ok: null };
+  if (soloSiFalta && anterior && !novedades.some((n) => n.liquidacionId === null) && !vales.some((v) => v.liquidacionId === null)) return { error: null, ok: null };
 
   const novedadesResumen: NovedadResumen[] = novedades.map((n) => ({ id: n.id, tipo: n.tipo, fecha: n.fecha, dias: n.dias, valor: n.valor, descripcion: n.descripcion }));
   for (const vale of vales) novedadesResumen.push({ id: 0, tipo: "DESCUENTO", fecha: "", dias: null, valor: vale.total, descripcion: `Vale: ${vale.productoNombre} ×${vale.cantidad}` });
@@ -87,7 +87,7 @@ export async function prepararLiquidacion({
     periodoHasta: periodo.fechaHasta,
     periodoTipo: periodo.tipo,
   });
-  if (calculoFinal.netoAPagar < 0) return { error: "Los descuentos superan el neto disponible. Revisa vales y novedades antes de liquidar.", ok: null };
+  if (calculoFinal.netoAPagar < 0) return { error: "Los descuentos superan el sueldo disponible. Revisa los vales y las cuotas acordadas antes de registrar el pago.", ok: null };
 
   const contratoFoto = JSON.stringify({
     esquemaPago: "INTERNO_V1",
@@ -110,7 +110,7 @@ export async function prepararLiquidacion({
     const yaExiste = await tx.liquidacionNomina.findUnique({ where: { periodoId_empleadoId: { periodoId, empleadoId } } });
     if (yaExiste && anterior && yaExiste.updatedAt.getTime() !== anterior.updatedAt.getTime()) throw new Error("El pago cambió mientras se calculaba. Actualiza y vuelve a intentarlo.");
     if (yaExiste) {
-      if (yaExiste.estado !== "BORRADOR" || yaExiste.pagado > 0) throw new Error("La liquidación ya tiene pagos y no se recalcula. Usa un período posterior para ajustes.");
+      if (yaExiste.estadoPago === "PAGADO" || yaExiste.pagado > 0) throw new Error("Ya se registró una entrega. Los nuevos descuentos corresponden al siguiente pago.");
       await tx.novedadNomina.updateMany({ where: { liquidacionId: yaExiste.id }, data: { liquidacionId: null } });
       await tx.valeNomina.updateMany({ where: { liquidacionId: yaExiste.id }, data: { liquidacionId: null, estado: "AUTORIZADO" } });
       await tx.liquidacionConcepto.deleteMany({ where: { liquidacionId: yaExiste.id } });
@@ -149,8 +149,14 @@ export async function prepararLiquidacion({
     };
     const liquidacion = await tx.liquidacionNomina.upsert({ where: { periodoId_empleadoId: { periodoId, empleadoId } }, create: datosPago, update: datosPago });
     await tx.liquidacionConcepto.createMany({ data: calculoFinal.conceptos.map((concepto) => ({ liquidacionId: liquidacion.id, tipo: concepto.tipo, clave: concepto.clave, etiqueta: concepto.clave === "DESCUENTO" && concepto.detalle?.startsWith("Vale: ") ? "Vale de empleado" : concepto.etiqueta, valor: concepto.valor, detalle: concepto.detalle })) });
-    if (novedades.length > 0) await tx.novedadNomina.updateMany({ where: { id: { in: novedades.map((n) => n.id) } }, data: { liquidacionId: liquidacion.id } });
-    if (vales.length > 0) await tx.valeNomina.updateMany({ where: { id: { in: vales.map((v) => v.id) } }, data: { estado: "DESCONTADO", liquidacionId: liquidacion.id, cicloId: periodoId } });
+    if (novedades.length > 0) {
+      const vinculadas = await tx.novedadNomina.updateMany({ where: { id: { in: novedades.map(n => n.id) }, estado: "APROBADA", OR: [{ liquidacionId: null }, { liquidacionId: liquidacion.id }] }, data: { liquidacionId: liquidacion.id } });
+      if (vinculadas.count !== novedades.length) throw new Error("Los descuentos cambiaron. Vuelve a abrir el pago.");
+    }
+    if (vales.length > 0) {
+      const vinculados = await tx.valeNomina.updateMany({ where: { id: { in: vales.map(v => v.id) }, estado: { in: ["PENDIENTE", "AUTORIZADO"] }, liquidacionId: null }, data: { estado: "AUTORIZADO", liquidacionId: liquidacion.id, cicloId: periodoId } });
+      if (vinculados.count !== vales.length) throw new Error("Un vale cambió o ya pertenece a otro pago. Vuelve a intentarlo.");
+    }
   });
 
   return { ok: `Pago de ${empleado.nombre} ${empleado.apellidos} preparado (borrador).`, error: null };

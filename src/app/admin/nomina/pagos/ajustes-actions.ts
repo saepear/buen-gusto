@@ -23,6 +23,8 @@ export async function ajustarPago(_: { error: string | null }, form: FormData): 
       if (quitar) {
         const concepto = await tx.liquidacionConcepto.findFirst({ where: { id: quitar, liquidacionId: id } });
         if (!concepto || !/^AJUSTE_\d+$/.test(concepto.clave)) throw new Error("Este concepto no es un ajuste editable.");
+        const cuota = await tx.novedadNomina.findUnique({ where: { id: Number(concepto.clave.slice(7)) }, select: { creditoId: true } });
+        if (cuota?.creditoId) throw new Error("Esta deducción pertenece a un crédito con cuotas acordadas.");
         cambio = -concepto.valor;
         deduccion = concepto.tipo === "DEDUCCION";
         await tx.novedadNomina.update({ where: { id: Number(concepto.clave.slice(7)) }, data: { estado: "RECHAZADA", liquidacionId: null, rechazoMotivo: "Retirado del pago en preparación por el administrador", aprobadoById: usuario.id, aprobadoAt: new Date() } });

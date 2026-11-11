@@ -7,7 +7,7 @@
     "build": "set PROD_BUILD=1&& next build",
     "start": "set PROD_BUILD=1&& next start -H 0.0.0.0",
     "lint": "eslint",
-    "test:nomina": "tsx --test scripts/nomina-resumen.test.ts scripts/nomina-ciclos.test.ts scripts/nomina-pago.test.ts scripts/caja-conciliacion.test.ts",
+    "test:nomina": "tsx --test scripts/nomina-resumen.test.ts scripts/nomina-ciclos.test.ts scripts/nomina-pago.test.ts scripts/nomina-directa.test.ts scripts/caja-conciliacion.test.ts",
     "db:push": "prisma db push",
     "db:nomina": "tsx scripts/instalar-nomina.ts",
     "db:seed": "tsx prisma/seed.ts"
