@@ -46,6 +46,7 @@ export type ItemDomicilioVista = {
 
 export type DomicilioVista = {
   id: number;
+  numero: number;
   pedidoId: number;
   estado: string;
   /** Estado de la comanda: para saber si la cocina la tiene lista */
@@ -131,7 +132,7 @@ function TarjetaDomicilio({
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="truncate font-display text-lg text-texto-app">
-          #{domicilio.id} · {domicilio.cliente}
+          #{domicilio.numero} · {domicilio.cliente}
         </span>
         {domicilio.horaEntrega ? (
           <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2 py-0.5 text-[10px] font-bold text-orange-brand ring-1 ring-orange-brand/20">
@@ -198,7 +199,7 @@ function DetalleDomicilio({
           </p>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-panel-app px-2.5 py-0.5 text-[11px] font-bold text-texto-muted/70 ring-1 ring-borde-app">
-              Domicilio #{domicilio.id}
+              Domicilio #{domicilio.numero}
             </span>
             {domicilio.horaEntrega ? (
               <span className="flex items-center gap-1 rounded-full bg-orange-brand/10 px-2.5 py-0.5 text-[11px] font-bold text-orange-brand ring-1 ring-orange-brand/20">

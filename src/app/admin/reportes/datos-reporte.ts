@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { claveDia } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import {
   CATEGORIA_GASTO_LABEL,
@@ -21,6 +22,7 @@ import {
  */
 export type FilaPedidoReporte = {
   id: number;
+  numero: number;
   hora: Date;
   /** nombre de la mesa, «Para llevar» o «Domicilio · cliente» */
   canal: string;
@@ -38,6 +40,7 @@ export type FilaPedidoReporte = {
  */
 export type FilaDomicilioReporte = {
   id: number;
+  numero: number;
   hora: Date;
   cliente: string;
   telefono: string;
@@ -390,6 +393,7 @@ export async function datosReporte(fechaFila: Date) {
         : null;
     return {
       id: pedido.id,
+      numero: numeroVisible(pedido),
       hora: pedido.createdAt,
       canal,
       estadoLabel: ESTADO_PEDIDO_LABEL[pedido.estado as EstadoPedido] ?? pedido.estado,
@@ -420,6 +424,7 @@ export async function datosReporte(fechaFila: Date) {
   );
   const filasDomicilios: FilaDomicilioReporte[] = domiciliosHoy.map((d) => ({
     id: d.id,
+    numero: numeroVisible(d),
     hora: d.createdAt,
     cliente: d.cliente,
     telefono: d.telefono,

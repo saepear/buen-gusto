@@ -1,6 +1,7 @@
 import { LayoutGrid } from "lucide-react";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenMesasPorNombre } from "@/lib/mesas";
@@ -50,6 +51,7 @@ export default async function PaginaMesas() {
       desde: primero ? primero.createdAt.getTime() : null,
       comandas: propios.map((pedido) => ({
         id: pedido.id,
+        numero: numeroVisible(pedido),
         hora: formatHora(pedido.createdAt),
         estado: pedido.estado,
         paraLlevar: pedido.paraLlevar,

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, claveDia } from "@/lib/format";
+import { siguienteConsecutivo } from "@/lib/consecutivos";
 import { minutosDeHora } from "@/lib/hora";
 import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ES_METODO_PAGO, ESTADO_APARTADO, ESTADO_PEDIDO } from "@/lib/roles";
@@ -1090,9 +1091,13 @@ export async function entregarApartado(
       // transacción falla (guardo abajo), el rollback las devuelve.
       await tx.apartadoReserva.deleteMany({ where: { apartadoId: apartado.id } });
 
+      const fechaConsecutivo = claveDia(new Date());
+      const consecutivoDia = await siguienteConsecutivo(tx, fechaConsecutivo, "PEDIDO");
       const pedido = await tx.pedido.create({
         data: {
           mesaId: mesa.id,
+          fechaConsecutivo,
+          consecutivoDia,
           meseroId: adminId,
           estado: "SERVIDO",
           // La modalidad congelada al apartar: recoger sale con empaque,

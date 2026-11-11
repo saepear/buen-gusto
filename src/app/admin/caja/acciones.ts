@@ -14,6 +14,7 @@ import {
 } from "@/lib/roles";
 import { exigirAdmin } from "@/lib/session";
 import { claveDia } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { realtime } from "@/lib/realtime";
 
 export type EstadoAccionCaja = { error: string | null; ok?: string };
@@ -313,7 +314,7 @@ export async function fiarCuenta(
       const saldoFiado = total - abono;
       const cuentaId = await crearCuentaFiadaTx(tx, {
         clienteId,
-        concepto: `Pedido #${ancla.id} · Mesa ${mesa.nombre}`,
+        concepto: `Pedido #${numeroVisible(ancla)} · Mesa ${mesa.nombre}`,
         valorOriginal: saldoFiado,
         pedidoId: ancla.id,
         createdById: adminId,

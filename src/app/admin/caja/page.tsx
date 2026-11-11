@@ -5,6 +5,7 @@ import { EncabezadoPagina } from "@/components/encabezado";
 import { db } from "@/lib/db";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { formatCOP, formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_CUENTA, ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
 import { ordenMesasPorNombre } from "@/lib/mesas";
@@ -105,6 +106,7 @@ export default async function PaginaCaja(
       ),
       pedidos: propios.map((pedido) => ({
         id: pedido.id,
+        numero: numeroVisible(pedido),
         hora: formatHora(pedido.createdAt),
         estado: pedido.estado,
         paraLlevar: pedido.paraLlevar,
@@ -172,7 +174,8 @@ export default async function PaginaCaja(
     avisoDomicilio = "Ese domicilio ya no existe en el sistema.";
   } else if (domicilioCobro) {
     const carga = {
-      numeroDomicilio: domicilioCobro.id,
+      numeroDomicilio: numeroVisible(domicilioCobro),
+      numeroPedido: numeroVisible(domicilioCobro.pedido),
       pedidoId: domicilioCobro.pedidoId,
       cliente: domicilioCobro.cliente,
       telefono: domicilioCobro.telefono,
@@ -207,7 +210,7 @@ export default async function PaginaCaja(
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-display text-xl text-success-text">
-                El domicilio #{domicilioCobro.id} ya está cobrado
+                El domicilio #{numeroVisible(domicilioCobro)} ya está cobrado
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
                 {domicilioCobro.cliente} ·{" "}
@@ -233,7 +236,7 @@ export default async function PaginaCaja(
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-display text-2xl text-danger-text">
-                Domicilio #{domicilioCobro.id} cancelado
+                Domicilio #{numeroVisible(domicilioCobro)} cancelado
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
                 {domicilioCobro.cliente} · el envío fue cancelado: no se cobra
@@ -254,7 +257,7 @@ export default async function PaginaCaja(
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="font-display text-2xl text-amber-brand">
-                Cobrando domicilio #{domicilioCobro.id}
+                Cobrando domicilio #{numeroVisible(domicilioCobro)}
               </p>
               <p className="mt-0.5 text-sm text-texto-muted/70">
                 {domicilioCobro.cliente} · revisa la factura y confirma el pago

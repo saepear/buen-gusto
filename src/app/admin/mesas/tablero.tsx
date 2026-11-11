@@ -43,6 +43,7 @@ export type ItemDetalle = {
 
 export type ComandaDetalle = {
   id: number;
+  numero: number;
   hora: string;
   estado: string;
   paraLlevar: boolean;
@@ -284,7 +285,7 @@ function ModalMesa({
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-bold text-texto-app">
-                          Comanda #{comanda.id}
+                          Comanda #{comanda.numero}
                         </span>
                         <span
                           className={

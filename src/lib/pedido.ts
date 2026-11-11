@@ -2,7 +2,8 @@
 import { db } from "@/lib/db";
 import { getCategoriasPersonalizadas } from "@/lib/config";
 import { claveDia } from "@/lib/format";
-import { PRECIO_ICOPOR, precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
+import { siguienteConsecutivo } from "@/lib/consecutivos";
+import { precioAlmuerzo, precioEspecialDelDia } from "@/lib/precios";
 import { ESTADO_APARTADO, ESTADO_PEDIDO, type EstadoPedido } from "@/lib/roles";
 
 /** Pedidos que dejan la mesa ocupada (los demás son históricos) */
@@ -251,7 +252,8 @@ export async function crearPedido(opciones: {
     permitirMesaVirtual = false,
   } = opciones;
 
-  if (await db.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+  const fechaConsecutivo = claveDia(new Date());
+  if (await db.cierreCaja.findUnique({ where: { fecha: fechaConsecutivo }, select: { id: true } })) {
     throw new ErrorDePedido("La caja de hoy ya está cerrada: no se pueden crear pedidos posteriores.");
   }
 
@@ -526,6 +528,7 @@ export async function crearPedido(opciones: {
   }
 
   return db.$transaction(async (tx) => {
+    const consecutivoDia = await siguienteConsecutivo(tx, fechaConsecutivo, "PEDIDO");
     // Descontar porciones con guardia atómica, ahora por cantidad: si la
     // fila ya no cupo la suma completa, aborta el pedido entero (nada queda
     // descontado a la mitad).
@@ -542,6 +545,8 @@ export async function crearPedido(opciones: {
     const pedido = await tx.pedido.create({
       data: {
         mesaId,
+        fechaConsecutivo,
+        consecutivoDia,
         meseroId,
         estado: "ENVIADO",
         paraLlevar: llevar,

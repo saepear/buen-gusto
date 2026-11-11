@@ -47,7 +47,7 @@ export default async function PaginaReportes(props: PageProps<"/admin/reportes">
     extras: datos.extrasLista.map(([nombre, fila]) => ({ nombre, unidades: fila.unidades, recaudo: fila.recaudo })),
     horas: datos.horasLista.map(({ etiqueta, valor }) => ({ etiqueta, valor })),
     dias: datos.dias,
-    domicilios: datos.filasDomicilios.map(d => ({ id: d.id, hora: aIso(d.hora), cliente: d.cliente, telefono: d.telefono, barrio: d.barrio, direccion: d.direccion, estado: d.estadoLabel, cobrado: d.cobradoMonto, metodo: d.cobradoMetodo })),
+    domicilios: datos.filasDomicilios.map(d => ({ id: d.id, numero: d.numero, hora: aIso(d.hora), cliente: d.cliente, telefono: d.telefono, barrio: d.barrio, direccion: d.direccion, estado: d.estadoLabel, cobrado: d.cobradoMonto, metodo: d.cobradoMetodo })),
     fiados: datos.filasCuentasCreadas.map(c => ({ id: c.id, cliente: c.cliente, concepto: c.concepto, valor: c.valorOriginal, origen: c.origenTipo, items: c.items.map(i => ({ nombre: i.nombre, cantidad: i.cantidad })), estado: c.estadoLabel })),
     abonos: datos.filasAbonos.map(a => ({ id: a.id, hora: aIso(a.hora), cliente: a.cliente, concepto: a.concepto, monto: a.monto, metodo: a.metodoLabel, usuario: a.usuario })),
     gastos: datos.filasGastos.map(g => ({ id: g.id, hora: aIso(g.hora), descripcion: g.descripcion, categoria: g.categoriaLabel, valor: g.valor, metodo: g.metodoLabel, origen: g.origenLabel, usuario: g.usuario, anulado: g.anulado })),

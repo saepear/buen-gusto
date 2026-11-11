@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { claveDia, formatCOP } from "@/lib/format";
+import { numeroVisible, siguienteConsecutivo } from "@/lib/consecutivos";
 import { minutosDeHora } from "@/lib/hora";
 import {
   crearPedido,
@@ -11,7 +12,7 @@ import {
   type CargaPedido,
 } from "@/lib/pedido";
 import { buscarOcrearCliente, crearClienteNuevo, type ClienteResumen } from "@/lib/clientes";
-import { crearCuentaFiadaTx, type ItemDePedidoParaFoto } from "@/lib/fiados";
+import { crearCuentaFiadaTx } from "@/lib/fiados";
 import { precioUnitarioItem } from "@/lib/precios";
 import {
   ES_METODO_PAGO,
@@ -155,19 +156,25 @@ export async function crearDomicilio(
     };
   }
 
-  await db.domicilio.create({
-    data: {
-      pedidoId,
-      cliente,
-      telefono,
-      direccion,
-      barrio,
-      referencia,
-      horaEntrega,
-      horaEntregaMinutos: minutosDeHora(horaEntrega),
-      estado: ESTADO_DOMICILIO.PENDIENTE,
-      clienteId,
-    },
+  await db.$transaction(async (tx) => {
+    const fechaConsecutivo = claveDia(new Date());
+    const consecutivoDia = await siguienteConsecutivo(tx, fechaConsecutivo, "DOMICILIO");
+    await tx.domicilio.create({
+      data: {
+        pedidoId,
+        fechaConsecutivo,
+        consecutivoDia,
+        cliente,
+        telefono,
+        direccion,
+        barrio,
+        referencia,
+        horaEntrega,
+        horaEntregaMinutos: minutosDeHora(horaEntrega),
+        estado: ESTADO_DOMICILIO.PENDIENTE,
+        clienteId,
+      },
+    });
   });
 
   revalidarDomicilios();
@@ -283,6 +290,8 @@ export async function cobrarDomicilio(
       const domicilio = await tx.domicilio.findUnique({
         where: { id: domicilioId },
         select: {
+          id: true,
+          consecutivoDia: true,
           estado: true,
           cobradoMonto: true,
           pedidoId: true,
@@ -421,6 +430,8 @@ export async function fiarDomicilio(
       const domicilio = await tx.domicilio.findUnique({
         where: { id: domicilioId },
         select: {
+          id: true,
+          consecutivoDia: true,
           estado: true,
           cobradoMonto: true,
           pedidoId: true,
@@ -505,7 +516,7 @@ export async function fiarDomicilio(
       // La deuda SOLO por lo que quedó debiendo, con la foto de artículos
       await crearCuentaFiadaTx(tx, {
         clienteId: fichaDeudaId,
-        concepto: `Domicilio #${domicilioId} · ${domicilio.cliente}`,
+        concepto: `Domicilio #${numeroVisible(domicilio)} · ${domicilio.cliente}`,
         valorOriginal: total - abono,
         pedidoId: domicilio.pedidoId,
         createdById: adminId,

@@ -23,6 +23,7 @@ import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 import { formatCOP, formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { ESTADO_MESA } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { EncabezadoMesero } from "../../encabezado";
@@ -113,7 +114,7 @@ export default async function PaginaMesa(
         {nuevo ? (
           <div className="flex items-center gap-2.5 rounded-2xl bg-success/10 px-4 py-3 text-sm font-bold text-success-text ring-1 ring-success/40">
             <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0" />
-            Comanda #{nuevo} enviada a la cocina. Mira su avance aquí mismo.
+            Comanda #{comandas.find((pedido) => String(pedido.id) === nuevo)?.consecutivoDia ?? nuevo} enviada a la cocina. Mira su avance aquí mismo.
           </div>
         ) : null}
 
@@ -205,7 +206,7 @@ export default async function PaginaMesa(
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <span className="font-display text-lg text-texto-app">
-                      Comanda #{pedido.id}
+                      Comanda #{numeroVisible(pedido)}
                     </span>
                     <span
                       className={

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_PEDIDO, ordenDeItem } from "@/lib/roles";
@@ -89,7 +90,7 @@ export default async function PaginaRecibo(
         {pedidos.map((pedido, indice) => (
           <div key={pedido.id} className={indice > 0 ? "mt-3" : ""}>
             <p className="text-[11px] font-bold uppercase tracking-wide">
-              Comanda #{pedido.id} · {formatHora(pedido.createdAt)}
+              Comanda #{numeroVisible(pedido)} · {formatHora(pedido.createdAt)}
             </p>
             {pedido.paraLlevar ? (
               <p className="mt-0.5 text-[11px] font-bold tracking-widest">

@@ -352,9 +352,9 @@ export async function construirLibroExcel(
   const filaFinPedidos = tablaSimple(
     pedidosHoja,
     5,
-    ["ID", "Hora", "Mesa / modalidad", "Estado", "Métodos de pago", "Total comanda", "Total pagado"],
+    ["Comanda", "Hora", "Mesa / modalidad", "Estado", "Métodos de pago", "Total comanda", "Total pagado"],
     datos.filasPedidos.map((p) => [
-      p.id,
+      `#${p.numero}`,
       formatoHora(p.hora),
       p.canal,
       p.estadoLabel,
@@ -916,9 +916,9 @@ export async function construirLibroExcel(
     tablaSimple(
       domHoja,
       fina + 1,
-      ["ID", "Hora", "Cliente", "Teléfono", "Barrio", "Dirección", "Hora entrega", "Estado", "Cobrado", "Método"],
+      ["Domicilio", "Hora", "Cliente", "Teléfono", "Barrio", "Dirección", "Hora entrega", "Estado", "Cobrado", "Método"],
       datos.filasDomicilios.map((d) => [
-        d.id,
+        `#${d.numero}`,
         formatoHora(d.hora),
         d.cliente,
         d.telefono,

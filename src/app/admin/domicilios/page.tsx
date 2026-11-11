@@ -2,6 +2,7 @@ import { Banknote, Bike, CheckCircle2, Plus, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatCOP, formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { inicioDeHoy } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import {
@@ -58,6 +59,7 @@ export default async function PaginaDomicilios() {
         .join(" · ") || "Sin ítems";
     return {
       id: d.id,
+      numero: numeroVisible(d),
       pedidoId: d.pedidoId,
       estado: d.estado as EstadoDomicilio,
       /** Estado de la comanda: para saber si la cocina ya la tiene lista */

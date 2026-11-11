@@ -6,6 +6,7 @@ import { inicioDeHoy, ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { claveDia } from "@/lib/format";
 import { exigirAdmin } from "@/lib/session";
 import { efectivoEsperadoCaja } from "@/lib/caja/conciliacion";
+import { numeroVisible } from "@/lib/consecutivos";
 
 export type EstadoAccionCierre = { error: string | null; ok: string | null };
 
@@ -43,10 +44,10 @@ export async function registrarCierre(
         throw new ErrorDeCierre("El cierre de hoy ya está registrado.");
       }
       const hoy = inicioDeHoy();
-      const pendientes = await tx.pedido.findMany({ where: { estado: { in: ESTADOS_ACTIVOS_PEDIDO }, mesa: { esDomicilio: false, esApartado: false } }, select: { id: true, mesa: { select: { nombre: true } } }, take: 20 });
+      const pendientes = await tx.pedido.findMany({ where: { estado: { in: ESTADOS_ACTIVOS_PEDIDO }, mesa: { esDomicilio: false, esApartado: false } }, select: { id: true, consecutivoDia: true, mesa: { select: { nombre: true } } }, take: 20 });
       const mesasPendientes = await tx.mesa.findMany({ where: { activa: true, esDomicilio: false, esApartado: false, estado: { in: ["OCUPADA", "POR_PAGAR"] } }, select: { nombre: true }, take: 20 });
       if (pendientes.length || mesasPendientes.length) {
-        const nombres = [...new Set([...pendientes.map((p) => p.mesa?.nombre ?? `Comanda #${p.id}`), ...mesasPendientes.map((m) => m.nombre)])];
+        const nombres = [...new Set([...pendientes.map((p) => p.mesa?.nombre ?? `Comanda #${numeroVisible(p)}`), ...mesasPendientes.map((m) => m.nombre)])];
         throw new ErrorDeCierre(`No se puede cerrar: hay mesas o comandas pendientes (${nombres.slice(0, 5).join(", ")}${nombres.length > 5 ? "…" : ""}). Cobra o resuelve todo antes del cierre.`);
       }
 

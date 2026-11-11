@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { formatHora, claveDia } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { requerirRol } from "@/lib/session";
 import { AutoRefresco } from "./refresco";
 import { AccionesComanda } from "./botones-comanda";
@@ -41,7 +42,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
     ];
     if (/^\d+$/.test(query)) {
       const id = Number.parseInt(query, 10);
-      where.OR.unshift({ id }, { domicilio: { is: { id } } });
+      where.OR.unshift({ consecutivoDia: id }, { domicilio: { is: { consecutivoDia: id } } }, { id });
     }
   }
 
@@ -181,7 +182,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                   ?? pedido.apartado?.cliente.nombre
                   ?? null;
                 const origen = pedido.domicilio
-                  ? `Domicilio #${pedido.domicilio.id}`
+                  ? `Domicilio #${numeroVisible(pedido.domicilio)}`
                   : pedido.apartado
                     ? `Apartado #${pedido.apartado.id}`
                     : pedido.paraLlevar
@@ -190,6 +191,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                 return { cliente, origen, cuenta };
               })(),
               id: pedido.id,
+              numero: numeroVisible(pedido),
               mesa: pedido.mesa.nombre,
               mesero: pedido.mesero?.nombre ?? "Sistema",
               estado: pedido.estado,
@@ -222,7 +224,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
                   {pedidos.map((pedido) => (
                     <tr key={pedido.id} className="group transition-colors hover:bg-panel-app">
                       <td className="px-8 py-6">
-                        <span className="font-display text-xl text-amber-brand">#{pedido.id}</span>
+                        <span className="font-display text-xl text-amber-brand">#{numeroVisible(pedido)}</span>
                       </td>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-3">

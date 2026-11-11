@@ -113,6 +113,10 @@ model Mesa {
 
 model Pedido {
   id            Int      @id @default(autoincrement())
+  // Consecutivo visible del día. El id nunca se reutiliza: este número sí
+  // vuelve a 1 tras el cierre, sin romper enlaces, facturas o auditoría.
+  fechaConsecutivo String?
+  consecutivoDia   Int?
   mesaId        Int
   mesa          Mesa     @relation(fields: [mesaId], references: [id])
   meseroId      Int?
@@ -128,6 +132,7 @@ model Pedido {
 
   domicilio Domicilio?
   apartado  Apartado?  @relation("ApartadoEntregado") // comanda creada al entregar un apartado
+
 }
 
 model PedidoItem {
@@ -214,6 +219,9 @@ model Configuracion {
 // que se crea sobre la mesa virtual "Domicilios" para reutilizar stock y cobro.
 model Domicilio {
   id                 Int       @id @default(autoincrement())
+  // Numeración propia de domicilios del día; separada de la comanda.
+  fechaConsecutivo   String?
+  consecutivoDia     Int?
   pedidoId           Int       @unique
   pedido             Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   cliente            String
@@ -239,6 +247,16 @@ model Domicilio {
   // Cliente registrado del módulo Clientes (null = domicilio anterior sin vincular)
   clienteId         Int?
   clienteRegistrado Cliente? @relation(fields: [clienteId], references: [id])
+
+}
+
+// Una fila por jornada de caja. Al abrir una fecha nueva se crea con los
+// contadores en 1; el cierre bloquea nuevos pedidos para esa fecha.
+model ConsecutivoDiario {
+  fecha              String @id // yyyy-mm-dd
+  siguientePedido    Int    @default(1)
+  siguienteDomicilio Int    @default(1)
+  updatedAt          DateTime @updatedAt
 }
 
 // ════════ Módulo de clientes ════════

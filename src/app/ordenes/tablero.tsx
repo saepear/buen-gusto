@@ -9,6 +9,7 @@ import { AccionesComanda } from "./botones-comanda";
 
 export type OrdenTarjeta = {
   id: number;
+  numero: number;
   mesa: string;
   mesero: string;
   estado: string;
@@ -75,7 +76,7 @@ export function TableroOrdenes({ pedidos }: { pedidos: OrdenTarjeta[] }) {
                 <span className="orden-card-icon">{inicial(pedido.mesa)}</span>
                 <span className="orden-card-heading">
                   <span className="orden-card-title">{pedido.origen}</span>
-                  <span className="orden-card-meta">Comanda #{pedido.id}{pedido.cliente ? ` · ${pedido.cliente}` : ""}</span>
+                  <span className="orden-card-meta">Comanda #{pedido.numero}{pedido.cliente ? ` · ${pedido.cliente}` : ""}</span>
                 </span>
                 <ArrowUpRight size={17} className="orden-card-arrow" />
               </span>
@@ -88,13 +89,13 @@ export function TableroOrdenes({ pedidos }: { pedidos: OrdenTarjeta[] }) {
       </div>
 
       {seleccionado && origen ? (
-        <ModalFlip rapida origen={origen} onClose={cerrar} ariaLabel={`Detalle de comanda ${seleccionado.id}`} panelClassName="orden-detail-panel">
+        <ModalFlip rapida origen={origen} onClose={cerrar} ariaLabel={`Detalle de comanda ${seleccionado.numero}`} panelClassName="orden-detail-panel">
           {(cerrarModal) => {
             const estado = estadoVisible(seleccionado);
             return (
               <div className="orden-detail-modal">
                 <header className="orden-detail-header" data-anim>
-                  <div className="orden-detail-title"><span className="orden-detail-icon"><ClipboardList size={22} /></span><div><span className="orden-eyebrow">DETALLE DE COMANDA</span><h2>{seleccionado.origen}</h2><p>Comanda #{seleccionado.id}{seleccionado.cliente ? ` · ${seleccionado.cliente}` : ""}</p></div></div>
+                  <div className="orden-detail-title"><span className="orden-detail-icon"><ClipboardList size={22} /></span><div><span className="orden-eyebrow">DETALLE DE COMANDA</span><h2>{seleccionado.origen}</h2><p>Comanda #{seleccionado.numero}{seleccionado.cliente ? ` · ${seleccionado.cliente}` : ""}</p></div></div>
                   <button type="button" className="orden-modal-close" onClick={cerrarModal} aria-label="Cerrar detalle"><X size={19} /></button>
                 </header>
                 <div className="orden-detail-body">

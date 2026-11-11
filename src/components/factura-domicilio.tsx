@@ -17,6 +17,7 @@ export type ItemFacturaDomicilio = {
 
 export type CargaFacturaDomicilio = {
   numeroDomicilio: number;
+  numeroPedido?: number;
   pedidoId: number;
   cliente: string;
   telefono: string;

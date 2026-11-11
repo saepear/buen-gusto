@@ -73,6 +73,7 @@ export type ItemCuenta = {
 
 export type ComandaCuenta = {
   id: number;
+  numero: number;
   hora: string;
   estado: string;
   paraLlevar: boolean;
@@ -260,7 +261,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-bold text-texto-app">
-                    Comanda #{pedido.id} · {pedido.hora}
+                    Comanda #{pedido.numero} · {pedido.hora}
                   </p>
                   <span
                     className={

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
+import { numeroVisible } from "@/lib/consecutivos";
 import { nombreDeItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 import { requerirRolDe } from "@/lib/session";
@@ -16,11 +17,9 @@ export default async function PaginaComanda(
   // una comanda (autoPrint). El tablero /ordenes sigue siendo solo ADMIN.
   const sesion = await requerirRolDe(["ADMIN", "MESERO"]);
   const { pedidoId: crudo } = await props.params;
-  const { reprint, volver } = await props.searchParams;
+  const { volver } = await props.searchParams;
   const id = Number.parseInt(crudo, 10);
   if (!Number.isInteger(id)) notFound();
-
-  const esCopia = reprint === "1";
 
   const pedido = await db.pedido.findUnique({
     where: { id },
@@ -68,7 +67,7 @@ export default async function PaginaComanda(
           </p>
           <div className="mt-2 flex flex-col items-center text-[12px] font-bold">
             <p>HORA: {formatHora(pedido.createdAt)}</p>
-            <p className="mt-1">PEDIDO: #{pedido.id}</p>
+            <p className="mt-1">PEDIDO: #{numeroVisible(pedido)}</p>
           </div>
         </div>
 

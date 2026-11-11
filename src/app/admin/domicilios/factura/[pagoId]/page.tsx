@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requerirRol } from "@/lib/session";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
+import { numeroVisible } from "@/lib/consecutivos";
 import { FacturaDomicilio } from "@/components/factura-domicilio";
 import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
@@ -47,7 +48,8 @@ export default async function PaginaFacturaDomicilio(
       <div className="mx-auto w-full max-w-md px-4 print:px-0">
         <FacturaDomicilio
           carga={{
-            numeroDomicilio: domicilio.id,
+            numeroDomicilio: numeroVisible(domicilio),
+            numeroPedido: numeroVisible(pago.pedido),
             pedidoId: pago.pedidoId,
             cliente: domicilio.cliente,
             telefono: domicilio.telefono,
