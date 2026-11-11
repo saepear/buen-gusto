@@ -24,6 +24,19 @@ export type FilaEmpleado = {
   pendiente: number;
   aportesEmpleador: number;
   prestaciones: number;
+  pagosPendientes: PagoPendienteReporte[];
+};
+
+/** Pagos que aún se pueden registrar desde la ficha del reporte. */
+export type PagoPendienteReporte = {
+  liquidacionId: number;
+  desde: string;
+  hasta: string;
+  netoAPagar: number;
+  pagado: number;
+  pendiente: number;
+  metodoHabitual: string;
+  periodoCerrado: boolean;
 };
 
 export type FilaPago = {
@@ -58,7 +71,7 @@ export async function datosReporteNomina(
 
   const liquidaciones = await db.liquidacionNomina.findMany({
     where: { ...rango, ...dondeEmpleado },
-    include: { empleado: true },
+    include: { empleado: true, periodo: { select: { fechaDesde: true, fechaHasta: true, estado: true } } },
     orderBy: [{ periodoId: "asc" }, { empleadoId: "asc" }],
   });
 
@@ -77,6 +90,7 @@ export async function datosReporteNomina(
         pendiente: 0,
         aportesEmpleador: 0,
         prestaciones: 0,
+        pagosPendientes: [],
       } satisfies FilaEmpleado);
     fila.totalDevengado += l.totalDevengado;
     fila.horasExtras += l.horasExtraRecargos;
@@ -87,6 +101,19 @@ export async function datosReporteNomina(
     fila.aportesEmpleador += l.costoEmpleador;
     fila.prestaciones +=
       l.prestacionPrima + l.prestacionCesantias + l.prestacionIntereses + l.prestacionVacaciones;
+    const pendiente = Math.max(l.netoAPagar - l.pagado, 0);
+    if (pendiente > 0) {
+      fila.pagosPendientes.push({
+        liquidacionId: l.id,
+        desde: l.periodo.fechaDesde,
+        hasta: l.periodo.fechaHasta,
+        netoAPagar: l.netoAPagar,
+        pagado: l.pagado,
+        pendiente,
+        metodoHabitual: l.empleado.metodoPago,
+        periodoCerrado: l.periodo.estado === "CERRADO",
+      });
+    }
     porEmpleadoMap.set(l.empleadoId, fila);
   }
   const porEmpleado = [...porEmpleadoMap.values()];
