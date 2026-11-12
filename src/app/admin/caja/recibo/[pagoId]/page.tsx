@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
 import { numeroVisible } from "@/lib/consecutivos";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
-import { inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_PEDIDO, ordenDeItem } from "@/lib/roles";
 import { requerirRol } from "@/lib/session";
 import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
@@ -32,13 +31,12 @@ export default async function PaginaRecibo(
   if (!pago) notFound();
 
   const mesaId = pago.pedido.mesaId;
-  const fecha = inicioDeHoy();
-
-  // El cobro abarca todas las comandas pagadas entre el pago anterior
-  // de esta mesa (si lo hubo hoy) y la creación de este pago
+  // El cobro abarca todas las comandas pagadas entre el pago anterior de la
+  // misma mesa y este pago. No se limita al día: una comanda pendiente de
+  // ayer debe poder cobrarse y generar un recibo completo hoy.
   const pagoPrevio = await db.pago.findFirst({
     where: {
-      createdAt: { gte: fecha, lt: pago.createdAt },
+      createdAt: { lt: pago.createdAt },
       pedido: { mesaId },
     },
     orderBy: { createdAt: "desc" },
@@ -48,7 +46,7 @@ export default async function PaginaRecibo(
       mesaId,
       estado: ESTADO_PEDIDO.COBRADO,
       createdAt: {
-        gt: pagoPrevio?.createdAt ?? fecha,
+        gt: pagoPrevio?.createdAt ?? new Date(0),
         lte: pago.createdAt,
       },
     },

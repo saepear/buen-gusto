@@ -41,6 +41,8 @@ function revalidar() {
 
 /** Estados de registros que todavía pueden convertirse en fiado. */
 const ESTADOS_FIABLES = [
+  ESTADO_PEDIDO.ENVIADO,
+  ESTADO_PEDIDO.EN_PREPARACION,
   ESTADO_PEDIDO.PARCIAL_SERVIDO,
   ESTADO_PEDIDO.SERVIDO,
   ESTADO_PEDIDO.POR_PAGAR,

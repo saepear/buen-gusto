@@ -87,13 +87,23 @@ export async function usarAnticipo(
 
   try {
     await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+        throw new ErrorDeAnticipo("La caja de hoy ya está cerrada: el saldo se descuenta en la siguiente jornada.");
+      }
       const anticipo = await tx.anticipoCliente.findUnique({ where: { id: anticipoId }, select: { valorOriginal: true, usado: true, estado: true } });
       if (!anticipo || anticipo.estado !== "VIGENTE") throw new ErrorDeAnticipo("Ese saldo ya no está disponible.");
-      const disponible = Math.max(0, anticipo.valorOriginal - anticipo.usado);
-      if (monto > disponible) throw new ErrorDeAnticipo(`El saldo disponible es de $${disponible.toLocaleString("es-CO")}.`);
-      const usado = anticipo.usado + monto;
+      // La guardia se aplica dentro del UPDATE para que dos cajas o pestañas
+      // no puedan consumir el mismo saldo a la vez.
+      const actualizado = await tx.$executeRaw`
+        UPDATE AnticipoCliente
+        SET usado = usado + ${monto},
+            estado = CASE WHEN usado + ${monto} >= valorOriginal THEN 'AGOTADO' ELSE 'VIGENTE' END
+        WHERE id = ${anticipoId}
+          AND estado = 'VIGENTE'
+          AND valorOriginal - usado >= ${monto}
+      `;
+      if (actualizado !== 1) throw new ErrorDeAnticipo("El saldo cambió mientras registrabas el consumo. Recarga y revisa el disponible.");
       await tx.usoAnticipo.create({ data: { anticipoId, monto, concepto, usuarioId: adminId } });
-      await tx.anticipoCliente.update({ where: { id: anticipoId }, data: { usado, estado: usado >= anticipo.valorOriginal ? "AGOTADO" : "VIGENTE" } });
     });
   } catch (error) {
     return { error: error instanceof ErrorDeAnticipo ? error.message : "No se pudo descontar el anticipo. Intenta otra vez.", ok: null };

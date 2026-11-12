@@ -3,6 +3,7 @@
 import {
   Banknote,
   CreditCard,
+  Gift,
   HandCoins,
   Landmark,
   ArrowUpRight,
@@ -16,7 +17,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { formatCOP } from "@/lib/format";
 import { buscarClientesPicker } from "@/app/admin/clientes/actions";
 import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
-import { cobrarMesa, fiarCuenta, type EstadoAccionCaja } from "./acciones";
+import { cobrarMesa, cobrarMesaConAnticipo, fiarCuenta, type EstadoAccionCaja } from "./acciones";
 
 const SIN_ERROR: EstadoAccionCaja = { error: null };
 
@@ -73,7 +74,19 @@ export type MesaParaCobrar = {
   pedidos: ComandaCuenta[];
 };
 
-export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
+export type AnticipoDisponible = {
+  id: number;
+  cliente: string;
+  disponible: number;
+};
+
+export function TarjetaCobro({
+  mesa,
+  anticipos = [],
+}: {
+  mesa: MesaParaCobrar;
+  anticipos?: AnticipoDisponible[];
+}) {
   const [estado, accion, pendiente] = useActionState<EstadoAccionCaja, FormData>(
     cobrarMesa,
     SIN_ERROR,
@@ -83,7 +96,12 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
     EstadoAccionCaja,
     FormData
   >(fiarCuenta, SIN_ERROR);
-  const [modo, setModo] = useState<"pagar" | "fiado">("pagar");
+  const [estadoAnticipo, accionAnticipo, pendienteAnticipo] = useActionState<
+    EstadoAccionCaja,
+    FormData
+  >(cobrarMesaConAnticipo, SIN_ERROR);
+  const [modo, setModo] = useState<"pagar" | "fiado" | "anticipo">("pagar");
+  const [anticipoId, setAnticipoId] = useState("");
   const [metodo, setMetodo] = useState<string>("EFECTIVO");
   const [propinaTxt, setPropinaTxt] = useState("");
   const [origenModal, setOrigenModal] = useState<OrigenModal | null>(null);
@@ -136,6 +154,9 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
   const montoNum = Number.parseInt(montoTxt.replace(/[^0-9]/g, ""), 10) || null;
   const vueltas = enEfectivo && montoNum !== null ? montoNum - total : null;
   const noAlcanza = vueltas !== null && vueltas < 0;
+  const anticiposQueCubren = anticipos.filter(
+    (anticipo) => anticipo.disponible >= mesa.total,
+  );
 
   const resumenItems = mesa.pedidos
     .flatMap((pedido) => pedido.items.map((item) => `${item.cantidad > 1 ? `${item.cantidad}× ` : ""}${item.nombre}`))
@@ -228,7 +249,7 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
 
       {mesa.pedidos.length === 0 ? (
         <p className="mt-4 rounded-xl border-2 border-dashed border-borde-app p-4 text-center text-sm text-texto-muted/45">
-          La mesa está ocupada pero no tiene comandas activas hoy.
+          La mesa está ocupada pero no tiene comandas activas.
           Revisa con el mesero antes de cobrar.
         </p>
       ) : (
@@ -316,12 +337,28 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
             </p>
           ) : null}
 
-          {/* ¿Dinero ahora o fiado? El fiado NO ingresa a caja: crea la deuda */}
+          {estadoAnticipo.error ? (
+            <p
+              aria-live="polite"
+              className="mt-3 rounded-xl border-2 border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger-text"
+            >
+              {estadoAnticipo.error}
+            </p>
+          ) : estadoAnticipo.ok ? (
+            <p
+              aria-live="polite"
+              className="mt-3 rounded-xl border-2 border-success/30 bg-success/10 px-3 py-2 text-sm font-bold text-success-text"
+            >
+              {estadoAnticipo.ok}
+            </p>
+          ) : null}
+
+          {/* El saldo a favor ya ingresó en otra venta; consumirlo no infla caja. */}
           <div className="mt-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
               ¿Cómo queda esta mesa?
             </p>
-            <div className="mt-1.5 grid grid-cols-2 gap-2">
+            <div className="mt-1.5 grid grid-cols-3 gap-2">
               <button
                 type="button"
                 aria-pressed={modo === "pagar"}
@@ -334,6 +371,19 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                 }
               >
                 <Wallet className="h-4 w-4" /> Pagar ahora
+              </button>
+              <button
+                type="button"
+                aria-pressed={modo === "anticipo"}
+                onClick={() => setModo("anticipo")}
+                className={
+                  "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold transition " +
+                  (modo === "anticipo"
+                    ? "bg-success text-brown-950"
+                    : "bg-panel-app text-success-text ring-1 ring-success/30 hover:bg-success/10")
+                }
+              >
+                <Gift className="h-4 w-4" /> Saldo a favor
               </button>
               <button
                 type="button"
@@ -494,6 +544,56 @@ export function TarjetaCobro({ mesa }: { mesa: MesaParaCobrar }) {
                 ? "Cobrando…"
                 : `Cobrar ${formatCOP(total)}`}
             </button>
+            </form>
+          ) : modo === "anticipo" ? (
+            <form action={accionAnticipo} className="mt-4 space-y-3.5">
+              <input type="hidden" name="mesaId" value={mesa.id} />
+              <div className="rounded-xl bg-success/10 px-3.5 py-3 ring-1 ring-success/25">
+                <p className="text-sm font-bold text-success-text">Pagar con saldo a favor</p>
+                <p className="mt-1 text-xs text-texto-muted/65">
+                  El anticipo se descuenta una sola vez y esta venta no suma dinero nuevo a la caja.
+                </p>
+              </div>
+              {anticiposQueCubren.length ? (
+                <>
+                  <label className="block">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-texto-muted/40">
+                      Anticipo que cubre {formatCOP(mesa.total)}
+                    </span>
+                    <select
+                      name="anticipoId"
+                      value={anticipoId}
+                      onChange={(event) => setAnticipoId(event.target.value)}
+                      className="mt-1.5 w-full rounded-xl border-0 bg-panel-app px-3 py-2.5 text-sm font-bold text-texto-app ring-1 ring-borde-app focus:ring-2 focus:ring-success/60"
+                      required
+                    >
+                      <option value="">Selecciona un saldo a favor…</option>
+                      {anticiposQueCubren.map((anticipo) => (
+                        <option key={anticipo.id} value={anticipo.id}>
+                          {anticipo.cliente} · Disponible {formatCOP(anticipo.disponible)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={pendienteAnticipo || !anticipoId}
+                    className={
+                      "flex w-full items-center justify-center gap-2 rounded-xl py-3 font-display text-lg transition " +
+                      (pendienteAnticipo || !anticipoId
+                        ? "bg-panel-app text-texto-muted/60"
+                        : "bg-success text-brown-950 hover:bg-success/85")
+                    }
+                  >
+                    <Gift className="h-5 w-5" />
+                    {pendienteAnticipo ? "Aplicando…" : `Usar saldo para ${formatCOP(mesa.total)}`}
+                  </button>
+                </>
+              ) : (
+                <p className="rounded-xl border border-dashed border-borde-app px-3.5 py-4 text-sm text-texto-muted/65">
+                  No hay saldos a favor vigentes que cubran el total de esta mesa.
+                </p>
+              )}
             </form>
           ) : (
             <form action={accionFiado} className="mt-4 space-y-3.5">

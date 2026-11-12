@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/format";
 import { precioUnitarioItem } from "@/lib/precios";
-import { inicioDeHoy, ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
+import { ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { crearCuentaFiadaTx, type ItemDePedidoParaFoto } from "@/lib/fiados";
 import {
   ES_METODO_PAGO,
@@ -77,13 +77,12 @@ export async function cobrarMesa(
         );
       }
 
-      // Las comandas activas de HOY son las que se cobran (se revalidan
-      // aquí dentro, sin confiar en los datos de la pantalla)
+      // Una mesa puede haber quedado abierta al finalizar el día anterior.
+      // Cobramos todas sus comandas activas, sin importar la fecha de creación.
       const pedidos = await tx.pedido.findMany({
         where: {
           mesaId,
           estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-          createdAt: { gte: inicioDeHoy() },
         },
         include: {
           items: { include: { producto: { select: { precio: true } } } },
@@ -92,7 +91,7 @@ export async function cobrarMesa(
       });
       if (pedidos.length === 0) {
         throw new ErrorDeCaja(
-          `La mesa «${mesa.nombre}» no tiene comandas activas para cobrar hoy.`,
+          `La mesa «${mesa.nombre}» no tiene comandas activas para cobrar.`,
         );
       }
 
@@ -167,6 +166,67 @@ export async function cobrarMesa(
 }
 
 /**
+ * Cierra una mesa usando un saldo a favor existente. No crea un `Pago`: el
+ * dinero ya entró a caja el día en que se registró el anticipo; aquí solo se
+ * deja el consumo auditado y se libera la mesa.
+ */
+export async function cobrarMesaConAnticipo(
+  _previa: EstadoAccionCaja,
+  datos: FormData,
+): Promise<EstadoAccionCaja> {
+  let adminId: number;
+  try {
+    adminId = (await exigirAdmin()).id;
+  } catch {
+    return { error: "Solo el administrador puede aplicar un anticipo." };
+  }
+  const mesaId = Number.parseInt(String(datos.get("mesaId") ?? ""), 10);
+  const anticipoId = Number.parseInt(String(datos.get("anticipoId") ?? ""), 10);
+  if (!Number.isInteger(mesaId) || !Number.isInteger(anticipoId)) {
+    return { error: "Escoge una mesa y un anticipo válido." };
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+        throw new ErrorDeCaja("La caja de hoy ya está cerrada: no se pueden aplicar anticipos.");
+      }
+      const mesa = await tx.mesa.findUnique({ where: { id: mesaId }, select: { nombre: true, estado: true, activa: true, esDomicilio: true, esApartado: true } });
+      if (!mesa || !mesa.activa || mesa.esDomicilio || mesa.esApartado) throw new ErrorDeCaja("Esa mesa no está disponible para aplicar un anticipo.");
+      if (![ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR].includes(mesa.estado as never)) throw new ErrorDeCaja("La mesa ya no tiene una cuenta pendiente.");
+      const pedidos = await tx.pedido.findMany({ where: { mesaId, estado: { in: ESTADOS_ACTIVOS_PEDIDO } }, include: { items: { include: { producto: true } } }, orderBy: { createdAt: "asc" } });
+      if (!pedidos.length) throw new ErrorDeCaja("La mesa no tiene comandas pendientes.");
+      const total = pedidos.reduce((suma, pedido) => suma + pedido.items.reduce((sub, item) => sub + precioUnitarioItem(item) * item.cantidad, 0), 0);
+      if (total <= 0) throw new ErrorDeCaja("La mesa no tiene un valor válido para descontar.");
+      const anticipo = await tx.anticipoCliente.findUnique({ where: { id: anticipoId }, select: { cliente: { select: { nombre: true } } } });
+      if (!anticipo) throw new ErrorDeCaja("Ese anticipo ya no existe.");
+      const actualizado = await tx.$executeRaw`
+        UPDATE AnticipoCliente
+        SET usado = usado + ${total},
+            estado = CASE WHEN usado + ${total} >= valorOriginal THEN 'AGOTADO' ELSE 'VIGENTE' END
+        WHERE id = ${anticipoId}
+          AND estado = 'VIGENTE'
+          AND valorOriginal - usado >= ${total}
+      `;
+      if (actualizado !== 1) throw new ErrorDeCaja("El anticipo no cubre el total o fue usado en otra operación. Recarga la caja.");
+      const ancla = pedidos[pedidos.length - 1];
+      await tx.usoAnticipo.create({ data: { anticipoId, monto: total, concepto: `Cobro de Mesa ${mesa.nombre} · Pedido #${numeroVisible(ancla)}`, usuarioId: adminId } });
+      await tx.pedido.updateMany({ where: { id: { in: pedidos.map((pedido) => pedido.id) } }, data: { estado: ESTADO_PEDIDO.COBRADO } });
+      await tx.mesa.update({ where: { id: mesaId }, data: { estado: ESTADO_MESA.LIBRE } });
+    });
+  } catch (error) {
+    return { error: error instanceof ErrorDeCaja ? error.message : "No se pudo aplicar el anticipo. Intenta de nuevo." };
+  }
+
+  revalidatePath("/admin", "layout");
+  revalidatePath("/admin/cuentas");
+  revalidatePath("/admin/caja");
+  revalidatePath("/ordenes", "layout");
+  realtime.broadcast("update");
+  return { error: null, ok: "Mesa cobrada con el saldo a favor del cliente. No se registró dinero nuevo en caja." };
+}
+
+/**
  * Fiado de la MESA completa: las comandas activas de hoy pasan a estado FIADO
  * (salen de todas las colas: caja, cocina, mesero y mesas), la mesa queda
  * LIBRE y nace la deuda con la FOTO de los artículos. Opcionalmente el admin
@@ -236,7 +296,6 @@ export async function fiarCuenta(
         where: {
           mesaId,
           estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-          createdAt: { gte: inicioDeHoy() },
         },
         include: {
           items: { include: { producto: { select: { nombre: true, precio: true } } } },
@@ -245,7 +304,7 @@ export async function fiarCuenta(
       });
       if (pedidos.length === 0) {
         throw new ErrorDeCaja(
-          `La mesa «${mesa.nombre}» no tiene comandas activas para fiar hoy.`,
+          `La mesa «${mesa.nombre}» no tiene comandas activas para fiar.`,
         );
       }
 

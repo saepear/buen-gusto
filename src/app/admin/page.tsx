@@ -2,7 +2,7 @@ import { ArrowUpRight, Banknote, Bike, CalendarDays, CheckCircle2, CircleDollarS
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { claveDia, formatCOP, formatFecha } from "@/lib/format";
-import { inicioDeHoy } from "@/lib/pedido";
+import { inicioDeHoy, reservasPorMenuItem } from "@/lib/pedido";
 import { requerirRol } from "@/lib/session";
 import "./inicio.css";
 
@@ -13,12 +13,13 @@ export default async function AdminInicio() {
   const ahora = new Date();
   const hoy = inicioDeHoy();
   const fecha = claveDia(ahora);
-  const [pagos, anticipos, mesasPorCobrar, pedidosDelDia, domicilios, deudas, gastos, menu, cierre] = await Promise.all([
+  const [pagos, anticipos, mesasPorCobrar, pedidosDelDia, domicilios, domiciliosPendientesTotal, deudas, gastos, menu, cierre] = await Promise.all([
     db.pago.aggregate({ where: { createdAt: { gte: hoy } }, _sum: { total: true, propina: true }, _count: true }),
     db.anticipoCliente.aggregate({ where: { createdAt: { gte: hoy }, estado: { not: "ANULADO" } }, _sum: { valorOriginal: true } }),
-    db.mesa.count({ where: { activa: true, esDomicilio: false, esApartado: false, estado: "POR_PAGAR" } }),
+    db.mesa.count({ where: { activa: true, esDomicilio: false, esApartado: false, estado: { in: ["OCUPADA", "POR_PAGAR"] } } }),
     db.pedido.count({ where: { createdAt: { gte: hoy }, estado: { not: "CANCELADO" } } }),
     db.domicilio.findMany({ where: { createdAt: { gte: hoy } }, select: { id: true, cliente: true, estado: true, cobradoMonto: true, horaEntrega: true, consecutivoDia: true }, orderBy: { createdAt: "asc" }, take: 5 }),
+    db.domicilio.count({ where: { createdAt: { gte: hoy }, cobradoMonto: null, estado: { notIn: ["CANCELADO", "FIADO"] } } }),
     db.cuentaPorCobrar.aggregate({ where: { estado: "PENDIENTE" }, _sum: { valorOriginal: true, pagado: true, saldoCondonado: true }, _count: true }),
     db.gasto.aggregate({ where: { createdAt: { gte: hoy }, anulado: false }, _sum: { valor: true } }),
     db.menuDia.findUnique({ where: { fecha }, include: { items: { include: { producto: true }, orderBy: { id: "asc" } } } }),
@@ -28,7 +29,7 @@ export default async function AdminInicio() {
   const ventas = (pagos._sum.total ?? 0) + (pagos._sum.propina ?? 0);
   const anticiposHoy = anticipos._sum.valorOriginal ?? 0;
   const saldoFiados = Math.max(0, (deudas._sum.valorOriginal ?? 0) - (deudas._sum.pagado ?? 0) - (deudas._sum.saldoCondonado ?? 0));
-  const domPendientes = domicilios.filter((d) => d.cobradoMonto === null && d.estado !== "CANCELADO" && d.estado !== "FIADO");
+  const reservas = await reservasPorMenuItem(menu?.items.map((item) => item.id) ?? []);
   const menuVisible = (menu?.items ?? []).filter((item) => item.visible && item.producto.activo);
 
   return <main className="admin-home">
@@ -40,7 +41,7 @@ export default async function AdminInicio() {
     <section className="admin-home-metrics" aria-label="Resumen del turno">
       <Metric icon={WalletCards} label="Dinero recibido hoy" value={formatCOP(ventas + anticiposHoy)} note={`${pagos._count} pagos · ${formatCOP(anticiposHoy)} en anticipos`} tone="amber" href="/admin/caja" />
       <Metric icon={ShoppingBag} label="Comandas de hoy" value={String(pedidosDelDia)} note={pedidosDelDia === 1 ? "pedido registrado en el turno" : "pedidos registrados en el turno"} tone="orange" href="/ordenes" />
-      <Metric icon={Bike} label="Domicilios activos" value={String(domPendientes.length)} note={domPendientes.length ? "requieren seguimiento" : "sin entregas pendientes"} tone="blue" href="/admin/domicilios" />
+      <Metric icon={Bike} label="Domicilios activos" value={String(domiciliosPendientesTotal)} note={domiciliosPendientesTotal ? "requieren seguimiento" : "sin entregas pendientes"} tone="blue" href="/admin/domicilios" />
       <Metric icon={CircleDollarSign} label="Por cobrar" value={formatCOP(saldoFiados)} note={`${deudas._count} ${deudas._count === 1 ? "fiado abierto" : "fiados abiertos"}`} tone="violet" href="/admin/cuentas" />
     </section>
 
@@ -49,14 +50,14 @@ export default async function AdminInicio() {
         <div className="admin-home-sectionHead"><div><span>PRIORIDADES DEL TURNO</span><h2>¿Qué necesita atención?</h2></div><Clock3 size={21} /></div>
         <div className="admin-home-priorityList">
           <Priority icon={ShoppingBag} title="Mesas por cobrar" value={mesasPorCobrar} description={mesasPorCobrar ? "Hay mesas listas para pasar por caja." : "No hay mesas esperando cobro."} href="/admin/caja" accent="amber" />
-          <Priority icon={Bike} title="Domicilios pendientes" value={domPendientes.length} description={domPendientes.length ? "Revisa el pedido o llévalo directo a caja." : "Todos los domicilios del día están resueltos."} href="/admin/domicilios" accent="blue" />
+          <Priority icon={Bike} title="Domicilios pendientes" value={domiciliosPendientesTotal} description={domiciliosPendientesTotal ? "Revisa el pedido o llévalo directo a caja." : "Todos los domicilios del día están resueltos."} href="/admin/domicilios" accent="blue" />
           <Priority icon={ReceiptText} title="Gastos registrados" value={formatCOP(gastos._sum.valor ?? 0)} description="Movimientos anotados durante esta jornada." href="/admin/gastos" accent="muted" />
         </div>
       </article>
 
       <article className="admin-home-menu">
         <div className="admin-home-sectionHead"><div><span>COCINA · DISPONIBILIDAD</span><h2>Menú de hoy</h2></div><Link href="/admin/menu-dia">Gestionar <ArrowUpRight size={15} /></Link></div>
-        {menuVisible.length ? <div className="admin-home-menuList">{menuVisible.slice(0, 5).map((item) => { const total = item.stockPorciones; const usados = item.vendidos; const porcentaje = total === null ? 0 : Math.min(100, Math.round(usados / total * 100)); return <div key={item.id} className="admin-home-menuItem"><div><b>{item.producto.nombre}</b><small>{total === null ? "Porciones ilimitadas" : `${Math.max(0, total - usados)} de ${total} disponibles`}</small></div>{total === null ? <span className="admin-home-unlimited">∞</span> : <span className="admin-home-stock"><i><em style={{ width: `${porcentaje}%` }} /></i>{Math.max(0, total - usados)}</span>}</div>; })}</div> : <div className="admin-home-empty"><Soup size={25} /><div><b>No hay menú configurado para hoy</b><span>Activa los productos que se van a servir antes de abrir comandas.</span></div><Link href="/admin/menu-dia">Configurar</Link></div>}
+        {menuVisible.length ? <div className="admin-home-menuList">{menuVisible.slice(0, 5).map((item) => { const total = item.stockPorciones; const usados = item.vendidos + (reservas.get(item.id) ?? 0); const porcentaje = total === null ? 0 : Math.min(100, Math.round(usados / total * 100)); return <div key={item.id} className="admin-home-menuItem"><div><b>{item.producto.nombre}</b><small>{total === null ? "Porciones ilimitadas" : `${Math.max(0, total - usados)} de ${total} disponibles`}</small></div>{total === null ? <span className="admin-home-unlimited">∞</span> : <span className="admin-home-stock"><i><em style={{ width: `${porcentaje}%` }} /></i>{Math.max(0, total - usados)}</span>}</div>; })}</div> : <div className="admin-home-empty"><Soup size={25} /><div><b>No hay menú configurado para hoy</b><span>Activa los productos que se van a servir antes de abrir comandas.</span></div><Link href="/admin/menu-dia">Configurar</Link></div>}
       </article>
     </section>
 

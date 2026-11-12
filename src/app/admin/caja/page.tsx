@@ -9,7 +9,7 @@ import { numeroVisible } from "@/lib/consecutivos";
 import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
 import { ESTADO_CUENTA, ESTADO_MESA, ESTADO_DOMICILIO } from "@/lib/roles";
 import { ordenMesasPorNombre } from "@/lib/mesas";
-import { TarjetaCobro, type MesaParaCobrar } from "./tarjeta-cobro";
+import { TarjetaCobro, type AnticipoDisponible, type MesaParaCobrar } from "./tarjeta-cobro";
 import { PanelCobroDomicilio } from "@/app/admin/domicilios/panel-cobro-domicilio";
 import { FacturaDomicilio } from "@/components/factura-domicilio";
 import "./caja.css";
@@ -40,7 +40,7 @@ export default async function PaginaCaja(
 
   const fecha = inicioDeHoy();
 
-  const [mesasBrutas, pagosHoy, resumenHoy, domicilioCobro, resumenAnticipos] = await Promise.all([
+  const [mesasBrutas, pagosHoy, resumenHoy, domicilioCobro, resumenAnticipos, anticiposVigentes] = await Promise.all([
     db.mesa.findMany({
       where: {
         estado: { in: [ESTADO_MESA.OCUPADA, ESTADO_MESA.POR_PAGAR] },
@@ -75,7 +75,25 @@ export default async function PaginaCaja(
       _sum: { valorOriginal: true },
       _count: true,
     }),
+    db.anticipoCliente.findMany({
+      where: { estado: "VIGENTE" },
+      select: {
+        id: true,
+        valorOriginal: true,
+        usado: true,
+        cliente: { select: { nombre: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
+
+  const anticiposDisponibles: AnticipoDisponible[] = anticiposVigentes
+    .map((anticipo) => ({
+      id: anticipo.id,
+      cliente: anticipo.cliente.nombre,
+      disponible: anticipo.valorOriginal - anticipo.usado,
+    }))
+    .filter((anticipo) => anticipo.disponible > 0);
 
   // Orden natural: "Mesa 2" antes que "Mesa 10" (la BD ordena como texto)
   const mesas = ordenMesasPorNombre(mesasBrutas);
@@ -88,7 +106,6 @@ export default async function PaginaCaja(
           where: {
             mesaId: { in: idsMesas },
             estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-            createdAt: { gte: fecha },
           },
           include: { items: { include: { producto: true } } },
           orderBy: { createdAt: "asc" },
@@ -341,7 +358,7 @@ export default async function PaginaCaja(
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {paraCobrar.map((mesa) => (
-            <TarjetaCobro key={mesa.id} mesa={mesa} />
+            <TarjetaCobro key={mesa.id} mesa={mesa} anticipos={anticiposDisponibles} />
           ))}
         </div>
       )}

@@ -22,29 +22,31 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
 
   const cierre = await db.cierreCaja.findUnique({ where: { fecha: dia } });
 
-  const where: Prisma.PedidoWhereInput = {
-    createdAt: {
-      gte: new Date(dia + "T00:00:00"),
-      lte: new Date(dia + "T23:59:59"),
-    },
+  const dondeHoy: Prisma.PedidoWhereInput = {
+    createdAt: { gte: new Date(dia + "T00:00:00"), lte: new Date(dia + "T23:59:59") },
   };
-
-  if (cierre) {
-    // Si hay cierre, solo mostramos las comandas activas (si quedaran)
-    where.estado = { in: ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "SERVIDO", "POR_PAGAR"] };
+  // Las comandas activas no desaparecen al cambiar la fecha: deben poder
+  // cobrarse, fiarse o anularse desde el mismo tablero.
+  const estadosActivos = ["ENVIADO", "EN_PREPARACION", "PARCIAL_SERVIDO", "SERVIDO", "POR_PAGAR"];
+  const base: Prisma.PedidoWhereInput = cierre
+    ? { estado: { in: estadosActivos } }
+    : { OR: [dondeHoy, { estado: { in: estadosActivos } }] };
+  const query = typeof busqueda === "string" ? busqueda.trim() : "";
+  const criterios: Prisma.PedidoWhereInput[] = [
+    { mesa: { nombre: { contains: query } } },
+    { domicilio: { is: { cliente: { contains: query } } } },
+  ];
+  if (/^\d+$/.test(query)) {
+    const id = Number.parseInt(query, 10);
+    criterios.unshift(
+      { consecutivoDia: id },
+      { domicilio: { is: { consecutivoDia: id } } },
+      { id },
+    );
   }
-
-  if (busqueda) {
-    const query = String(busqueda).trim();
-    where.OR = [
-      { mesa: { nombre: { contains: query } } },
-      { domicilio: { is: { cliente: { contains: query } } } },
-    ];
-    if (/^\d+$/.test(query)) {
-      const id = Number.parseInt(query, 10);
-      where.OR.unshift({ consecutivoDia: id }, { domicilio: { is: { consecutivoDia: id } } }, { id });
-    }
-  }
+  const where: Prisma.PedidoWhereInput = query
+    ? { AND: [base, { OR: criterios }] }
+    : base;
 
   const pedidos = await db.pedido.findMany({
     where,
