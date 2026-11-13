@@ -43,6 +43,8 @@ model Usuario {
   novedadesAprobadas      NovedadNomina[]      @relation("NovedadAprobadaPor")
   periodosCreados         PeriodoNomina[]      @relation("PeriodoCreadoPor")
   periodosCerrados        PeriodoNomina[]      @relation("PeriodoCerradoPor")
+  jornadasNominaAbiertas  JornadaPagoNomina[]  @relation("JornadaNominaAbiertaPor")
+  jornadasNominaCerradas  JornadaPagoNomina[]  @relation("JornadaNominaCerradaPor")
   liquidacionesCreadas    LiquidacionNomina[]  @relation("LiquidacionCreadoPor")
   liquidacionesAprobadas  LiquidacionNomina[]  @relation("LiquidacionAprobadaPor")
   pagosNominaRegistrados  PagoNomina[]         @relation("PagoNominaRegistradoPor")
@@ -693,6 +695,30 @@ model PeriodoNomina {
   @@unique([fechaDesde, fechaHasta])
 }
 
+// Una jornada es la sesión operativa en la que el administrador entrega los
+// pagos del equipo. No reemplaza los rangos internos de cada empleado: los
+// agrupa para impedir que se creen pagos nuevos fuera de una jornada abierta.
+model JornadaPagoNomina {
+  id           Int      @id @default(autoincrement())
+  fecha        String   // día escogido por el administrador para pagar
+  estado       String   @default("ABIERTA") // ABIERTA | CERRADA
+  // "ABIERTA" es único mientras la sesión vive; al cerrarla queda null.
+  // Así nunca pueden coexistir dos jornadas de pago activas.
+  claveAbierta String?  @unique
+  abiertoById  Int
+  abiertoPor   Usuario  @relation("JornadaNominaAbiertaPor", fields: [abiertoById], references: [id])
+  cerradoById  Int?
+  cerradoPor   Usuario? @relation("JornadaNominaCerradaPor", fields: [cerradoById], references: [id])
+  cerradoAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  liquidaciones LiquidacionNomina[]
+
+  @@index([fecha])
+  @@index([estado])
+}
+
 // Liquidación de UN empleado en UN período. Es una FOTO: conceptos, contrato
 // y parámetros quedan congelados al crearse; una APROBADA no se edita nunca
 // (correcciones por liquidación nueva o anulación auditable).
@@ -700,6 +726,8 @@ model LiquidacionNomina {
   id          Int     @id @default(autoincrement())
   periodoId   Int
   periodo     PeriodoNomina @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  jornadaId   Int?
+  jornada     JornadaPagoNomina? @relation(fields: [jornadaId], references: [id])
   empleadoId  Int
   empleado    Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
   estado      String  @default("BORRADOR") // BORRADOR | APROBADA | (cerrada por su período)
@@ -751,6 +779,7 @@ model LiquidacionNomina {
 
   @@unique([periodoId, empleadoId])
   @@index([empleadoId])
+  @@index([jornadaId])
 }
 
 // Cada renglón del comprobante (devengado, deducción, aporte, prestación)

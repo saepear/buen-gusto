@@ -2,44 +2,27 @@
 import { db } from "@/lib/db";
 import { exigirAdmin } from "@/lib/session";
 import { fechaColombia } from "@/lib/nomina/resumen";
-import { fechaDePago, validarCuotas } from "@/lib/nomina/calendario-pago";
-import { prepararLiquidacion } from "@/lib/nomina/preparar-liquidacion";
+import { validarCuotas } from "@/lib/nomina/calendario-pago";
 import { seleccionPago, serializarPago } from "./pagos/datos-pago";
 import { revalidatePath } from "next/cache";
 import { claveDia } from "@/lib/format";
 
-export async function abrirPagoEmpleado(empleadoId: number) {
-  const usuario = await exigirAdmin();
-  const empleado = await db.empleado.findUnique({ where: { id: empleadoId } });
-  if (!empleado || empleado.estado !== "ACTIVO") throw new Error("El empleado no está activo.");
-  const pendiente = await db.liquidacionNomina.findFirst({
-    where: { empleadoId, estadoPago: { not: "PAGADO" }, periodo: { estado: "ABIERTO" } },
-    orderBy: { periodo: { fechaDesde: "asc" } }, include: { periodo: true },
-  });
-  let periodoId = pendiente?.periodoId;
-  if (!periodoId) {
-    let fecha = fechaColombia(new Date());
-    // Si ya se pagó por anticipado, muestra el siguiente sueldo disponible.
-    for (let i = 0; i < 120; i++) {
-      const rango = fechaDePago(fecha, empleado.periodicidadPago);
-      const previo = await db.liquidacionNomina.findFirst({ where: { empleadoId, periodo: { fechaDesde: { lte: rango.fechaHasta }, fechaHasta: { gte: rango.fechaDesde } } }, include: { periodo: true }, orderBy: { periodo: { fechaHasta: "desc" } } });
-      if (previo) {
-        if (previo.estadoPago !== "PAGADO") throw new Error("Hay un pago anterior cerrado pendiente. Revisa su comprobante antes de generar otro sueldo.");
-        const siguiente = new Date(previo.periodo.fechaHasta + "T12:00:00Z");
-        siguiente.setUTCDate(siguiente.getUTCDate() + 1);
-        fecha = siguiente.toISOString().slice(0, 10);
-        continue;
-      }
-      const periodo = await db.periodoNomina.upsert({ where: { fechaDesde_fechaHasta: { fechaDesde: rango.fechaDesde, fechaHasta: rango.fechaHasta } }, update: {}, create: { ...rango, fechaPagoPrevista: rango.fechaHasta, creadoById: usuario.id } });
-      if (periodo.estado === "CERRADO") throw new Error("Estas fechas tienen un cierre histórico. Revisa el expediente del empleado.");
-      periodoId = periodo.id;
-      break;
-    }
+export async function abrirPagoEmpleado(empleadoId: number, jornadaId: number) {
+  await exigirAdmin();
+  if (!Number.isInteger(empleadoId) || !Number.isInteger(jornadaId)) {
+    throw new Error("Falta el empleado o la jornada de pagos.");
   }
-  if (!periodoId) throw new Error("No se pudo encontrar una fecha disponible.");
-  const resultado = await prepararLiquidacion({ periodoId, empleadoId, usuarioId: usuario.id, soloSiFalta: true });
-  if (resultado.error) throw new Error(resultado.error);
-  const pago = await db.liquidacionNomina.findUniqueOrThrow({ where: { periodoId_empleadoId: { periodoId, empleadoId } }, select: seleccionPago });
+  const pago = await db.liquidacionNomina.findFirst({
+    where: {
+      empleadoId,
+      jornadaId,
+      jornada: { estado: "ABIERTA" },
+    },
+    select: seleccionPago,
+  });
+  if (!pago) {
+    throw new Error("Este empleado no pertenece a una jornada de pagos abierta.");
+  }
   revalidatePath("/admin/nomina", "layout");
   return serializarPago(pago);
 }

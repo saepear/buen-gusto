@@ -1,10 +1,11 @@
 "use client";
 import { useActionState, useRef, useState, useTransition, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet, Ticket, HandCoins, X, ArrowUpRight, Search, CalendarDays } from "lucide-react";
+import { Wallet, Ticket, HandCoins, X, ArrowUpRight, Search, CalendarDays, PlayCircle, CheckCircle2 } from "lucide-react";
 import { ModalFlip, type OrigenModal } from "@/components/modal-flip";
 import { formatCOP } from "@/lib/format";
 import { abrirPagoEmpleado, registrarCredito } from "./pago-directo-actions";
+import { abrirJornadaPago } from "./jornadas-actions";
 import { ContenidoPago } from "./pagos/contenido-pago";
 import { ContenidoEmpleadoPagos } from "./pagos/contenido-empleado";
 import { FormularioRegistroVale } from "./vales/formularios";
@@ -14,31 +15,35 @@ import "./operaciones.css";
 
 type Empleado = { id: number; nombre: string; cargo: string; salarioMensual: number; periodicidadPago: string; remuneracion: string; proximo: string };
 type Credito = { id: number; empleadoId: number; nombre: string; monto: number; motivo: string; cuotas: { id: number; fecha: string; valor: number; aplicada: boolean }[] };
+type Jornada = { id: number; fecha: string; estado: string };
+type JornadaHistorial = Jornada & { cerradoAt: string | null; _count: { liquidaciones: number } };
 const frecuencia = (valor: string) => valor === "MENSUAL" ? "Mensual" : valor === "QUINCENAL" ? "Quincenal" : "Semanal";
 
-export function EquipoPagos({ empleados, productos, pagos, creditos, hoy }: { empleados: Empleado[]; productos: { id: number; nombre: string; precio: number }[]; pagos: DatosPago[]; creditos: Credito[]; hoy: string }) {
+export function EquipoPagos({ empleados, productos, pagos, creditos, hoy, jornadaActiva, jornadas }: { empleados: Empleado[]; productos: { id: number; nombre: string; precio: number }[]; pagos: DatosPago[]; creditos: Credito[]; hoy: string; jornadaActiva: Jornada | null; jornadas: JornadaHistorial[] }) {
   const router = useRouter();
   const [buscar, setBuscar] = useState("");
-  const [modal, setModal] = useState<{ tipo: "empleado" | "vale" | "credito"; empleadoId?: number; origen: OrigenModal } | null>(null);
+  const [modal, setModal] = useState<{ tipo: "empleado" | "vale" | "credito" | "jornada"; empleadoId?: number; origen: OrigenModal } | null>(null);
   const [pago, setPago] = useState<DatosPago | null>(null);
   const [error, setError] = useState("");
   const [cargando, iniciar] = useTransition();
   const [historial, setHistorial] = useState(false);
   const solicitudPago = useRef(0);
   const elegido = empleados.find(e => e.id === modal?.empleadoId);
-  function abrir(tipo: "empleado" | "vale" | "credito", event: MouseEvent<HTMLButtonElement>, empleadoId?: number) {
+  const pagosDeJornada = jornadaActiva ? pagos.filter((pago) => pago.jornadaId === jornadaActiva.id) : [];
+  const pendientesJornada = pagosDeJornada.filter((pago) => pago.estadoPago !== "PAGADO");
+  function abrir(tipo: "empleado" | "vale" | "credito" | "jornada", event: MouseEvent<HTMLButtonElement>, empleadoId?: number) {
     const r = event.currentTarget.getBoundingClientRect();
     setModal({ tipo, empleadoId, origen: { x: r.x, y: r.y, w: r.width, h: r.height } });
     setPago(null); setError(""); setHistorial(false);
-    if (tipo === "empleado" && empleadoId) cargarPago(empleadoId);
+    if (tipo === "empleado" && empleadoId && jornadaActiva) cargarPago(empleadoId);
   }
   function cargarPago(empleadoId = elegido?.id) {
-    if (!empleadoId) return;
+    if (!empleadoId || !jornadaActiva) return;
     const solicitud = ++solicitudPago.current;
     iniciar(async () => {
       try {
         setError("");
-        const resultado = await abrirPagoEmpleado(empleadoId);
+        const resultado = await abrirPagoEmpleado(empleadoId, jornadaActiva.id);
         if (solicitud === solicitudPago.current) setPago(resultado);
       } catch (e) {
         if (solicitud === solicitudPago.current) setError(e instanceof Error ? e.message : "No se pudo abrir el pago.");
@@ -47,22 +52,41 @@ export function EquipoPagos({ empleados, productos, pagos, creditos, hoy }: { em
   }
   const actualizado = pago && pago.empleadoId === elegido?.id ? pagos.find(p => p.id === pago.id) ?? pago : null;
   return <div className="nomina-operations">
-    <header className="nomina-operationHero"><div className="nomina-operationTitle"><span className="nomina-operationIcon"><Wallet /></span><div><p className="nomina-operationEyebrow">EL BUEN GUSTO · EQUIPO</p><h1>Nómina, sin vueltas</h1><p>Elige una persona, revisa sus descuentos y registra la entrega.</p></div></div><div className="flex flex-wrap gap-2"><button className="nomina-operationSecondary" onClick={e => abrir("vale", e)}><Ticket size={17} /> Registrar vale</button><button className="nomina-operationPrimary" onClick={e => abrir("credito", e)}><HandCoins size={17} /> Nuevo crédito</button></div></header>
+    <header className="nomina-operationHero"><div className="nomina-operationTitle"><span className="nomina-operationIcon"><Wallet /></span><div><p className="nomina-operationEyebrow">EL BUEN GUSTO · EQUIPO</p><h1>Nómina, sin vueltas</h1><p>Abre una jornada, paga al equipo y conserva cada comprobante en su lugar.</p></div></div><div className="flex flex-wrap gap-2"><button className="nomina-operationSecondary" onClick={e => abrir("vale", e)}><Ticket size={17} /> Registrar vale</button><button className="nomina-operationSecondary" onClick={e => abrir("credito", e)}><HandCoins size={17} /> Nuevo crédito</button>{jornadaActiva ? <span className="nomina-operationPrimary cursor-default"><CheckCircle2 size={17} /> Jornada abierta · {jornadaActiva.fecha}</span> : <button className="nomina-operationPrimary" onClick={e => abrir("jornada", e)}><PlayCircle size={17} /> Abrir pagos</button>}</div></header>
     <NavegacionNomina actual="/admin/nomina" />
-    <section className="nomina-operationBox mb-5"><h3><CalendarDays size={18} className="inline mr-2" />Fechas de pago</h3><p>Semanal: 7, 14, 21 y fin de mes · Quincenal: 15 y fin de mes · Mensual: fin de mes.</p><p>La frecuencia se elige en el perfil del empleado. Puedes registrar el pago antes o después de la fecha prevista.</p></section>
+    <section className="nomina-operationBox mb-5"><h3><CalendarDays size={18} className="inline mr-2" />Jornada de pagos</h3>{jornadaActiva ? <><p>Abierta para {jornadaActiva.fecha}. Hay <b>{pendientesJornada.length}</b> pago(s) pendientes de {pagosDeJornada.length} preparados.</p><p>Cuando el último quede saldado se cerrará automáticamente y no se podrán crear pagos extra desde esta jornada.</p></> : <><p>No hay una jornada abierta. Pulsa «Abrir pagos» el día que decidas pagar; puede ser cualquier fecha.</p><p>El sistema prepara una sola ficha por empleado y evita crear el siguiente pago hasta que abras otra jornada.</p></>}</section>
     <div className="nomina-operationToolbar"><label><Search size={18} /><input aria-label="Buscar empleado" placeholder="Buscar por nombre o cargo…" value={buscar} onChange={e => setBuscar(e.target.value)} /></label></div>
     <div className="nomina-operationGrid">{empleados.filter(e => `${e.nombre} ${e.cargo}`.toLowerCase().includes(buscar.toLowerCase())).map(e => {
       const fecha = e.proximo;
-      return <button className="nomina-operationTile" key={e.id} onClick={event => abrir("empleado", event, e.id)}><div className="nomina-tileHeading"><span className="nomina-operationAvatar">{e.nombre.split(" ").slice(0,2).map(n => n[0]).join("")}</span><span className="nomina-operationBadge">{frecuencia(e.periodicidadPago)}</span><ArrowUpRight size={18} /></div><h2>{e.nombre}</h2><p>{e.cargo}</p><p className="nomina-tilePeriod">{fecha <= hoy ? "Pago por revisar" : "Fecha prevista"} · {fecha}</p><footer><span>Salario mensual<strong>{formatCOP(e.salarioMensual)}</strong></span><span>Pagar / ver historial →</span></footer></button>;
+      const enJornada = jornadaActiva ? pagosDeJornada.some((pago) => pago.empleadoId === e.id) : false;
+      return <button className="nomina-operationTile" key={e.id} onClick={event => abrir("empleado", event, e.id)}><div className="nomina-tileHeading"><span className="nomina-operationAvatar">{e.nombre.split(" ").slice(0,2).map(n => n[0]).join("")}</span><span className="nomina-operationBadge">{jornadaActiva ? (enJornada ? "En jornada" : "Sin pago") : frecuencia(e.periodicidadPago)}</span><ArrowUpRight size={18} /></div><h2>{e.nombre}</h2><p>{e.cargo}</p><p className="nomina-tilePeriod">{jornadaActiva ? `Jornada ${jornadaActiva.fecha}` : `${fecha <= hoy ? "Próxima fecha" : "Fecha prevista"} · ${fecha}`}</p><footer><span>Salario mensual<strong>{formatCOP(e.salarioMensual)}</strong></span><span>{jornadaActiva ? "Abrir pago →" : "Ver historial →"}</span></footer></button>;
     })}</div>
     {!empleados.length && <div className="nomina-operationEmpty">Agrega una persona desde Empleados para registrar su primer pago.</div>}
+    <section className="mt-8"><h2 className="text-xl mb-4">Jornadas anteriores</h2><div className="nomina-operationGrid">{jornadas.filter(j => j.estado === "CERRADA").map(j => <article key={j.id} className="nomina-operationBox"><h3>Jornada · {j.fecha}</h3><p>{j._count.liquidaciones} empleados preparados · cerrada al completar todas las entregas.</p><p className="text-success-text font-bold">Cerrada · comprobantes conservados</p></article>)}</div>{!jornadas.some(j => j.estado === "CERRADA") && <p className="text-sm text-texto-muted">Cuando termines una jornada aparecerá aquí para consulta histórica.</p>}</section>
     <section className="mt-8"><h2 className="text-xl mb-4">Créditos y cuotas acordadas</h2><div className="nomina-operationGrid">{creditos.map(c => <article key={c.id} className="nomina-operationBox"><h3>{c.nombre}</h3><p>{c.motivo}</p><div className="nomina-moneyPair"><strong>{formatCOP(c.monto - c.cuotas.filter(q => q.aplicada).reduce((s,q) => s + q.valor,0))}</strong><span>Por descontar</span></div><details><summary className="cursor-pointer">Ver {c.cuotas.length} cuotas · préstamo {formatCOP(c.monto)}</summary>{c.cuotas.map(q => <div className="nomina-delivery" key={q.id}><span>{q.fecha} · {q.aplicada ? "Descontada" : "Programada"}</span><b>{formatCOP(q.valor)}</b></div>)}</details></article>)}</div>{!creditos.length && <p className="text-sm text-texto-muted">No hay créditos registrados. Los vales se descuentan completos; los créditos se reparten en las fechas elegidas.</p>}</section>
-    {modal && <ModalFlip origen={modal.origen} onClose={() => setModal(null)} animacion="suave" ariaLabel={elegido?.nombre ?? "Registrar movimiento"} panelClassName={modal.tipo === "empleado" ? "nomina-operationModal nomina-paymentModal" : "nomina-operationModal"}>{cerrar => <><header className="nomina-operationModalHeader"><div><p className="nomina-operationEyebrow">NÓMINA · {modal.tipo === "empleado" ? "PAGO E HISTORIAL" : modal.tipo.toUpperCase()}</p><h2>{elegido?.nombre ?? (modal.tipo === "vale" ? "Registrar vale" : "Crédito en cuotas")}</h2></div><button aria-label="Cerrar" onClick={cerrar}><X /></button></header><div className="nomina-operationModalBody">
+    {modal && <ModalFlip origen={modal.origen} onClose={() => setModal(null)} animacion="suave" ariaLabel={elegido?.nombre ?? "Registrar movimiento"} panelClassName={modal.tipo === "empleado" ? "nomina-operationModal nomina-paymentModal" : "nomina-operationModal"}>{cerrar => <><header className="nomina-operationModalHeader"><div><p className="nomina-operationEyebrow">NÓMINA · {modal.tipo === "empleado" ? "PAGO E HISTORIAL" : modal.tipo === "jornada" ? "JORNADA DE PAGOS" : modal.tipo.toUpperCase()}</p><h2>{elegido?.nombre ?? (modal.tipo === "vale" ? "Registrar vale" : modal.tipo === "jornada" ? "Abrir pagos del equipo" : "Crédito en cuotas")}</h2></div><button aria-label="Cerrar" onClick={cerrar}><X /></button></header><div className="nomina-operationModalBody">
+      {modal.tipo === "jornada" && <FormularioJornada hoy={hoy} alGuardar={() => { router.refresh(); cerrar(); }} />}
       {modal.tipo === "vale" && <FormularioRegistroVale empleados={empleados} productos={productos} ciclos={[]} hoy={hoy} onSuccess={() => { router.refresh(); cerrar(); }} />}
       {modal.tipo === "credito" && <FormularioCredito empleados={empleados} hoy={hoy} alGuardar={() => { router.refresh(); cerrar(); }} />}
-      {modal.tipo === "empleado" && elegido && <><div className="nomina-operationFilters mb-5"><button disabled={cargando} onClick={() => { setHistorial(false); cargarPago(); }}>{cargando ? "Calculando…" : "Pagar ahora"}</button><button onClick={() => setHistorial(true)}>Historial y comprobantes</button></div>{error && <p role="alert" className="text-danger-text">{error}</p>}{historial ? <ContenidoEmpleadoPagos pagos={pagos.filter(p => p.empleadoId === elegido.id)} /> : actualizado ? <ContenidoPago pago={actualizado} /> : <section className="nomina-operationBox"><h3>{frecuencia(elegido.periodicidadPago)} · próximo pago {elegido.proximo}</h3><p>Al pulsar Pagar ahora aparecerán el sueldo, los extras, los vales y las cuotas que corresponden. Revisa el total antes de registrar la entrega.</p></section>}</>}
+      {modal.tipo === "empleado" && elegido && <><div className="nomina-operationFilters mb-5">{jornadaActiva && <button disabled={cargando} onClick={() => { setHistorial(false); cargarPago(); }}>{cargando ? "Abriendo…" : "Pago de esta jornada"}</button>}<button onClick={() => setHistorial(true)}>Historial y comprobantes</button></div>{error && <p role="alert" className="text-danger-text">{error}</p>}{historial || !jornadaActiva ? <ContenidoEmpleadoPagos pagos={pagos.filter(p => p.empleadoId === elegido.id)} /> : actualizado ? <ContenidoPago pago={actualizado} /> : <section className="nomina-operationBox"><h3>Pago de la jornada {jornadaActiva.fecha}</h3><p>Este empleado no tiene un pago disponible dentro de la jornada actual.</p></section>}</>}
     </div></>}</ModalFlip>}
   </div>;
+}
+
+function FormularioJornada({ hoy, alGuardar }: { hoy: string; alGuardar: () => void }) {
+  const [estado, accion, pendiente] = useActionState(async (prev: { error: string | null; ok: string | null }, form: FormData) => {
+    const resultado = await abrirJornadaPago(prev, form);
+    if (resultado.ok) alGuardar();
+    return resultado;
+  }, { error: null, ok: null });
+  return <form action={accion} className="nomina-shortForm">
+    <p>Esta acción prepara un único pago pendiente por cada persona activa. No se crea otro sueldo mientras la jornada esté abierta.</p>
+    <label>Fecha en que vas a pagar<input name="fecha" type="date" defaultValue={hoy} required /></label>
+    <p>La fecha puede ser cualquiera. El sistema aplica a cada empleado su frecuencia semanal, quincenal o mensual y sus vales/descuentos correspondientes.</p>
+    {estado.error && <p role="alert" className="text-danger-text">{estado.error}</p>}
+    {estado.ok && <p role="status" className="text-success-text">{estado.ok}</p>}
+    <button className="nomina-operationPrimary" disabled={pendiente}>{pendiente ? "Preparando equipo…" : "Abrir jornada de pagos"}</button>
+  </form>;
 }
 
 function FormularioCredito({ empleados, hoy, alGuardar }: { empleados: Empleado[]; hoy: string; alGuardar: () => void }) {

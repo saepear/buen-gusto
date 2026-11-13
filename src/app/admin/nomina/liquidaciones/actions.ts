@@ -58,6 +58,9 @@ export async function registrarPagoNomina(
 
   try {
   const anterior = await db.liquidacionNomina.findUnique({ where: { id: liquidacionId } });
+  if (!anterior?.jornadaId) {
+    return { error: "Abre una jornada de pagos antes de registrar entregas. Así cada pago queda ordenado dentro de su día de nómina.", ok: null };
+  }
   if (anterior && anterior.estadoPago !== "PAGADO" && anterior.pagado === 0) {
     const actualizado = await prepararLiquidacion({ periodoId: anterior.periodoId, empleadoId: anterior.empleadoId, usuarioId: sesion.id, soloSiFalta: true });
     if (actualizado.error) return actualizado;
@@ -69,9 +72,12 @@ export async function registrarPagoNomina(
     }
     const liquidacion = await tx.liquidacionNomina.findUnique({
       where: { id: liquidacionId },
-      include: { empleado: true, periodo: true },
+      include: { empleado: true, periodo: true, jornada: true },
     });
     if (!liquidacion) throw new Error("La liquidación no existe.");
+    if (!liquidacion.jornadaId || liquidacion.jornada?.estado !== "ABIERTA") {
+      return { error: "Esta jornada ya está cerrada. Abre una nueva jornada para registrar otro pago.", ok: null };
+    }
     if (form.has("netoRevisado") && Number(form.get("netoRevisado")) !== liquidacion.netoAPagar) {
       revalidar();
       return { error: "Se actualizaron los descuentos. Vuelve a abrir el pago y revisa el nuevo total.", ok: null };
@@ -89,6 +95,8 @@ export async function registrarPagoNomina(
     if (monto === 0 && liquidacion.netoAPagar === 0 && liquidacion.estadoPago !== "PAGADO") {
       await tx.liquidacionNomina.update({ where: { id: liquidacionId }, data: { estadoPago: "PAGADO", estado: "APROBADA" } });
       await tx.valeNomina.updateMany({ where: { liquidacionId, estado: "AUTORIZADO" }, data: { estado: "DESCONTADO" } });
+      const faltan = await tx.liquidacionNomina.count({ where: { jornadaId: liquidacion.jornadaId, estadoPago: { not: "PAGADO" } } });
+      if (faltan === 0) await tx.jornadaPagoNomina.update({ where: { id: liquidacion.jornadaId }, data: { estado: "CERRADA", claveAbierta: null, cerradoById: sesion.id, cerradoAt: new Date() } });
       return { error: null, ok: "Pago saldado con descuentos. No se registró salida de dinero." };
     }
     if (pendiente <= 0 || monto === 0) {
@@ -137,6 +145,15 @@ export async function registrarPagoNomina(
       data: { pagado: totalPagado, estadoPago },
     });
     if (estadoPago === "PAGADO") await tx.valeNomina.updateMany({ where: { liquidacionId, estado: "AUTORIZADO" }, data: { estado: "DESCONTADO" } });
+    if (estadoPago === "PAGADO") {
+      const faltan = await tx.liquidacionNomina.count({ where: { jornadaId: liquidacion.jornadaId, estadoPago: { not: "PAGADO" } } });
+      if (faltan === 0) {
+        await tx.jornadaPagoNomina.update({
+          where: { id: liquidacion.jornadaId },
+          data: { estado: "CERRADA", claveAbierta: null, cerradoById: sesion.id, cerradoAt: new Date() },
+        });
+      }
+    }
 
     return {
       ok: `Pago de ${formatCOP(monto)} registrado (${estadoPago === "PAGADO" ? "liquidación completa" : "queda saldo pendiente"}).`,
