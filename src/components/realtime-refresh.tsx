@@ -9,14 +9,15 @@ export function RealtimeRefresh() {
   useEffect(() => {
     const eventSource = new EventSource("/api/realtime");
 
-    eventSource.onmessage = (event) => {
+    eventSource.onmessage = () => {
       // Cuando recibimos cualquier evento, refrescamos los datos de la página actual
       router.refresh();
     };
 
     eventSource.onerror = () => {
       console.error("Error en la conexión de tiempo real. Reintentando...");
-      eventSource.close();
+      // EventSource se reconecta automáticamente. Cerrarlo aquí dejaba
+      // el POS sin actualizaciones después de cualquier corte de red.
     };
 
     return () => {

@@ -2,7 +2,7 @@ import { LayoutGrid } from "lucide-react";
 import { db } from "@/lib/db";
 import { formatHora } from "@/lib/format";
 import { numeroVisible } from "@/lib/consecutivos";
-import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
+import { ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenMesasPorNombre } from "@/lib/mesas";
 import { ordenDeItem } from "@/lib/roles";
@@ -24,7 +24,6 @@ export default async function PaginaMesas() {
           where: {
             mesaId: { in: ids },
             estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-            createdAt: { gte: inicioDeHoy() },
           },
           include: { items: { include: { producto: true } } },
           orderBy: { createdAt: "asc" },

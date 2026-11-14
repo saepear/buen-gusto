@@ -9,7 +9,7 @@ export async function InicioSimple() {
   await requerirRol("ADMIN");
   const hoy = fechaColombia(new Date());
   const [empleados, productos, pagos, creditos, jornadaActiva, jornadas] = await Promise.all([
-    db.empleado.findMany({ where: { estado: "ACTIVO" }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, apellidos: true, cargo: true, salarioMensual: true, periodicidadPago: true, remuneracion: true } }),
+    db.empleado.findMany({ where: { OR: [{ estado: "ACTIVO" }, { liquidaciones: { some: { jornada: { estado: "ABIERTA" }, estadoPago: { not: "PAGADO" } } } }] }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, apellidos: true, cargo: true, salarioMensual: true, periodicidadPago: true, remuneracion: true } }),
     db.producto.findMany({ where: { activo: true }, select: { id: true, nombre: true, precio: true }, orderBy: { nombre: "asc" } }),
     db.liquidacionNomina.findMany({ select: seleccionPago, orderBy: { periodo: { fechaDesde: "desc" } } }),
     db.creditoNomina.findMany({ include: { empleado: { select: { nombre: true, apellidos: true } }, cuotas: { orderBy: { fecha: "asc" } } }, orderBy: { id: "desc" } }),

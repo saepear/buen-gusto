@@ -159,11 +159,8 @@ function apEstadoLabel(estado: string): string {
  * `fechaDia` debe ser la medianoche local del día a reportar.
  */
 export async function datosReporte(fechaFila: Date) {
-  const hastaDia = new Date(fechaFila);
-  hastaDia.setDate(hastaDia.getDate() + 1); // exclusivo: cubre el día completo
-
-  const desdeSemana = new Date(fechaFila);
-  desdeSemana.setDate(desdeSemana.getDate() - 6); // ventanita de 7 días
+  const hastaDia = new Date(fechaFila.getTime() + 86400000);
+  const desdeSemana = new Date(fechaFila.getTime() - 6 * 86400000);
 
   const [
     pagosHoy,
@@ -177,6 +174,7 @@ export async function datosReporte(fechaFila: Date) {
     cuentasCondonadasHoy,
     gastosHoy,
     apartadosHoy,
+    anticiposHoy,
   ] = await Promise.all([
     db.pago.findMany({
       where: { createdAt: { gte: fechaFila, lt: hastaDia } },
@@ -245,6 +243,10 @@ export async function datosReporte(fechaFila: Date) {
       where: { createdAt: { gte: fechaFila, lt: hastaDia } },
       include: { cliente: true, items: true, pedido: true, cuenta: true, creadoPor: true },
       orderBy: { createdAt: "asc" },
+    }),
+    db.anticipoCliente.findMany({
+      where: { createdAt: { gte: fechaFila, lt: hastaDia }, estado: { not: "ANULADO" } },
+      include: { cliente: { select: { nombre: true } } }, orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -639,7 +641,9 @@ export async function datosReporte(fechaFila: Date) {
   const efectivoAbonos =
     (abonosPorMetodo.get("EFECTIVO") ?? 0) +
     (abonosPorMetodo.get("FIADO") ?? 0);
-  const efectivoDisponible = efectivoVentas + efectivoAbonos - gastosCajaEfectivo;
+  const anticiposTotal = anticiposHoy.reduce((sum, anticipo) => sum + anticipo.valorOriginal, 0);
+  const anticiposEfectivo = anticiposHoy.filter(a => a.metodo === "EFECTIVO").reduce((sum, a) => sum + a.valorOriginal, 0);
+  const efectivoDisponible = efectivoVentas + efectivoAbonos + anticiposEfectivo - gastosCajaEfectivo;
 
   return {
     fechaDia: fechaFila,
@@ -702,6 +706,9 @@ export async function datosReporte(fechaFila: Date) {
     efectivoVentas,
     efectivoAbonos,
     efectivoDisponible,
+    anticiposHoy,
+    anticiposTotal,
+    anticiposEfectivo,
   };
 }
 

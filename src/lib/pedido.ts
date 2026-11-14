@@ -530,13 +530,16 @@ export async function crearPedido(opciones: {
   }
 
   return db.$transaction(async (tx) => {
+    if (await tx.cierreCaja.findUnique({ where: { fecha: fechaConsecutivo }, select: { id: true } })) {
+      throw new ErrorDePedido("La caja de hoy ya está cerrada: no se pueden crear pedidos posteriores.");
+    }
     const consecutivoDia = await siguienteConsecutivo(tx, fechaConsecutivo, "PEDIDO");
     // Descontar porciones con guardia atómica, ahora por cantidad: si la
     // fila ya no cupo la suma completa, aborta el pedido entero (nada queda
     // descontado a la mitad).
     for (const { item, cantidad } of consumo.values()) {
       const afectados =
-        await tx.$executeRaw`UPDATE MenuDiaItem SET vendidos = vendidos + ${cantidad} WHERE id = ${item.itemId} AND (stockPorciones IS NULL OR vendidos + ${cantidad} <= stockPorciones)`;
+        await tx.$executeRaw`UPDATE MenuDiaItem SET vendidos = vendidos + ${cantidad} WHERE id = ${item.itemId} AND (stockPorciones IS NULL OR vendidos + ${cantidad} + (SELECT COALESCE(SUM(r.cantidad), 0) FROM ApartadoReserva r JOIN Apartado a ON a.id = r.apartadoId WHERE r.menuDiaItemId = ${item.itemId} AND a.estado = 'PENDIENTE') <= stockPorciones)`;
       if (afectados !== 1) {
         throw new ErrorDePedido(
           `«${item.nombre}» se agotó. Revisa la selección e intenta otra vez.`,
@@ -592,11 +595,9 @@ export async function crearPedido(opciones: {
   });
 }
 
-/** Hoy a las 00:00 local (para traer solo los pedidos del día) */
+/** Medianoche de Colombia, también si el servidor se ejecuta en UTC. */
 export function inicioDeHoy(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return new Date(`${claveDia(new Date())}T00:00:00-05:00`);
 }
 
 /** Colores para los pocos estados financieros que siguen siendo visibles. */

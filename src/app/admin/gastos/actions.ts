@@ -68,10 +68,12 @@ export async function crearGasto(
   }
   const observaciones = texto(datos.get("observaciones"), 240) || null;
 
-  if (await db.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
-    return { error: "La caja de hoy ya está cerrada: no se pueden registrar gastos posteriores.", ok: null };
-  }
-  await db.gasto.create({
+  try {
+  await db.$transaction(async tx => {
+    if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) {
+      throw new ErrorDeGasto("La caja de hoy ya está cerrada: no se pueden registrar gastos posteriores.");
+    }
+    await tx.gasto.create({
     data: {
       descripcion,
       categoria,
@@ -81,7 +83,11 @@ export async function crearGasto(
       usuarioId: adminId,
       observaciones,
     },
+    });
   });
+  } catch (error) {
+    return { error: error instanceof ErrorDeGasto ? error.message : "No se pudo guardar el gasto. Actualiza e intenta otra vez.", ok: null };
+  }
 
   revalidar();
   return {
@@ -124,10 +130,15 @@ export async function anularGasto(
       if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(new Date()) }, select: { id: true } })) throw new ErrorDeGasto("La caja de hoy ya está cerrada: no se pueden modificar gastos posteriores.");
       const gasto = await tx.gasto.findUnique({
         where: { id: gastoId },
-        select: { anulado: true },
+        select: { anulado: true, createdAt: true },
       });
       if (!gasto) throw new ErrorDeGasto("Ese gasto ya no existe.");
       if (gasto.anulado) throw new ErrorDeGasto("Ese gasto ya estaba anulado.");
+      if (await tx.cierreCaja.findUnique({ where: { fecha: claveDia(gasto.createdAt) } })) throw new ErrorDeGasto("Este gasto pertenece a una caja cerrada. Su cierre histórico no se puede modificar.");
+      const pagoNomina = await tx.pagoNomina.findFirst({ where: { gastoId }, select: { id: true } });
+      const prestacion = await tx.pagoPrestacion.findFirst({ where: { gastoId }, select: { id: true } });
+      const credito = await tx.creditoNomina.findFirst({ where: { gastoId }, select: { id: true } });
+      if (pagoNomina || prestacion || credito) throw new ErrorDeGasto("Este gasto corresponde a una entrega de nómina o crédito. No se puede anular de forma aislada porque dejaría el pago registrado sin su salida de caja.");
       await tx.gasto.update({
         where: { id: gastoId },
         data: {

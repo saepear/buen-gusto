@@ -41,7 +41,7 @@ type Reporte = {
   fecha: string;
   esHistorico: boolean;
   resumen: {
-    ventas: number; abonos: number; gastosCaja: number; gastosCajaEfectivo: number;
+    ventas: number; anticipos: number; abonos: number; gastosCaja: number; gastosCajaEfectivo: number;
     gastosExternos: number; gastosTotal: number; efectivo: number; propinas: number;
     ticket: number; pagos: number; fiadoPendiente: number; fiadoNuevo: number;
     cuentasNuevas: number; servidas: number; pendientesCobro: number; canceladas: number;
@@ -105,7 +105,7 @@ export function PanelReportes({ reporte }: { reporte: Reporte }) {
     <nav className="report-tabs" aria-label="Secciones de reportes"><button aria-pressed={tab === "Resumen"} onClick={() => setTab("Resumen")}><ChartNoAxesCombined size={16} /> Resumen del día</button><button aria-pressed={tab === "Historial"} onClick={() => setTab("Historial")}><CalendarClock size={16} /> Cierres anteriores</button></nav>
     <div className={claseResultados} aria-busy={pendiente}>
       {tab === "Resumen" ? <>
-        <section className="report-headline"><div><span>DINERO DISPONIBLE</span><strong>{formatCOP(r.efectivo)}</strong><p>Ventas en efectivo + abonos − gastos pagados desde caja.</p></div><div className="report-headlineBreakdown"><Linea nombre="Ventas" valor={formatCOP(r.ventas)} tono="success" /><Linea nombre="Abonos" valor={`+${formatCOP(r.abonos)}`} tono="success" /><Linea nombre="Gastos en efectivo" valor={`−${formatCOP(r.gastosCajaEfectivo)}`} tono="warning" /></div></section>
+        <section className="report-headline"><div><span>DINERO DISPONIBLE</span><strong>{formatCOP(r.efectivo)}</strong><p>Ventas en efectivo + abonos + anticipos − gastos de caja.</p></div><div className="report-headlineBreakdown"><Linea nombre="Ventas" valor={formatCOP(r.ventas)} tono="success" /><Linea nombre="Abonos" valor={`+${formatCOP(r.abonos)}`} tono="success" /><Linea nombre="Anticipos recibidos" valor={`+${formatCOP(r.anticipos)}`} tono="success" /><Linea nombre="Gastos en efectivo" valor={`−${formatCOP(r.gastosCajaEfectivo)}`} tono="warning" /></div></section>
         <section className="report-cards" aria-label="Áreas del reporte">{tarjetas.map(({ tipo, titulo, valor, nota, Icono, acento }) => <button key={tipo} onClick={event => abrirDesde(event, tipo, setModal)} className={`report-card ${acento}`}><span className="report-cardIcon"><Icono size={21} /></span><ChevronRight className="report-cardArrow" size={18} /><p>{titulo}</p><strong>{valor}</strong><small>{nota}</small><footer>Ver detalle <ArrowUpRight size={14} /></footer></button>)}</section>
         <section className="report-quick"><div><span className="report-cardIcon"><CreditCard size={19} /></span><div><b>Cómo se cobró hoy</b><p>{reporte.metodos.filter(x => x.valor > 0).map(x => `${etiquetaMetodo[x.nombre] ?? x.nombre} ${formatCOP(x.valor)}`).join(" · ") || "Aún no hay cobros registrados"}</p></div></div><button onClick={event => abrirDesde(event, "ventas", setModal)}>Abrir resumen <ChevronRight size={16} /></button></section>
         {r.apartados > 0 ? <section className="report-apartados"><PackageCheck size={21} /><span><b>Apartados del día</b><p>{r.apartados} creados · {r.apartadosEntregados} entregados</p></span><Link href="/admin/apartados">Ver apartados <ArrowUpRight size={14} /></Link></section> : null}

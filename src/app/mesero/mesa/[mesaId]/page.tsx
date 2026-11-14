@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
+import { ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
 import { ordenDeItem } from "@/lib/roles";
 import { formatCOP, formatHora } from "@/lib/format";
@@ -66,7 +66,6 @@ export default async function PaginaMesa(
     where: {
       mesaId,
       estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-      createdAt: { gte: inicioDeHoy() },
     },
     include: { items: { include: { producto: true } }, mesero: true },
     orderBy: { createdAt: "desc" },

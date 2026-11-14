@@ -6,7 +6,6 @@ import {
   HandCoins,
   Landmark,
   NotebookPen,
-  UserRound,
   Wallet,
 } from "lucide-react";
 import { useActionState, useState } from "react";

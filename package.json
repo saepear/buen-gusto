@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:nomina": "tsx --test scripts/nomina-resumen.test.ts scripts/nomina-ciclos.test.ts scripts/nomina-pago.test.ts scripts/nomina-directa.test.ts scripts/caja-conciliacion.test.ts",
     "test:consecutivos": "tsx --test scripts/consecutivos-diarios.test.ts",
+    "test:flujos": "tsx --test scripts/flujos-app.test.ts",
     "db:push": "prisma db push",
     "db:nomina": "tsx scripts/instalar-nomina.ts",
     "db:seed": "tsx prisma/seed.ts"

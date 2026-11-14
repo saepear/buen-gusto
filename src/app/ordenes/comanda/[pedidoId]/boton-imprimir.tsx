@@ -4,6 +4,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { ESTILO_TICKET } from "@/lib/impresion";
 
 export function BotonImprimir({
   leyenda = "Imprimir comanda",
@@ -42,11 +43,11 @@ export function BotonImprimir({
       // la impresión es lo importante, el guardia del ref cubre el resto.
     }
 
-    window.print();
+    void document.fonts.ready.then(() => window.print());
   }, [autoPrint]);
 
   return (
-    <div className="mt-6 flex justify-center gap-3 print:hidden">
+    <><style>{`@media print {${ESTILO_TICKET}}`}</style><div data-print-controls="" className="mt-6 flex justify-center gap-3 print:hidden">
       <button
         type="button"
         onClick={() => window.print()}
@@ -60,6 +61,6 @@ export function BotonImprimir({
       >
         <ArrowLeft className="h-5 w-5" /> Volver
       </Link>
-    </div>
+    </div></>
   );
 }

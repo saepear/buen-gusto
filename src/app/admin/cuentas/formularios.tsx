@@ -61,7 +61,6 @@ export type OpcionCliente = { id: number; etiqueta: string };
  *   comanda.
  */
 export function FormularioNuevaCuenta({
-  clientes = [],
   clienteFijo = null,
   sinTitulo = false,
 }: {
@@ -86,8 +85,8 @@ export function FormularioNuevaCuenta({
   useEffect(() => {
     if (hayFichaFija) return;
     let cancelada = false;
-    setBuscando(true);
     const t = setTimeout(async () => {
+      setBuscando(true);
       try {
         const r = await buscarClientesPicker(termino, pagina);
         if (cancelada) return;
@@ -141,28 +140,25 @@ export function FormularioNuevaCuenta({
     (desglose.apartadoId !== null ||
       (montoFiado > 0 && montoFiado <= desglose.pendiente));
 
-  async function cargarPedidosDePersona(clienteId: number) {
-    setCargandoPedidos(true);
-    setErrorPedido(null);
-    try {
-      setPedidos(await listarPedidosFiables(clienteId));
-    } catch {
-      setErrorPedido("No se pudieron cargar los pedidos de esa persona.");
-    } finally {
-      setCargandoPedidos(false);
-    }
-  }
-
   /** Al elegir persona, sus pedidos por fiar llegan solos */
   useEffect(() => {
     const clienteActual = clienteFijo ?? elegido;
-    if (!clienteActual) {
-      setPedidos(null);
-      return;
-    }
-    void cargarPedidosDePersona(clienteActual.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteFijo, elegido?.id]);
+    if (!clienteActual) return;
+    let cancelada = false;
+    const timer = setTimeout(async () => {
+      setCargandoPedidos(true);
+      setErrorPedido(null);
+      try {
+        const lista = await listarPedidosFiables(clienteActual.id);
+        if (!cancelada) setPedidos(lista);
+      } catch {
+        if (!cancelada) setErrorPedido("No se pudieron cargar los pedidos de esa persona.");
+      } finally {
+        if (!cancelada) setCargandoPedidos(false);
+      }
+    }, 0);
+    return () => { cancelada = true; clearTimeout(timer); };
+  }, [clienteFijo, elegido]);
 
   async function abrirListaPedidos() {
     setCargandoPedidos(true);
@@ -240,7 +236,7 @@ export function FormularioNuevaCuenta({
             {elegido.etiqueta}
             <button
               type="button"
-              onClick={() => setElegido(null)}
+              onClick={() => { setElegido(null); setPedidos(null); setDesglose(null); }}
               title="Cambiar de cliente"
               className="rounded-full p-1 text-texto-muted/60 transition hover:bg-campo-app hover:text-danger-text"
             >

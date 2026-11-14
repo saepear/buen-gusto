@@ -263,6 +263,12 @@ export async function construirLibroExcel(
   }
 
   fila += 1;
+  subtituloBloque(resumen, fila, "Anticipos recibidos (saldo a favor del cliente)");
+  fila += 1;
+  filaResumen(resumen, fila, "Anticipos del día", datos.anticiposTotal, { dinero: true });
+  fila += 1;
+  filaResumen(resumen, fila, "Anticipos en efectivo", datos.anticiposEfectivo, { dinero: true });
+  fila += 2;
   subtituloBloque(resumen, fila, "Gastos del día");
   fila += 1;
   filaResumen(resumen, fila, "Gastos pagados desde caja", datos.gastosCaja, {
@@ -282,6 +288,8 @@ export async function construirLibroExcel(
   filaResumen(resumen, fila, "(+ ) Efectivo de ventas", datos.efectivoVentas, { dinero: true });
   fila += 1;
   filaResumen(resumen, fila, "(+ ) Efectivo de abonos de deudas", datos.efectivoAbonos, { dinero: true });
+  fila += 1;
+  filaResumen(resumen, fila, "(+ ) Efectivo de anticipos", datos.anticiposEfectivo, { dinero: true });
   fila += 1;
   filaResumen(resumen, fila, "(− ) Gastos pagados con efectivo de caja", datos.gastosCajaEfectivo, { dinero: true });
   fila += 1;

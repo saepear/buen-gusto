@@ -2,7 +2,7 @@
 
 import gsap from "gsap";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SidebarAdmin } from "./sidebar-admin";
 
 // w-64 = 256px (ancho del sidebar) · canal mínimo visible cuando está cerrado
@@ -29,7 +29,7 @@ export function AdminShell({
   // Marca si hay una animación en curso para ignorar el "resize" que dispara el navegador
   type Objetivo = Parameters<typeof gsap.to>[0];
   type Vars = NonNullable<Parameters<typeof gsap.to>[1]>;
-  const animar = (objetivo: Objetivo, vars: Vars, dur: number) => {
+  const animar = useCallback((objetivo: Objetivo, vars: Vars, dur: number) => {
     if (dur === 0) {
       gsap.set(objetivo, vars);
       return;
@@ -42,7 +42,7 @@ export function AdminShell({
         activoRef.current = false;
       },
     });
-  };
+  }, []);
 
   useEffect(() => {
     const sidebar = sidebarRef.current;
@@ -111,7 +111,7 @@ export function AdminShell({
     };
     window.addEventListener("resize", alRedimensionar);
     return () => window.removeEventListener("resize", alRedimensionar);
-  }, [abierto]);
+  }, [abierto, animar]);
 
   return (
     <div className="flex min-h-screen flex-col bg-fondo-app text-texto-app lg:flex-row">

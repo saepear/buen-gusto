@@ -16,6 +16,7 @@ import { exigirAdmin } from "@/lib/session";
 import { claveDia } from "@/lib/format";
 import { numeroVisible } from "@/lib/consecutivos";
 import { realtime } from "@/lib/realtime";
+import { fotoPedidos } from "@/lib/recibo";
 
 export type EstadoAccionCaja = { error: string | null; ok?: string };
 
@@ -32,9 +33,10 @@ export async function cobrarMesa(
   _previa: EstadoAccionCaja,
   datos: FormData,
 ): Promise<EstadoAccionCaja> {
+  let cobradoPorNombre: string;
   try {
     const sesion = await exigirAdmin();
-    void sesion;
+    cobradoPorNombre = sesion.nombre;
   } catch {
     return { error: "Solo el administrador puede cobrar en la caja." };
   }
@@ -85,7 +87,7 @@ export async function cobrarMesa(
           estado: { in: ESTADOS_ACTIVOS_PEDIDO },
         },
         include: {
-          items: { include: { producto: { select: { precio: true } } } },
+          items: { include: { producto: { select: { nombre: true, precio: true } } } },
         },
         orderBy: { createdAt: "asc" },
       });
@@ -137,6 +139,8 @@ export async function cobrarMesa(
           metodo,
           montoPagado,
           vueltas,
+          pedidosSnapshot: JSON.stringify(fotoPedidos(pedidos)),
+          cobradoPorNombre,
         },
       });
 
@@ -162,7 +166,7 @@ export async function cobrarMesa(
   revalidatePath("/ordenes", "layout");
   realtime.broadcast("update");
 
-  redirect(`/admin/caja/recibo/${nuevoPagoId}`);
+  redirect(`/admin/caja/recibo/${nuevoPagoId}?autoPrint=1`);
 }
 
 /**

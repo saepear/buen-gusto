@@ -37,8 +37,8 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Fecha inválida." }, { status: 400 });
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(fechaParam)) {
-    const [y, m, d] = fechaParam.split("-").map(Number);
-    fechaFila = new Date(y, m - 1, d);
+    fechaFila = new Date(`${fechaParam}T00:00:00-05:00`);
+    if (Number.isNaN(fechaFila.getTime())) return NextResponse.json({ error: "Fecha inexistente." }, { status: 400 });
     if (claveDia(fechaFila) !== fechaParam) return NextResponse.json({ error: "Fecha inexistente." }, { status: 400 });
   }
 

@@ -23,7 +23,7 @@ export default async function PaginaOrdenes(props: PageProps<"/ordenes">) {
   const cierre = await db.cierreCaja.findUnique({ where: { fecha: dia } });
 
   const dondeHoy: Prisma.PedidoWhereInput = {
-    createdAt: { gte: new Date(dia + "T00:00:00"), lte: new Date(dia + "T23:59:59") },
+    createdAt: { gte: new Date(dia + "T00:00:00-05:00"), lte: new Date(dia + "T23:59:59.999-05:00") },
   };
   // Las comandas activas no desaparecen al cambiar la fecha: deben poder
   // cobrarse, fiarse o anularse desde el mismo tablero.

@@ -179,7 +179,7 @@ export async function crearDomicilio(
 
   revalidarDomicilios();
   // El domicilio queda listo para cobro; el sistema no controla preparación.
-  redirect("/admin/domicilios");
+  redirect(`/ordenes/comanda/${pedidoId}?autoPrint=1&volver=/admin/domicilios`);
 }
 
 /** Cancela un domicilio que aún no salió: devuelve las porciones al menú */
@@ -385,7 +385,7 @@ export async function cobrarDomicilio(
   revalidarDomicilios();
   // La factura del pago queda lista para imprimir (80mm): comanda ya no, la
   // impresión de cocina salió al crear el domicilio.
-  redirect(`/admin/domicilios/factura/${nuevoPagoId}`);
+  redirect(`/admin/domicilios/factura/${nuevoPagoId}?autoPrint=1`);
 }
 
 /**

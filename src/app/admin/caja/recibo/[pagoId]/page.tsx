@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { formatCOP, formatFecha, formatHora } from "@/lib/format";
-import { numeroVisible } from "@/lib/consecutivos";
-import { precioUnitarioItem, nombreDeItem } from "@/lib/precios";
-import { ESTADO_PEDIDO, ordenDeItem } from "@/lib/roles";
+import { ordenDeItem } from "@/lib/roles";
+import { fotoPedidos, leerFotoPedidos } from "@/lib/recibo";
 import { requerirRol } from "@/lib/session";
 import { BotonImprimir } from "@/app/ordenes/comanda/[pedidoId]/boton-imprimir";
 
@@ -19,40 +18,21 @@ const METODO_TXT: Record<string, string> = {
 export default async function PaginaRecibo(
   props: PageProps<"/admin/caja/recibo/[pagoId]">,
 ) {
-  const sesion = await requerirRol("ADMIN");
+  await requerirRol("ADMIN");
   const { pagoId: crudo } = await props.params;
   const id = Number.parseInt(crudo, 10);
   if (!Number.isInteger(id)) notFound();
 
   const pago = await db.pago.findUnique({
     where: { id },
-    include: { pedido: { include: { mesa: true } } },
+    include: { pedido: { include: { mesa: true, items: { include: { producto: true } } } } },
   });
   if (!pago) notFound();
 
-  const mesaId = pago.pedido.mesaId;
-  // El cobro abarca todas las comandas pagadas entre el pago anterior de la
-  // misma mesa y este pago. No se limita al día: una comanda pendiente de
-  // ayer debe poder cobrarse y generar un recibo completo hoy.
-  const pagoPrevio = await db.pago.findFirst({
-    where: {
-      createdAt: { lt: pago.createdAt },
-      pedido: { mesaId },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  const pedidos = await db.pedido.findMany({
-    where: {
-      mesaId,
-      estado: ESTADO_PEDIDO.COBRADO,
-      createdAt: {
-        gt: pagoPrevio?.createdAt ?? new Date(0),
-        lte: pago.createdAt,
-      },
-    },
-    include: { items: { include: { producto: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  // Los tickets nuevos conservan el lote exacto. Para los registros anteriores
+  // solo es fiable la comanda enlazada; no se adivinan otros pedidos por fecha.
+  const foto = leerFotoPedidos(pago.pedidosSnapshot);
+  const pedidos = foto ?? fotoPedidos([pago.pedido]);
 
   return (
     <div className="min-h-screen bg-fondo-app py-8">
@@ -77,7 +57,8 @@ export default async function PaginaRecibo(
         <p className="mt-1 text-[11px]">
           {formatFecha(pago.createdAt)} · {formatHora(pago.createdAt)}
         </p>
-        <p className="text-[11px]">Cobró: {sesion.nombre}</p>
+        {pago.cobradoPorNombre && <p className="text-[11px]">Cobró: {pago.cobradoPorNombre}</p>}
+        {!foto && <p className="text-[10px]">Registro histórico: detalle de la comanda vinculada al pago.</p>}
 
         <div className="my-3 border-t border-dashed border-brown-950/30" />
 
@@ -88,7 +69,7 @@ export default async function PaginaRecibo(
         {pedidos.map((pedido, indice) => (
           <div key={pedido.id} className={indice > 0 ? "mt-3" : ""}>
             <p className="text-[11px] font-bold uppercase tracking-wide">
-              Comanda #{numeroVisible(pedido)} · {formatHora(pedido.createdAt)}
+              Comanda #{pedido.numero} · {formatHora(new Date(pedido.fecha))}
             </p>
             {pedido.paraLlevar ? (
               <p className="mt-0.5 text-[11px] font-bold tracking-widest">
@@ -105,15 +86,15 @@ export default async function PaginaRecibo(
                   <li key={item.id} className="flex gap-2 text-sm">
                     <span className="font-bold">{item.cantidad}×</span>
                     <span className="flex-1 font-bold uppercase">
-                      {nombreDeItem(item)}
+                      {item.nombre}
                       {item.tipo === "PROTEINA" && item.conSopa === false
                         ? " (sin sopa)"
                         : ""}
                       {item.nota ? ` (${item.nota})` : ""}
                     </span>
-                    {precioUnitarioItem(item) > 0 ? (
+                    {item.precio > 0 ? (
                       <span className="font-bold">
-                        {formatCOP(precioUnitarioItem(item) * item.cantidad)}
+                        {formatCOP(item.precio * item.cantidad)}
                       </span>
                     ) : null}
                   </li>

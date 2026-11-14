@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { ESTADOS_ACTIVOS_PEDIDO, inicioDeHoy } from "@/lib/pedido";
+import { ESTADOS_ACTIVOS_PEDIDO } from "@/lib/pedido";
 import { type EstadoMesa } from "@/lib/roles";
 import { ordenMesasPorNombre } from "@/lib/mesas";
 import { requerirRol } from "@/lib/session";
@@ -18,7 +18,6 @@ export default async function PaginaMesero() {
     db.pedido.findMany({
       where: {
         estado: { in: ESTADOS_ACTIVOS_PEDIDO },
-        createdAt: { gte: inicioDeHoy() },
       },
       select: { mesaId: true, estado: true },
     }),

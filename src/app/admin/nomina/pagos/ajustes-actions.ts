@@ -15,7 +15,8 @@ export async function ajustarPago(_: { error: string | null }, form: FormData): 
   if (!quitar && (!["BONIFICACION", "DESCUENTO"].includes(tipo) || !descripcion || !Number.isSafeInteger(valor) || valor <= 0 || valor > 2147483647)) return { error: "Indica el concepto y un valor entero positivo en pesos." };
   try {
     await db.$transaction(async tx => {
-      const pago = await tx.liquidacionNomina.findUnique({ where: { id }, include: { periodo: true } });
+      const pago = await tx.liquidacionNomina.findUnique({ where: { id }, include: { periodo: true, jornada: true } });
+      if (pago?.jornada?.estado !== "ABIERTA") throw new Error("Abre una jornada de pagos antes de ajustar esta ficha.");
       if (!pago || pago.estado !== "BORRADOR" || pago.pagado !== 0 || pago.periodo.estado === "CERRADO") throw new Error("Solo puedes ajustar un pago en preparación y sin abonos.");
       if (JSON.parse(pago.contratoFoto).esquemaPago !== "INTERNO_V1") throw new Error("Recalcula este borrador para usar el nuevo formato de pago.");
       let cambio = valor;

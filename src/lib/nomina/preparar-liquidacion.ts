@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { calcularPago } from "@/lib/nomina/pago";
-import { contratoVigente } from "@/lib/nomina/helpers";
+import type { Prisma } from "@prisma/client";
 import type { NovedadResumen } from "@/lib/nomina/calculo";
 
 export type ResultadoPrepararLiquidacion = { error: string | null; ok: string | null };
@@ -17,32 +17,37 @@ export async function prepararLiquidacion({
   empleadoId,
   usuarioId,
   soloSiFalta = false,
+  cliente = db,
 }: {
   periodoId: number;
   empleadoId: number;
   usuarioId: number;
   soloSiFalta?: boolean;
+  cliente?: Prisma.TransactionClient | typeof db;
 }): Promise<ResultadoPrepararLiquidacion> {
-  const periodo = await db.periodoNomina.findUnique({ where: { id: periodoId } });
+  const periodo = await cliente.periodoNomina.findUnique({ where: { id: periodoId } });
   if (!periodo) return { error: "El período no existe.", ok: null };
   if (periodo.estado === "CERRADO") return { error: "El período está CERRADO: sus liquidaciones no se recalculan.", ok: null };
 
-  const empleado = await db.empleado.findUnique({ where: { id: empleadoId } });
+  const empleado = await cliente.empleado.findUnique({ where: { id: empleadoId } });
   if (!empleado) return { error: "El empleado no existe.", ok: null };
   if (empleado.fechaIngreso > new Date(`${periodo.fechaHasta}T12:00:00.000Z`)) return { error: `${empleado.nombre} ingresó después del período: no le corresponde esta nómina.`, ok: null };
   if (empleado.estado === "INACTIVO" && empleado.fechaRetiro && empleado.fechaRetiro < new Date(`${periodo.fechaDesde}T12:00:00.000Z`)) return { error: `${empleado.nombre} se hizo retiro antes del período: no le corresponde esta nómina.`, ok: null };
 
-  const anterior = await db.liquidacionNomina.findUnique({ where: { periodoId_empleadoId: { periodoId, empleadoId } } });
+  const anterior = await cliente.liquidacionNomina.findUnique({ where: { periodoId_empleadoId: { periodoId, empleadoId } } });
   if (soloSiFalta && anterior) {
     if (anterior.pagado > 0 || anterior.estadoPago === "PAGADO") return { error: null, ok: null };
   }
   if (anterior?.estadoPago === "PAGADO") return { error: "Este pago ya está saldado y no se recalcula.", ok: null };
   if (anterior && anterior.pagado > 0) return { error: "La liquidación ya tiene pagos y no se recalcula.", ok: null };
 
-  const contrato = await contratoVigente(empleadoId, periodo.fechaHasta);
+  const contrato = await cliente.contratoVersion.findFirst({
+    where: { empleadoId, desde: { lte: new Date(`${periodo.fechaHasta}T12:00:00.000Z`) } },
+    orderBy: { desde: "desc" },
+  });
   if (!contrato) return { error: "El empleado no tiene contrato vigente para el período.", ok: null };
 
-  const novedades = await db.novedadNomina.findMany({
+  const novedades = await cliente.novedadNomina.findMany({
     where: {
       empleadoId,
       estado: "APROBADA",
@@ -52,7 +57,7 @@ export async function prepararLiquidacion({
     },
     orderBy: { fecha: "asc" },
   });
-  const vales = await db.valeNomina.findMany({
+  const vales = await cliente.valeNomina.findMany({
     where: {
       empleadoId,
       OR: [
@@ -106,7 +111,7 @@ export async function prepararLiquidacion({
     vigenteDesde: contrato.desde.toISOString().slice(0, 10),
   });
 
-  await db.$transaction(async (tx) => {
+  const guardar = async (tx: Prisma.TransactionClient) => {
     const yaExiste = await tx.liquidacionNomina.findUnique({ where: { periodoId_empleadoId: { periodoId, empleadoId } } });
     if (yaExiste && anterior && yaExiste.updatedAt.getTime() !== anterior.updatedAt.getTime()) throw new Error("El pago cambió mientras se calculaba. Actualiza y vuelve a intentarlo.");
     if (yaExiste) {
@@ -157,7 +162,9 @@ export async function prepararLiquidacion({
       const vinculados = await tx.valeNomina.updateMany({ where: { id: { in: vales.map(v => v.id) }, estado: { in: ["PENDIENTE", "AUTORIZADO"] }, liquidacionId: null }, data: { estado: "AUTORIZADO", liquidacionId: liquidacion.id, cicloId: periodoId } });
       if (vinculados.count !== vales.length) throw new Error("Un vale cambió o ya pertenece a otro pago. Vuelve a intentarlo.");
     }
-  });
+  };
+  if ("$transaction" in cliente) await cliente.$transaction(guardar);
+  else await guardar(cliente);
 
   return { ok: `Pago de ${empleado.nombre} ${empleado.apellidos} preparado (borrador).`, error: null };
 }

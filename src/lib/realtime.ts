@@ -8,7 +8,7 @@ class RealtimeManager {
     return () => this.subscribers.delete(callback);
   }
 
-  broadcast(event: string, data: any = {}) {
+  broadcast(event: string, data: unknown = {}) {
     const payload = JSON.stringify({ event, data, timestamp: Date.now() });
     this.subscribers.forEach((cb) => cb(payload));
   }

@@ -10,8 +10,8 @@ export default async function PaginaReportes(props: PageProps<"/admin/reportes">
   const hoyClave = claveDia(new Date());
   let fechaFila = inicioDeHoy();
   if (typeof fechaCruda === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fechaCruda)) {
-    const [ano, mes, dia] = fechaCruda.split("-").map(Number);
-    fechaFila = new Date(ano, mes - 1, dia);
+    const propuesta = new Date(`${fechaCruda}T00:00:00-05:00`);
+    if (!Number.isNaN(propuesta.getTime()) && claveDia(propuesta) === fechaCruda) fechaFila = propuesta;
   }
   const datos = await datosReporte(fechaFila);
   const aIso = (fecha: Date) => fecha.toISOString();
@@ -30,7 +30,7 @@ export default async function PaginaReportes(props: PageProps<"/admin/reportes">
     fecha: claveDia(fechaFila),
     esHistorico: claveDia(fechaFila) !== hoyClave,
     resumen: {
-      ventas: datos.pagadoHoy, abonos: datos.abonosTotal, gastosCaja: datos.gastosCaja,
+      ventas: datos.pagadoHoy, anticipos: datos.anticiposTotal, abonos: datos.abonosTotal, gastosCaja: datos.gastosCaja,
       gastosCajaEfectivo: datos.gastosCajaEfectivo, gastosExternos: datos.gastosExternos,
       gastosTotal: datos.gastosTotal, efectivo: datos.efectivoDisponible, propinas: datos.propinasHoy,
       ticket: datos.ticketPromedio, pagos: datos.numeroPagos, fiadoPendiente: datos.cxcPendienteTotal,

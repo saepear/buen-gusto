@@ -269,6 +269,9 @@ async function purgarReferenciasDeProducto(tx: Tx, productoId: number): Promise<
     where: { productoId: productoId },
     data: { productoId: null },
   });
+  // Los vales conservan su propia foto (nombre/precio); se desvincula el
+  // catálogo para que eliminar un producto con consumos históricos no falle.
+  await tx.valeNomina.updateMany({ where: { productoId }, data: { productoId: null } });
   // 4) El producto sale de TODOS los menús (todas las fechas)
   const menues = await tx.menuDiaItem.deleteMany({
     where: { productoId: productoId },

@@ -68,12 +68,12 @@ export function precioUnitarioItem(
 
 /**
  * Nombre de una línea de comanda que sobrevive al borrado del producto:
- * el nombre vivo si el producto sigue existiendo, si no la foto histórica
+ * la foto histórica fijada al ordenar; si no existe usa el catálogo vivo
  * tomada al ordenar (productoNombre); «(eliminado)» solo para filas viejas
  * sin ninguna de las dos (no debería existir tras el relleno).
  */
 export function nombreDeItem(
   item: { producto: { nombre: string } | null; productoNombre?: string | null },
 ): string {
-  return item.producto?.nombre ?? item.productoNombre ?? "(producto eliminado)";
+  return item.productoNombre ?? item.producto?.nombre ?? "(producto eliminado)";
 }

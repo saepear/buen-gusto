@@ -1079,7 +1079,7 @@ export async function entregarApartado(
       // Descuento atómico de porciones (solo lo que está en el menú de hoy)
       for (const [itemId, { nombre, cantidad }] of consumo) {
         const afectados =
-          await tx.$executeRaw`UPDATE MenuDiaItem SET vendidos = vendidos + ${cantidad} WHERE id = ${itemId} AND (stockPorciones IS NULL OR vendidos + ${cantidad} <= stockPorciones)`;
+          await tx.$executeRaw`UPDATE MenuDiaItem SET vendidos = vendidos + ${cantidad} WHERE id = ${itemId} AND (stockPorciones IS NULL OR vendidos + ${cantidad} + (SELECT COALESCE(SUM(r.cantidad), 0) FROM ApartadoReserva r JOIN Apartado a ON a.id = r.apartadoId WHERE r.menuDiaItemId = ${itemId} AND a.estado = 'PENDIENTE' AND a.id <> ${apartado.id}) <= stockPorciones)`;
         if (afectados !== 1) {
           throw new ErrorDeApartado(
             `Hoy no alcanzan las porciones de ${nombre} para completar el apartado.`,

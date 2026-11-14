@@ -169,6 +169,8 @@ model Pago {
   // aplican al efectivo; null = pago exacto o con otro método.
   montoPagado Int?
   vueltas     Int?
+  pedidosSnapshot String? // artículos exactos de este cobro; nunca se reconstruyen por fecha
+  cobradoPorNombre String?
   createdAt   DateTime @default(now())
 }
 

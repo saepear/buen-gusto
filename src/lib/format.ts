@@ -9,17 +9,17 @@ export function formatFecha(fecha: Date): string {
     weekday: "long",
     day: "numeric",
     month: "long",
+    timeZone: "America/Bogota",
   });
 }
 
 export function formatHora(fecha: Date): string {
-  return fecha.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
+  return fecha.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", timeZone: "America/Bogota" });
 }
 
 /** yyyy-mm-dd para agrupar menús por día */
 export function claveDia(fecha: Date): string {
-  const y = fecha.getFullYear();
-  const m = String(fecha.getMonth() + 1).padStart(2, "0");
-  const d = String(fecha.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(fecha);
+  const parte = (tipo: string) => partes.find(p => p.type === tipo)?.value;
+  return `${parte("year")}-${parte("month")}-${parte("day")}`;
 }
